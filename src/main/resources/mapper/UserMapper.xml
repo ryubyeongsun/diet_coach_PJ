@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  UserMapper SQL definitions.
+-->
+<mapper namespace="com.dietcoach.project.mapper.UserMapper">
+
+    <resultMap id="UserResultMap" type="com.dietcoach.project.domain.User">
+        <id     column="id"                 property="id"/>
+        <result column="email"              property="email"/>
+        <result column="password"           property="password"/>
+        <result column="nickname"           property="nickname"/>
+        <result column="gender"             property="gender"/>
+        <result column="age"                property="age"/>
+        <result column="height_cm"          property="heightCm"/>
+        <result column="weight_kg"          property="weightKg"/>
+        <result column="activity_level"     property="activityLevel"/>
+        <result column="goal_type"          property="goalType"/>
+        <result column="target_weight_kg"   property="targetWeightKg"/>
+        <result column="created_at"         property="createdAt"/>
+        <result column="updated_at"         property="updatedAt"/>
+    </resultMap>
+
+    <!-- Insert new user -->
+    <insert id="insertUser" parameterType="com.dietcoach.project.domain.User" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (
+            email,
+            password,
+            nickname,
+            gender,
+            age,
+            height_cm,
+            weight_kg,
+            activity_level,
+            goal_type,
+            target_weight_kg
+        ) VALUES (
+            #{email},
+            #{password},
+            #{nickname},
+            #{gender},
+            #{age},
+            #{heightCm},
+            #{weightKg},
+            #{activityLevel},
+            #{goalType},
+            #{targetWeightKg}
+        )
+    </insert>
+
+    <!-- Fetch single user by id -->
+    <select id="findById" parameterType="long" resultMap="UserResultMap">
+        SELECT *
+        FROM users
+        WHERE id = #{id}
+    </select>
+
+    <!-- Fetch single user by email (for login / duplication check) -->
+    <select id="findByEmail" parameterType="string" resultMap="UserResultMap">
+        SELECT *
+        FROM users
+        WHERE email = #{email}
+    </select>
+
+</mapper>
