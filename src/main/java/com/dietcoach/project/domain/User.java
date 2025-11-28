@@ -1,14 +1,15 @@
 package com.dietcoach.project.domain;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
 /**
- * User entity including profile information required for TDEE calculation.
+ * users 테이블 매핑 엔티티
  */
 @Data
 @NoArgsConstructor
@@ -19,28 +20,23 @@ public class User {
     private Long id;
 
     private String email;
-
-    // TODO: 초기 개발 단계에서는 plain text일 수 있으나,
-    //       실제 서비스에서는 반드시 hashing 적용 필요.
     private String password;
-
-    private String nickname;
+    private String name;
 
     private Gender gender;
+    private LocalDate birthDate;
 
-    private Integer age;
-
-    private Double heightCm;
-
-    private Double weightKg;
+    private Double height; // cm
+    private Double weight; // kg
 
     private ActivityLevel activityLevel;
-
     private GoalType goalType;
 
-    private Double targetWeightKg;
+    // 계산 결과
+    private Double bmr;
+    private Double tdee;
+    private Double targetCalories;
 
     private LocalDateTime createdAt;
-
     private LocalDateTime updatedAt;
 }
