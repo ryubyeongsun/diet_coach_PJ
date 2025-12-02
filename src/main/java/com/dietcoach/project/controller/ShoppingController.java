@@ -31,7 +31,7 @@ public class ShoppingController {
             @RequestParam(required = false) Integer size
     ) {
         List<ShoppingProductResponse> result = shoppingService.search(keyword, page, size);
-        return ApiResponse.ok("search completed", result);
+        return ApiResponse.success("search completed", result);
     }
 
     /**
@@ -43,6 +43,6 @@ public class ShoppingController {
             @RequestParam(required = false) Integer neededGram
     ) {
         List<ShoppingProductResponse> result = shoppingService.recommend(ingredient, neededGram);
-        return ApiResponse.ok("recommendation completed", result);
+        return ApiResponse.success("recommendation completed", result);
     }
 }
