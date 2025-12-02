@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.dietcoach.project.common.ApiResponse;
+import com.dietcoach.project.dto.TdeeResponse;
 import com.dietcoach.project.dto.UserCreateRequest;
 import com.dietcoach.project.dto.UserProfileResponse;
 import com.dietcoach.project.service.UserService;
@@ -34,4 +35,10 @@ public class UserController {
         UserProfileResponse profile = userService.getUserProfile(id);
         return ResponseEntity.ok(ApiResponse.success(profile));
     }
+
+@GetMapping("/{id}/tdee")
+public ResponseEntity<ApiResponse<TdeeResponse>> getUserTdee(@PathVariable Long id) {
+    TdeeResponse tdee = userService.getUserTdee(id);
+    return ResponseEntity.ok(ApiResponse.success(tdee));
+}
 }

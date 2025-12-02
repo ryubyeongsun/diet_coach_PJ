@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dietcoach.project.common.TdeeCalculator;
 import com.dietcoach.project.common.error.BusinessException;
 import com.dietcoach.project.domain.User;
+import com.dietcoach.project.dto.TdeeResponse;
 import com.dietcoach.project.dto.UserCreateRequest;
 import com.dietcoach.project.dto.UserProfileResponse;
 import com.dietcoach.project.mapper.UserMapper;
@@ -83,4 +84,19 @@ public class UserServiceImpl implements UserService {
                 .targetCalories(user.getTargetCalories())
                 .build();
     }
+@Override
+@Transactional(readOnly = true)
+public TdeeResponse getUserTdee(Long userId) {
+    User user = userMapper.findById(userId);
+    if (user == null) {
+        throw new BusinessException("존재하지 않는 사용자입니다.");
+    }
+
+    return TdeeResponse.builder()
+            .bmr(user.getBmr())
+            .tdee(user.getTdee())
+            .targetCalories(user.getTargetCalories())
+            .build();
+}
+
 }
