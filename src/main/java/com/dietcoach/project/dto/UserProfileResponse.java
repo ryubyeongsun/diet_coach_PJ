@@ -1,40 +1,36 @@
 package com.dietcoach.project.dto;
 
+import java.time.LocalDate;
+
 import com.dietcoach.project.domain.ActivityLevel;
 import com.dietcoach.project.domain.Gender;
 import com.dietcoach.project.domain.GoalType;
+
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
-/**
- * User profile view including derived metrics such as BMR and TDEE.
- */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class UserProfileResponse {
 
     private Long id;
-
     private String email;
-
-    private String nickname;
+    private String name;
 
     private Gender gender;
+    private LocalDate birthDate;
 
-    private Integer age;
-
-    private Double heightCm;
-
-    private Double weightKg;
+    private Double height;
+    private Double weight;
 
     private ActivityLevel activityLevel;
-
     private GoalType goalType;
 
-    private Double targetWeightKg;
-
-    // Derived values
-    private Double bmr;              // 기초대사량
-    private Double tdee;             // 유지칼로리
-    private Double targetCalorie;    // 목표 섭취 칼로리
+    private Double bmr;
+    private Double tdee;
+    private Double targetCalories;
 }

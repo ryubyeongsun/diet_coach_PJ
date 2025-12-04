@@ -2,16 +2,14 @@ package com.dietcoach.project.mapper;
 
 import com.dietcoach.project.domain.User;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
-/**
- * MyBatis mapper for user persistence.
- */
 @Mapper
 public interface UserMapper {
 
     int insertUser(User user);
 
-    User findById(Long id);
+    User findById(@Param("id") Long id);
 
-    User findByEmail(String email);
+    User findByEmail(@Param("email") String email);   // ⭐ 여기 이름이 XML id랑 100% 같아야 함
 }

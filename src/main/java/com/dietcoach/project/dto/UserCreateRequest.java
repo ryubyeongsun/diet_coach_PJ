@@ -1,52 +1,32 @@
 package com.dietcoach.project.dto;
 
+import java.time.LocalDate;
+
 import com.dietcoach.project.domain.ActivityLevel;
 import com.dietcoach.project.domain.Gender;
 import com.dietcoach.project.domain.GoalType;
-import jakarta.validation.constraints.*;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
-/**
- * Request payload for initial user registration and profile setup.
- */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class UserCreateRequest {
 
-    @NotBlank
-    @Email
     private String email;
-
-    @NotBlank
-    @Size(min = 4, max = 50)
     private String password;
+    private String name;
 
-    @NotBlank
-    @Size(max = 30)
-    private String nickname;
-
-    @NotNull
     private Gender gender;
+    private LocalDate birthDate;
 
-    @NotNull
-    @Min(10)
-    @Max(120)
-    private Integer age;
+    private Double height;
+    private Double weight;
 
-    @NotNull
-    @Positive
-    private Double heightCm;
-
-    @NotNull
-    @Positive
-    private Double weightKg;
-
-    @NotNull
     private ActivityLevel activityLevel;
-
-    @NotNull
     private GoalType goalType;
-
-    @Positive
-    private Double targetWeightKg;
 }
