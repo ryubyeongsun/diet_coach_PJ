@@ -113,6 +113,8 @@ public class ElevenstShoppingClient implements ShoppingClient {
                 .encode(StandardCharsets.UTF_8)
                 .toUri();
 
+        
+        
         log.info("[11st] Calling API: {}", uri);
 
         String response = restTemplate.getForObject(uri, String.class);
