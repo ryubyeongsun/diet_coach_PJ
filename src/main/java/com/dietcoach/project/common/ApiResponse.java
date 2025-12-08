@@ -1,14 +1,11 @@
 package com.dietcoach.project.common;
 
 import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
 
-/**
- * 모든 API 응답을 감싸는 공통 래퍼
- */
-@Data
-@NoArgsConstructor
+@Getter
+@Builder
 @AllArgsConstructor
 public class ApiResponse<T> {
 
@@ -17,14 +14,26 @@ public class ApiResponse<T> {
     private T data;
 
     public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(true, null, data);
+        return ApiResponse.<T>builder()
+                .success(true)
+                .message("success")
+                .data(data)
+                .build();
     }
 
     public static <T> ApiResponse<T> success(String message, T data) {
-        return new ApiResponse<>(true, message, data);
+        return ApiResponse.<T>builder()
+                .success(true)
+                .message(message)
+                .data(data)
+                .build();
     }
 
     public static <T> ApiResponse<T> error(String message) {
-        return new ApiResponse<>(false, message, null);
+        return ApiResponse.<T>builder()
+                .success(false)
+                .message(message)
+                .data(null)
+                .build();
     }
 }

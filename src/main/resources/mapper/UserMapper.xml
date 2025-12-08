@@ -67,5 +67,14 @@
         FROM users
         WHERE email = #{email}
     </select>
+	<update id="updateUserEnergy" parameterType="com.dietcoach.project.domain.User">
+    UPDATE users
+    SET
+        bmr = #{bmr},
+        tdee = #{tdee},
+        target_calories = #{targetCalories},
+        updated_at = NOW()
+    WHERE id = #{id}
+</update>
 
 </mapper>

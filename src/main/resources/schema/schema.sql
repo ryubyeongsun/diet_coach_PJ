@@ -1,3 +1,6 @@
+
+use yumyum;
+
 CREATE TABLE IF NOT EXISTS users (
     id               BIGINT AUTO_INCREMENT PRIMARY KEY,
     email            VARCHAR(100) NOT NULL UNIQUE,
@@ -15,3 +18,50 @@ CREATE TABLE IF NOT EXISTS users (
     created_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+-- 1) meal_plans
+CREATE TABLE meal_plans (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    total_days INT NOT NULL,
+    target_calories_per_day INT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_meal_plans_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- 2) meal_plan_days
+CREATE TABLE meal_plan_days (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    meal_plan_id BIGINT NOT NULL,
+    plan_date DATE NOT NULL,
+    day_index INT NOT NULL,
+    total_calories INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_meal_plan_days_meal_plan
+        FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id)
+);
+
+-- 3) meal_items
+CREATE TABLE meal_items (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    meal_plan_day_id BIGINT NOT NULL,
+    meal_time VARCHAR(20) NOT NULL,   -- BREAKFAST / LUNCH / DINNER / SNACK 등
+    food_name VARCHAR(255) NOT NULL,
+    calories INT NOT NULL,
+    memo VARCHAR(500),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_meal_items_meal_plan_day
+        FOREIGN KEY (meal_plan_day_id) REFERENCES meal_plan_days(id)
+);
+
+
+
+SELECT id, email, name, gender, birth_date, height, weight,
+       activity_level, goal_type, bmr, tdee, target_calories
+FROM users;
+select *from users;
