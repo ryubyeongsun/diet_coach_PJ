@@ -93,9 +93,9 @@ public TdeeResponse getUserTdee(Long userId) {
     }
 
     return TdeeResponse.builder()
-            .bmr(user.getBmr())
-            .tdee(user.getTdee())
-            .targetCalories(user.getTargetCalories())
+            .bmr(user.getBmr() != null ? user.getBmr() : 0.0)
+            .tdee(user.getTdee() != null ? user.getTdee() : 0.0)
+            .targetCalories(user.getTargetCalories() != null ? user.getTargetCalories() : 0.0)
             .build();
 }
 

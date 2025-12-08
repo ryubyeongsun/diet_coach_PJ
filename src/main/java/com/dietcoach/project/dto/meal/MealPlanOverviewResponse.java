@@ -1,14 +1,17 @@
 package com.dietcoach.project.dto.meal;
 
+import java.time.LocalDate;
+import java.util.List;
+
+import com.dietcoach.project.domain.meal.MealPlan;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 /**
- * 대시보드 상단에 보여줄 "이번 달 식단 요약" 응답 DTO
+ * 한 달 식단 전체 요약 DTO
  */
 @Data
 @NoArgsConstructor
@@ -16,12 +19,27 @@ import java.util.List;
 @Builder
 public class MealPlanOverviewResponse {
 
-    // 상단 큰 카드에서 쓸 값들
-    private int weeklyAvgIntake;      // 이번 주 평균 섭취 kcal
-    private int weeklyAvgSpend;       // 이번 주 평균 소비 kcal
-    private double achievementRate;   // 이번 달 목표 달성률 (0.0 ~ 1.0)
-    private double weightChange;      // 이번 주 체중 변화 (kg)
+    private Long mealPlanId;
+    private Long userId;
 
-    // 하단 "이번 달 식단 개요" 카드 리스트
+    private LocalDate startDate;
+    private LocalDate endDate;
+
+    private int targetCaloriesPerDay;
+
     private List<MealPlanDaySummaryResponse> days;
+
+    public static MealPlanOverviewResponse of(
+            MealPlan plan,
+            List<MealPlanDaySummaryResponse> daySummaries
+    ) {
+        return MealPlanOverviewResponse.builder()
+                .mealPlanId(plan.getId())
+                .userId(plan.getUserId())
+                .startDate(plan.getStartDate())
+                .endDate(plan.getEndDate())
+                .targetCaloriesPerDay(plan.getTargetCaloriesPerDay()) // Integer → int 오토언박싱
+                .days(daySummaries)
+                .build();
+    }
 }

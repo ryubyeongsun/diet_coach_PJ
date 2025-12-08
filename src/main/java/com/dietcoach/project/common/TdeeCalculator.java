@@ -7,76 +7,82 @@ import com.dietcoach.project.domain.ActivityLevel;
 import com.dietcoach.project.domain.Gender;
 import com.dietcoach.project.domain.GoalType;
 
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 
-/**
- * BMR / TDEE / 목표 칼로리 계산 유틸
- * - 어디서든 재사용 가능하도록 static 메서드로만 구성
- */
 public class TdeeCalculator {
 
     @Getter
-    @AllArgsConstructor
+    @Builder
     public static class TdeeResult {
-        private double bmr;
-        private double tdee;
-        private double targetCalories;
+        private Double bmr;
+        private Double tdee;
+        private Double targetCalories;
     }
 
     public static TdeeResult calculate(
             Gender gender,
             LocalDate birthDate,
-            double heightCm,
-            double weightKg,
+            Double height,         // cm
+            Double weight,         // kg
             ActivityLevel activityLevel,
             GoalType goalType
     ) {
-        int age = calculateAge(birthDate);
-        double bmr = calculateBmr(gender, weightKg, heightCm, age);
-        double tdee = calculateTdee(bmr, activityLevel);
-        double targetCalories = applyGoal(tdee, goalType);
-        return new TdeeResult(bmr, tdee, targetCalories);
-    }
+        // 1) 나이 계산
+        int age = 30;
+        if (birthDate != null) {
+            age = Period.between(birthDate, LocalDate.now()).getYears();
+        }
 
-    private static int calculateAge(LocalDate birthDate) {
-        return Period.between(birthDate, LocalDate.now()).getYears();
-    }
-
-    // Mifflin-St Jeor 공식
-    private static double calculateBmr(Gender gender, double weightKg, double heightCm, int age) {
-        double base = 10 * weightKg + 6.25 * heightCm - 5 * age;
+        // 2) BMR 계산 (Mifflin-St Jeor)
+        double bmr;
         if (gender == Gender.MALE) {
-            return base + 5;
+            bmr = 10 * weight + 6.25 * height - 5 * age + 5;
         } else {
-            return base - 161;
+            bmr = 10 * weight + 6.25 * height - 5 * age - 161;
         }
-    }
 
-    // 활동 레벨 계수 적용
-    private static double calculateTdee(double bmr, ActivityLevel level) {
+        // 3) 활동계수 적용해서 TDEE 계산
         double factor;
-        switch (level) {
-            case SEDENTARY:   factor = 1.2;   break;
-            case LIGHT:       factor = 1.375; break;
-            case MODERATE:    factor = 1.55;  break;
-            case ACTIVE:      factor = 1.725; break;
-            case VERY_ACTIVE: factor = 1.9;   break;
-            default:          factor = 1.2;
+        switch (activityLevel) {
+            case SEDENTARY -> factor = 1.2;
+            case LIGHTLY_ACTIVE -> factor = 1.375;
+            case MODERATE -> factor = 1.55;
+            case VERY_ACTIVE -> factor = 1.725;
+            case SUPER_ACTIVE -> factor = 1.9;
+            default -> factor = 1.2;
         }
-        return bmr * factor;
+
+        double tdee = bmr * factor;
+
+        // 4) 목표 칼로리 계산
+        double targetCalories = switch (goalType) {
+            case LOSE_WEIGHT -> tdee - 500;  // 감량
+            case MAINTAIN   -> tdee;         // 유지
+            case GAIN_WEIGHT -> tdee + 300;  // 증량
+        };
+
+        return TdeeResult.builder()
+                .bmr(bmr)
+                .tdee(tdee)
+                .targetCalories(targetCalories)
+                .build();
     }
 
-    // 목표 타입에 따른 칼로리 증감
-    private static double applyGoal(double tdee, GoalType goalType) {
-        switch (goalType) {
-            case LOSE_WEIGHT:
-                return tdee - 500;    // 감량
-            case GAIN_WEIGHT:
-                return tdee + 300;    // 증량
-            case MAINTAIN:
-            default:
-                return tdee;          // 유지
-        }
+    // (선택) User 엔티티에 바로 채워넣는 헬퍼
+    // 지금 구조랑 충돌 안 나게, 기존 calculate()를 그대로 재사용
+    public static void fillUserEnergyFields(com.dietcoach.project.domain.User user) {
+        TdeeResult result = calculate(
+                user.getGender(),
+                user.getBirthDate(),
+                user.getHeight(),
+                user.getWeight(),
+                user.getActivityLevel(),
+                user.getGoalType()
+        );
+
+        user.setBmr(result.getBmr());
+        user.setTdee(result.getTdee());
+        user.setTargetCalories(result.getTargetCalories());
     }
 }

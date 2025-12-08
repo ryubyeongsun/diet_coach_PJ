@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dietcoach.project.mapper.meal.MealPlanMapper">
+
+    <!-- MealPlan -->
+    <insert id="insertMealPlan" parameterType="com.dietcoach.project.domain.meal.MealPlan"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meal_plans (
+            user_id, start_date, end_date, total_days, target_calories_per_day
+        ) VALUES (
+            #{userId}, #{startDate}, #{endDate}, #{totalDays}, #{targetCaloriesPerDay}
+        )
+    </insert>
+
+    <select id="findMealPlanById" resultType="com.dietcoach.project.domain.meal.MealPlan">
+        SELECT
+            id, user_id AS userId, start_date AS startDate,
+            end_date AS endDate, total_days AS totalDays,
+            target_calories_per_day AS targetCaloriesPerDay,
+            created_at AS createdAt, updated_at AS updatedAt
+        FROM meal_plans
+        WHERE id = #{id}
+    </select>
+
+    <select id="findLatestMealPlanByUserId" resultType="com.dietcoach.project.domain.meal.MealPlan">
+        SELECT
+            id, user_id AS userId, start_date AS startDate,
+            end_date AS endDate, total_days AS totalDays,
+            target_calories_per_day AS targetCaloriesPerDay,
+            created_at AS createdAt, updated_at AS updatedAt
+        FROM meal_plans
+        WHERE user_id = #{userId}
+        ORDER BY start_date DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <!-- MealPlanDay -->
+    <insert id="insertMealPlanDay" parameterType="com.dietcoach.project.domain.meal.MealPlanDay"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meal_plan_days (
+            meal_plan_id, plan_date, day_index, total_calories
+        ) VALUES (
+            #{mealPlanId}, #{planDate}, #{dayIndex}, #{totalCalories}
+        )
+    </insert>
+
+    <select id="findMealPlanDaysByPlanId" resultType="com.dietcoach.project.domain.meal.MealPlanDay">
+        SELECT
+            id, meal_plan_id AS mealPlanId, plan_date AS planDate,
+            day_index AS dayIndex, total_calories AS totalCalories,
+            created_at AS createdAt, updated_at AS updatedAt
+        FROM meal_plan_days
+        WHERE meal_plan_id = #{mealPlanId}
+        ORDER BY day_index ASC
+    </select>
+
+    <!-- MealItem -->
+    <insert id="insertMealItem" parameterType="com.dietcoach.project.domain.meal.MealItem"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meal_items (
+            meal_plan_day_id, meal_time, food_name, calories, memo
+        ) VALUES (
+            #{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{memo}
+        )
+    </insert>
+
+    <select id="findMealItemsByDayId" resultType="com.dietcoach.project.domain.meal.MealItem">
+        SELECT
+            id, meal_plan_day_id AS mealPlanDayId,
+            meal_time AS mealTime, food_name AS foodName,
+            calories, memo,
+            created_at AS createdAt, updated_at AS updatedAt
+        FROM meal_items
+        WHERE meal_plan_day_id = #{mealPlanDayId}
+        ORDER BY id ASC
+    </select>
+
+</mapper>
