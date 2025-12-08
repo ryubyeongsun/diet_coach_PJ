@@ -1,139 +1,30 @@
-<script setup>
-import { ref } from 'vue';
-import axios from 'axios';
-
-// 상대경로 import (@ 안 씀)
-import NnCard from '../components/common/NnCard.vue';
-import ShoppingSearchBar from '../components/shopping/ShoppingSearchBar.vue';
-import ShoppingProductCard from '../components/shopping/ShoppingProductCard.vue';
-
-/* ----------------- 검색 상태 ----------------- */
-const products = ref([]);
-const loading = ref(false);
-const errorMessage = ref('');
-
-/* ----------------- 추천 상태 ----------------- */
-const recommendIngredient = ref('닭가슴살'); // 기본값 예시
-const recommendGram = ref(500);
-const recommendProducts = ref([]);
-const recommendLoading = ref(false);
-const recommendError = ref('');
-
-/* ========== 검색 핸들러 ========== */
-const onSearch = async (keyword) => {
-  const trimmed = keyword.trim();
-  if (!trimmed) {
-    errorMessage.value = '검색어를 입력해주세요.';
-    products.value = [];
-    return;
-  }
-
-  loading.value = true;
-  errorMessage.value = '';
-  products.value = [];
-
-  try {
-    const res = await axios.get(
-      'http://localhost:8080/api/shopping/search',
-      {
-        params: { keyword: trimmed },
-      }
-    );
-
-    if (res.data && res.data.success) {
-      products.value = res.data.data ?? [];
-      if (products.value.length === 0) {
-        errorMessage.value = '검색 결과가 없습니다.';
-      }
-    } else {
-      errorMessage.value =
-        res.data?.message || '검색 중 오류가 발생했습니다.';
-    }
-  } catch (e) {
-    console.error('[ShoppingPage] 검색 중 오류', e);
-    errorMessage.value = '검색 중 오류가 발생했습니다.';
-  } finally {
-    loading.value = false;
-  }
-};
-
-/* ========== 추천 핸들러 ========== */
-const onRecommend = async () => {
-  const ingredient = recommendIngredient.value.trim();
-  const gram = Number(recommendGram.value);
-
-  if (!ingredient) {
-    recommendError.value = '재료명을 입력해주세요.';
-    recommendProducts.value = [];
-    return;
-  }
-  if (!gram || gram <= 0) {
-    recommendError.value = '필요량(g)을 올바르게 입력해주세요.';
-    recommendProducts.value = [];
-    return;
-  }
-
-  recommendLoading.value = true;
-  recommendError.value = '';
-  recommendProducts.value = [];
-
-  try {
-    const res = await axios.get(
-      'http://localhost:8080/api/shopping/recommendations',
-      {
-        params: {
-          ingredient,
-          neededGram: gram,
-        },
-      }
-    );
-
-    if (res.data && res.data.success) {
-      recommendProducts.value = res.data.data ?? [];
-      if (recommendProducts.value.length === 0) {
-        recommendError.value = '추천 결과가 없습니다.';
-      }
-    } else {
-      recommendError.value =
-        res.data?.message || '추천 계산 중 오류가 발생했습니다.';
-    }
-  } catch (e) {
-    console.error('[ShoppingPage] 추천 호출 오류', e);
-    recommendError.value = '추천 계산 중 오류가 발생했습니다.';
-  } finally {
-    recommendLoading.value = false;
-  }
-};
-</script>
-
-
 <template>
   <div class="page">
     <header class="page__header">
       <div>
         <h1>식단 재료 쇼핑 추천</h1>
         <p>
-          11번가 API와 연동해, 식단에 필요한 재료를 가격 비교와 함께 추천해주는 화면입니다.
-          지금은 키워드 검색과 필요량 기준 추천까지 연동한 상태입니다.
+          11번가 API와 연동해서, 식단에 필요한 재료를 검색하고 가격을 비교할 수 있는 화면입니다.
+          지금은 키워드 검색과 기본 추천(예: 500g 기준)까지 연결된 상태입니다.
         </p>
       </div>
     </header>
 
-    <!-- ① 키워드 검색 -->
+    <!-- 검색 박스 -->
     <NnCard title="재료 검색">
       <ShoppingSearchBar @search="onSearch" />
     </NnCard>
 
-    <NnCard title="검색 결과">
-      <div v-if="loading" class="page__empty">
-        검색 중입니다…
-      </div>
+    <!-- 상태 영역: 로딩 / 에러 / 검색 결과 / 추천 결과 -->
 
-      <div v-else-if="errorMessage" class="page__empty page__empty--error">
+    <NnCard title="검색 결과">
+      <div v-if="loading" class="page__state">검색 중입니다...</div>
+
+      <div v-else-if="errorMessage" class="page__state page__state--error">
         {{ errorMessage }}
       </div>
 
-      <div v-else-if="products.length === 0" class="page__empty">
+      <div v-else-if="products.length === 0" class="page__state">
         검색어를 입력하면 이 아래에 상품 리스트가 보입니다.
       </div>
 
@@ -146,55 +37,25 @@ const onRecommend = async () => {
       </div>
     </NnCard>
 
-    <!-- ② 필요량 기준 추천 폼 -->
-    <NnCard title="필요량 기준 추천 (예: 식단 생성 시 사용)">
-      <div class="recommend-form">
-        <div class="recommend-form__field">
-          <label>재료명</label>
-          <input
-            v-model="recommendIngredient"
-            type="text"
-            placeholder="예) 닭가슴살"
-          />
-        </div>
-        <div class="recommend-form__field">
-          <label>필요량 (g)</label>
-          <input
-            v-model="recommendGram"
-            type="number"
-            min="1"
-            step="50"
-          />
-        </div>
-        <button class="recommend-form__button" @click="onRecommend">
-          추천 받기
-        </button>
-      </div>
-    </NnCard>
-
-    <!-- ③ 추천 결과 -->
-    <NnCard title="추천 결과">
-      <div v-if="recommendLoading" class="page__empty">
-        추천을 계산하는 중입니다…
+    <NnCard title="추천 상품 (예: 500g 기준)">
+      <div v-if="recommendLoading" class="page__state">
+        추천 상품 계산 중입니다...
       </div>
 
       <div
         v-else-if="recommendError"
-        class="page__empty page__empty--error"
+        class="page__state page__state--error"
       >
         {{ recommendError }}
       </div>
 
-      <div
-        v-else-if="recommendProducts.length === 0"
-        class="page__empty"
-      >
-        재료명과 필요량(g)을 입력하고 ‘추천 받기’를 눌러보세요.
+      <div v-else-if="recommended.length === 0" class="page__state">
+        아직 추천 결과가 없습니다. 위에서 재료를 검색하면 함께 추천됩니다.
       </div>
 
       <div v-else class="page__list">
         <ShoppingProductCard
-          v-for="p in recommendProducts"
+          v-for="p in recommended"
           :key="p.externalId"
           :product="p"
         />
@@ -203,6 +64,72 @@ const onRecommend = async () => {
   </div>
 </template>
 
+<script setup>
+import { ref } from 'vue';
+
+// 상대 경로로 가져오기 (STS + Vite 환경 맞춤)
+import NnCard from '../components/common/NnCard.vue';
+import ShoppingSearchBar from '../components/shopping/ShoppingSearchBar.vue';
+import ShoppingProductCard from '../components/shopping/ShoppingProductCard.vue';
+
+import { searchProducts, recommendProducts } from '../api/shopping';
+
+// 상태 값들
+const products = ref([]);
+const recommended = ref([]);
+
+const loading = ref(false);
+const errorMessage = ref('');
+
+const recommendLoading = ref(false);
+const recommendError = ref('');
+
+// 검색 핸들러
+const onSearch = async (keyword) => {
+  if (!keyword || !keyword.trim()) {
+    errorMessage.value = '검색어를 입력해 주세요.';
+    return;
+  }
+
+  const trimmed = keyword.trim();
+
+  // 초기화
+  loading.value = true;
+  errorMessage.value = '';
+  products.value = [];
+
+  // 추천 쪽도 같이 초기화
+  recommendLoading.value = true;
+  recommendError.value = '';
+  recommended.value = [];
+
+  try {
+    // 1) 기본 검색 호출
+    const searchRes = await searchProducts(trimmed);
+    if (searchRes.success) {
+      products.value = searchRes.data || [];
+    } else {
+      errorMessage.value = searchRes.message || '검색에 실패했습니다.';
+    }
+
+    // 2) 추천 API 호출 (예: 500g 기준)
+    const recommendRes = await recommendProducts(trimmed, 500);
+    if (recommendRes.success) {
+      recommended.value = recommendRes.data || [];
+    } else {
+      recommendError.value =
+        recommendRes.message || '추천 상품 조회에 실패했습니다.';
+    }
+  } catch (err) {
+    console.error('[ShoppingPage] 검색/추천 에러', err);
+    errorMessage.value = '검색 중 오류가 발생했습니다.';
+    recommendError.value = '추천 중 오류가 발생했습니다.';
+  } finally {
+    loading.value = false;
+    recommendLoading.value = false;
+  }
+};
+</script>
 
 <style scoped>
 .page {
@@ -227,12 +154,12 @@ const onRecommend = async () => {
   color: #6b7280;
 }
 
-.page__empty {
+.page__state {
   font-size: 13px;
   color: #6b7280;
 }
 
-.page__empty--error {
+.page__state--error {
   color: #ef4444;
 }
 
@@ -240,54 +167,5 @@ const onRecommend = async () => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-/* 추천 폼 레이아웃 */
-.recommend-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-end;
-}
-
-.recommend-form__field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.recommend-form__field label {
-  font-size: 12px;
-  color: #4b5563;
-}
-
-.recommend-form__field input {
-  min-width: 160px;
-  padding: 8px 10px;
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  outline: none;
-  font-size: 13px;
-}
-
-.recommend-form__field input:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
-}
-
-.recommend-form__button {
-  padding: 10px 18px;
-  border-radius: 999px;
-  border: none;
-  font-size: 13px;
-  font-weight: 600;
-  background: #4f46e5;
-  color: #ffffff;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.recommend-form__button:hover {
-  background: #4338ca;
 }
 </style>
