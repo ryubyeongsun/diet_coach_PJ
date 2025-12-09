@@ -1,3 +1,4 @@
+create database yumyum;
 
 use yumyum;
 
