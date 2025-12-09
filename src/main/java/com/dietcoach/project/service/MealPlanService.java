@@ -1,8 +1,11 @@
 package com.dietcoach.project.service;
 
+import com.dietcoach.project.dto.meal.DashboardSummaryResponse;
+import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public interface MealPlanService {
 
@@ -11,4 +14,6 @@ public interface MealPlanService {
     MealPlanOverviewResponse getMealPlan(Long planId);
 
     MealPlanOverviewResponse getLatestMealPlanForUser(Long userId);
+    List<MealPlanIngredientResponse> getIngredientsForPlan(Long planId);
+    DashboardSummaryResponse getDashboardSummary(Long userId);
 }
