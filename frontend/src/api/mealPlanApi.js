@@ -12,3 +12,13 @@ export async function generateMealPlan(payload) {
   const res = await api.post('/meal-plans', payload);
   return res.data.data; // 생성된 MealPlanOverviewResponse or planId
 }
+
+export async function fetchMealPlanDayDetail(dayId) {
+  const res = await api.get(`/meal-plans/days/${dayId}`);
+  return res.data.data;
+}
+
+export async function fetchMealPlanIngredients(planId) {
+  const res = await api.get(`/meal-plans/${planId}/ingredients`);
+  return res.data.data;
+}

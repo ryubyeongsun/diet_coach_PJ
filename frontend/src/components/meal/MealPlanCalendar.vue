@@ -9,12 +9,12 @@
     <div v-else class="calendar__list">
       <button
         v-for="day in days"
-        :key="day.dayId || day.planDate"
+        :key="day.dayId"
         type="button"
         class="calendar__item"
       >
         <p class="calendar__date">
-          {{ formatDate(day.planDate) }}
+          {{ formatDate(day.date) }}
         </p>
         <p class="calendar__kcal">
           {{ day.totalCalories }} kcal
@@ -31,7 +31,7 @@
 const props = defineProps({
   days: {
     type: Array,
-    default: () => [],
+    required: true,
   },
 });
 
