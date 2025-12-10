@@ -1,25 +1,26 @@
 package com.dietcoach.project.mapper.meal;
 
-import com.dietcoach.project.domain.meal.MealItem;
-import com.dietcoach.project.domain.meal.MealPlan;
-import com.dietcoach.project.domain.meal.MealPlanDay;
+import java.util.List;
+
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-import java.util.List;
+import com.dietcoach.project.domain.meal.MealItem;
+import com.dietcoach.project.domain.meal.MealPlan;
+import com.dietcoach.project.domain.meal.MealPlanDay;
+import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 
 @Mapper
 public interface MealPlanMapper {
 
-    // insert
-    void insertMealPlan(MealPlan mealPlan);
-    void insertMealPlanDay(MealPlanDay day);
-    void insertMealItem(MealItem item);
+    int insertMealPlan(MealPlan mealPlan);
+    int insertMealPlanDay(MealPlanDay day);
+    int insertMealItem(MealItem item);
 
-    // select
-    MealPlan findMealPlanById(Long id);
-    List<MealPlanDay> findMealPlanDaysByPlanId(Long mealPlanId);
-    List<MealItem> findMealItemsByDayId(Long mealPlanDayId);
+    MealPlan findMealPlanById(@Param("id") Long id);
+    List<MealPlanDay> findMealPlanDaysByPlanId(@Param("mealPlanId") Long mealPlanId);
+    List<MealItem> findMealItemsByDayId(@Param("mealPlanDayId") Long mealPlanDayId);
     MealPlanDay findMealPlanDayById(@Param("dayId") Long dayId);
-    MealPlan findLatestMealPlanByUserId(Long userId);
+    MealPlan findLatestMealPlanByUserId(@Param("userId") Long userId);
+    List<MealPlanIngredientResponse> findIngredientsForPlan(@Param("planId") Long planId);
 }

@@ -166,29 +166,16 @@ public class MealPlanServiceImpl implements MealPlanService {
     public List<MealPlanIngredientResponse> getIngredientsForPlan(Long planId) {
         MealPlan plan = mealPlanMapper.findMealPlanById(planId);
         if (plan == null) {
-            throw new BusinessException("존재하지 않는 식단 플랜입니다.");
+            throw new BusinessException("존재하지 않는 식단 플랜입니다. id=" + planId);
         }
 
-        List<MealPlanDay> days = mealPlanMapper.findMealPlanDaysByPlanId(planId);
-        if (days.isEmpty()) {
-            throw new BusinessException("해당 플랜에 포함된 날짜가 없습니다.");
+        // PRD 버전: 집계는 Mapper(SQL)에서 처리
+        List<MealPlanIngredientResponse> list = mealPlanMapper.findIngredientsForPlan(planId);
+        if (list.isEmpty()) {
+            // 플랜은 있지만 아이템이 없는 경우
+            throw new BusinessException("해당 플랜에 재료 정보가 없습니다. id=" + planId);
         }
-
-        Map<String, Integer> ingredientToGram = new HashMap<>();
-
-        for (MealPlanDay day : days) {
-            List<MealItem> items = mealPlanMapper.findMealItemsByDayId(day.getId());
-            for (MealItem item : items) {
-                addIngredientsForItem(ingredientToGram, item);
-            }
-        }
-
-        return ingredientToGram.entrySet().stream()
-                .map(e -> MealPlanIngredientResponse.builder()
-                        .ingredient(e.getKey())
-                        .neededGram(e.getValue())
-                        .build())
-                .collect(Collectors.toList());
+        return list;
     }
 
     private void addIngredientsForItem(Map<String, Integer> map, MealItem item) {
@@ -266,7 +253,7 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         return MealPlanDayDetailResponse.builder()
                 .dayId(day.getId())
-                .date(day.getPlanDate())
+                .date(day.getPlanDate() != null ? day.getPlanDate().toString() : null)
                 .totalCalories(day.getTotalCalories())
                 .items(itemResponses)
                 .build();

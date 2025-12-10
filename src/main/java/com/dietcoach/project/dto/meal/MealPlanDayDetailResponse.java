@@ -19,10 +19,10 @@ import lombok.NoArgsConstructor;
 @Builder
 public class MealPlanDayDetailResponse {
 
-    private Long dayId;
-    private LocalDate date;
-    private int totalCalories;
-    private List<MealItemResponse> items;
+	 private Long dayId;
+	    private String date;              // "2025-12-01" 형식 (String)
+	    private Integer totalCalories;    // 하루 총 kcal
+	    private List<MealItemResponse> items;
 
     @Data
     @NoArgsConstructor
