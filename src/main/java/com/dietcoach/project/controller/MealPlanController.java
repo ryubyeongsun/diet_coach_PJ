@@ -3,6 +3,7 @@ package com.dietcoach.project.controller;
 import com.dietcoach.project.common.ApiResponse;
 import com.dietcoach.project.dto.meal.DashboardSummaryResponse;
 import com.dietcoach.project.dto.meal.MealPlanCreateRequest;
+import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
 import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
 import com.dietcoach.project.service.MealPlanService;
@@ -75,5 +76,10 @@ public class MealPlanController {
         DashboardSummaryResponse summary =
                 mealPlanService.getDashboardSummary(userId);
         return ApiResponse.success(summary);
+    }
+    @GetMapping("/meal-plans/days/{dayId}")
+    public ApiResponse<MealPlanDayDetailResponse> getDayDetail(@PathVariable Long dayId) {
+        MealPlanDayDetailResponse detail = mealPlanService.getDayDetail(dayId);
+        return ApiResponse.success(detail);
     }
 }
