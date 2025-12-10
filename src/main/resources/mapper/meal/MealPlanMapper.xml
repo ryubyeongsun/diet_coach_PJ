@@ -92,5 +92,17 @@
         WHERE meal_plan_day_id = #{mealPlanDayId}
         ORDER BY meal_time
     </select>
-
+	<select id="findIngredientsForPlan" parameterType="long"
+            resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">
+        SELECT
+            m.food_name                            AS ingredientName,
+            NULL                                   AS totalGram,      -- 현재 g 정보 없으므로 null
+            SUM(m.calories)                        AS totalCalories,
+            COUNT(DISTINCT d.id)                   AS daysCount
+        FROM meal_items m
+        JOIN meal_plan_days d ON m.meal_plan_day_id = d.id
+        WHERE d.meal_plan_id = #{planId}
+        GROUP BY m.food_name
+        ORDER BY daysCount DESC
+    </select>
 </mapper>

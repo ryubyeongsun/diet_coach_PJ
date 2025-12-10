@@ -14,6 +14,8 @@ import lombok.NoArgsConstructor;
 @Builder
 public class MealPlanIngredientResponse {
 
-    private String ingredient; // "닭가슴살"
-    private int neededGram;    // 3200 (g)
+	 private String ingredientName;  // food_name 기준
+	    private Integer totalGram;      // 아직 gram 정보 없으면 null
+	    private Integer totalCalories;  // SUM(calories)
+	    private Integer daysCount;      // 몇 일의 식단에 등장했는지 (COUNT(DISTINCT day))
 }
