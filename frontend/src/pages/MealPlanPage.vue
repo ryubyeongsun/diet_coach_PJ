@@ -8,13 +8,13 @@
           지금은 백엔드에서 받아온 데이터를 바인딩하고 있습니다.
         </p>
 
-        <p v-if="userId" class="page__user">
-          현재 사용자 ID: {{ userId }}
+        <p v-if="currentUserId" class="page__user">
+          현재 사용자 ID: {{ currentUserId }}
         </p>
       </div>
       <NnButton
         block
-        :disabled="isLoading || !userId"
+        :disabled="isLoading || !currentUserId"
         @click="onClickGenerate"
       >
         {{ isLoading ? '처리 중...' : '식단 자동 생성' }}
@@ -55,45 +55,76 @@ import NnCard from '../components/common/NnCard.vue';
 import MealPlanCalendar from '../components/meal/MealPlanCalendar.vue';
 
 import { fetchLatestMealPlan, generateMealPlan } from '../api/mealPlanApi';
-import { searchProducts, getRecommendations } from '../api/shoppingApi';
-import { initUser } from '../api/usersApi.js';
+import { createUser } from '../api/usersApi.js'; // Import createUser
 
 const isLoading = ref(false);        // 식단 불러오기/생성 로딩
 const errorMessage = ref('');        // 식단 관련 에러
-const userErrorMessage = ref('');    // 유저 준비 에러
-const userId = ref(null);            // 현재 사용 중인 유저 ID
+const currentUserId = ref(null);     // 현재 사용 중인 유저 ID
 const overview = ref(null);          // MealPlanOverviewResponse
 
-async function prepareUser() {
+async function initUser() {
+  let storedId = localStorage.getItem('userId');
+  if (storedId) {
+    currentUserId.value = Number(storedId);
+    console.log('[MealPlanPage] Loaded userId from localStorage:', currentUserId.value);
+    return;
+  }
+
   try {
-    userErrorMessage.value = '';
-    userId.value = await initUser();
-    console.log('[MealPlanPage] current userId:', userId.value);
+    const uniqueEmail = `test-user-${Date.now()}@example.com`;
+    const newUserId = await createUser({
+      email: uniqueEmail,
+      password: '1234',
+      name: '테스트유저',
+      gender: 'MALE',
+      birthDate: '1998-01-01',
+      height: 175,
+      weight: 70,
+      activityLevel: 'MODERATE',
+      goalType: 'LOSE_WEIGHT',
+    });
+
+    console.log('[MealPlanPage] Response from createUser API:', newUserId);
+
+    // The API returns the ID directly as a number.
+    if (newUserId) {
+      currentUserId.value = newUserId;
+      localStorage.setItem('userId', String(newUserId));
+      console.log('[MealPlanPage] Created new user with ID:', currentUserId.value);
+    } else {
+      errorMessage.value = '사용자 생성 후 서버로부터 올바른 ID를 받지 못했습니다.';
+      console.error('Unexpected response from createUser (expected a user ID):', newUserId);
+    }
   } catch (err) {
-    console.error('[MealPlanPage] initUser error:', err);
-    userErrorMessage.value = '사용자 정보를 준비하는 중 오류가 발생했습니다.';
+    console.error('[MealPlanPage] createUser error:', err);
+    errorMessage.value = '사용자 생성 중 오류가 발생했습니다.';
   }
 }
 
 async function loadLatest() {
-  if (!userId.value) return; // 유저 준비 안 됐으면 그냥 리턴
+  if (!currentUserId.value) return;
 
   isLoading.value = true;
   errorMessage.value = '';
 
   try {
-    overview.value = await fetchLatestMealPlan(userId.value);
+    overview.value = await fetchLatestMealPlan(currentUserId.value);
     console.log('[MealPlanPage] latest overview:', overview.value);
   } catch (err) {
     console.error(err);
-    errorMessage.value = '식단 정보를 불러오는 중 오류가 발생했습니다.';
+    // Check for specific backend message indicating no meal plan
+    if (err.response && err.response.data && err.response.data.message === '해당 유저의 최근 식단 플랜이 없습니다.') {
+      overview.value = null; // No meal plan, display "아직 생성된 식단이 없습니다."
+    } else {
+      errorMessage.value = '식단 정보를 불러오는 중 오류가 발생했습니다.';
+    }
   } finally {
     isLoading.value = false;
   }
 }
 
 async function onClickGenerate() {
-  if (!userId.value) {
+  if (!currentUserId.value) {
     errorMessage.value = '사용자 정보가 준비되지 않았습니다.';
     return;
   }
@@ -102,10 +133,11 @@ async function onClickGenerate() {
   errorMessage.value = '';
 
   try {
+    const today = new Date().toISOString().slice(0, 10);
     await generateMealPlan({
-      userId: userId.value,
+      userId: currentUserId.value,
+      startDate: today,
       totalDays: 30,
-      targetCaloriesPerDay: 1800, // 테스트용
     });
 
     // 새로 생성 후 최신 식단 다시 로드
@@ -119,11 +151,8 @@ async function onClickGenerate() {
 }
 
 onMounted(async () => {
-  // 1) 유저부터 준비
-  await prepareUser();
-
-  // 2) 유저 준비가 됐으면 최신 식단 조회
-  if (userId.value) {
+  await initUser();
+  if (currentUserId.value) {
     await loadLatest();
   }
 });

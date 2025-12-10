@@ -1,121 +1,78 @@
-# Diet Coach 프로젝트 - 현재까지 구현된 기능 명세
+# 프로젝트 기능 명세서 (As-Is)
 
-이 문서는 Diet Coach 프로젝트의 현재 개발 현황을 공유하고, 페어 프로그래밍 역할 분담을 돕기 위해 작성되었습니다.
+## 1. 프로젝트 개요
 
-## 1. 기술 스택
-
-- **Backend**: Java 17, Spring Boot 3.x, MyBatis, MySQL
-- **Frontend**: Vue.js 3, Vite
-- **API Client**: 11번가 Open API (쇼핑 정보)
+- **프로젝트명**: 남남코치 (TDEE 기반 식단 코치)
+- **핵심 목표**: 사용자의 TDEE(총 에너지 소비량)에 맞춰 개인화된 식단을 추천하고, 관련 식료품 쇼핑을 돕는 웹 애플리케이션.
+- **현재 상태**: 주요 핵심 기능(사용자 관리, 식단 생성/조회, 쇼핑 검색)의 프론트엔드-백엔드 API 연동 및 기본 UI 구현이 완료된 상태.
 
 ---
 
-## 2. Backend 구현 기능 (Java / Spring Boot)
+## 2. 핵심 아키텍처
 
-### 2.1. 사용자 관리 (User Management)
+### 가. 프론트엔드
+- **기술 스택**: Vue 3 (Composition API, `<script setup>`) + Vite
+- **주요 라이브러리**: `axios` (API 통신), `vue-router` (라우팅)
+- **디렉토리 구조**:
+    - `src/api`: 백엔드 API 호출 함수 모듈화
+    - `src/components`: 재사용 가능한 UI 컴포넌트
+    - `src/pages`: 라우팅되는 메인 페이지 컴포넌트
+    - `src/router`: Vue Router 설정
 
-사용자 정보 등록 및 조회를 담당합니다.
-
-- **주요 파일**:
-    - `UserController.java`
-    - `UserService.java`, `UserServiceImpl.java`
-    - `UserMapper.java`, `UserMapper.xml`
-    - `TdeeCalculator.java`
-- **API Endpoints**:
-    - `POST /api/users`
-        - **설명**: 신규 사용자를 등록합니다. 요청 시 사용자의 기본 정보(성별, 나이, 키, 체중 등)를 받아 TDEE(총 에너지 소비량)를 계산하고 함께 저장합니다.
-        - **요청**: `UserCreateRequest.java`
-        - **응답**: 생성된 `userId`
-    - `GET /api/users/{id}`
-        - **설명**: 특정 사용자의 프로필 정보(TDEE 포함)를 조회합니다.
-        - **응답**: `UserProfileResponse.java`
-    - `GET /api/users/{id}/tdee`
-        - **설명**: 특정 사용자의 TDEE 정보만 별도로 조회합니다.
-        - **응답**: `TdeeResponse.java`
-
-### 2.2. 식단 관리 (Meal Plan Management)
-
-사용자별 식단을 생성하고 조회하는 기능을 담당합니다.
-
-- **주요 파일**:
-    - `MealPlanController.java`
-    - `MealPlanService.java`, `MealPlanServiceImpl.java`
-    - `MealPlanMapper.java`, `MealPlanMapper.xml`
-- **API Endpoints**:
-    - `POST /api/meal-plans`
-        - **설명**: 특정 사용자를 위한 한 달치 식단을 **자동 생성**합니다. `userId`와 시작 날짜를 받아, 해당 유저의 TDEE를 기반으로 식단을 구성합니다.
-        - **요청**: `MealPlanCreateRequest.java`
-        - **응답**: 생성된 식단 전체 개요 (`MealPlanOverviewResponse.java`)
-    - `GET /api/meal-plans/{planId}`
-        - **설명**: 특정 식단 ID에 해당하는 식단 전체 정보를 조회합니다.
-        - **응답**: `MealPlanOverviewResponse.java`
-    - `GET /api/users/{userId}/meal-plans/latest`
-        - **설명**: 특정 사용자의 가장 최근에 생성된 식단 정보를 조회합니다.
-        - **응답**: `MealPlanOverviewResponse.java`
-
-### 2.3. 쇼핑 정보 (Shopping Information)
-
-식단에 필요한 재료를 외부 API를 통해 검색하고 추천합니다.
-
-- **주요 파일**:
-    - `ShoppingController.java`
-    - `ShoppingService.java`, `ShoppingServiceImpl.java`
-    - `ElevenstShoppingClient.java` (11번가 API 연동)
-- **API Endpoints**:
-    - `GET /api/shopping/search`
-        - **설명**: 키워드를 기반으로 11번가 상품을 검색합니다. (페이징 가능)
-        - **파라미터**: `keyword`, `page` (선택), `size` (선택)
-        - **응답**: `List<ShoppingProductResponse>`
-    - `GET /api/shopping/recommendations`
-        - **설명**: 특정 재료명과 필요 그램(g)을 기반으로 적절한 상품을 추천합니다.
-        - **파라미터**: `ingredient`, `neededGram` (선택)
-        - **응답**: `List<ShoppingProductResponse>`
+### 나. API 통신
+- **중앙 클라이언트**: `src/api/http.js`에 `axios` 인스턴스를 중앙화하여 관리.
+- **공통 처리**: 모든 API 요청/응답을 가로채는 인터셉터(Interceptor)를 구현.
+    - **요청 인터셉터**: API 호출 시 콘솔에 로그를 기록하여 디버깅 편의성 증대.
+    - **응답 인터셉터**: 백엔드의 공통 응답 형식(`{ success, message, data }`)을 분석하여, `success: false` 이거나 HTTP 상태 코드가 에러일 경우 예외(Exception)를 발생시켜 각 기능에서 `.catch()`로 처리할 수 있도록 표준화.
 
 ---
 
-## 3. Frontend 구현 기능 (Vue.js)
+## 3. 구현된 기능 상세
 
-### 3.1. 화면 라우팅
+### 가. 사용자 관리 (핵심 기반)
+- **기능**:
+    1.  **테스트 사용자 자동 생성 및 유지**: 애플리케이션 첫 실행 시, `localStorage`에 `userId`가 없으면 백엔드 API를 통해 테스트용 사용자를 자동 생성.
+    2.  **사용자 ID 지속성**: 생성된 `userId`를 `localStorage`에 저장하여, 브라우저를 새로고침하거나 재방문해도 동일한 사용자로 인식되도록 구현.
+- **주요 파일**:
+    - `pages/MealPlanPage.vue`: 사용자 초기화(`initUser`) 로직 포함.
+    - `api/usersApi.js`: `createUser`, `fetchUserProfile` 등 사용자 관련 API 함수.
 
-- **주요 파일**: `router/index.js`
-- **구현 내용**:
-    - `/meal-plans`: 식단 계획 페이지 (`MealPlanPage.vue`)
-    - `/shopping`: 쇼핑 페이지 (`ShoppingPage.vue`)
-    - `/`: 기본 경로, 현재 식단 계획 페이지로 연결
+### 나. 식단 관리
+- **기능**:
+    1.  **최신 식단 조회**: 현재 사용자의 최신 식단 플랜 정보를 백엔드로부터 조회.
+    2.  **식단 개요 표시**: 조회된 30일치 식단 정보를 캘린더 형태의 UI로 시각화 (`MealPlanCalendar`). 각 날짜별 총 칼로리 표시.
+    3.  **식단 부재 처리**: 신규 사용자 등 식단 정보가 없는 경우, 에러가 아닌 "생성된 식단이 없습니다"라는 안내 메시지를 표시하는 UI/UX 처리.
+    4.  **식단 자동 생성**: 버튼 클릭 시, 현재 날짜 기준으로 30일치 식단을 생성해달라고 백엔드에 요청하고, 성공 시 화면을 자동으로 갱신.
+- **주요 파일**:
+    - `pages/MealPlanPage.vue`: 식단 조회/생성/갱신 등 페이지의 모든 비즈니스 로직 담당.
+    - `components/meal/MealPlanCalendar.vue`: 30일치 식단 개요를 표시하는 UI 컴포넌트.
+    - `api/mealPlanApi.js`: 식단 관련 API 함수.
 
-### 3.2. 쇼핑 페이지 (`/shopping`)
+### 다. 쇼핑 및 재료 추천
+- **기능**:
+    1.  **식재료 검색**: 키워드를 입력하여 식재료를 검색 (백엔드를 통해 11번가 API와 연동).
+    2.  **상품 추천**: 검색 키워드와 필요량(g)을 기반으로 최적의 추천 상품 목록을 조회.
+    3.  **결과 분리 표시**: '일반 검색 결과'와 '추천 상품'을 별도의 카드 리스트로 구분하여 표시. 각 상품은 이미지, 이름, 가격, 판매처 정보 및 외부 링크 버튼을 포함.
+- **주요 파일**:
+    - `pages/ShoppingPage.vue`: 쇼핑 페이지의 전체 레이아웃과 검색 로직 담당.
+    - `components/shopping/ShoppingSearchBar.vue`: 검색어 입력 UI.
+    - `components/shopping/ShoppingProductCard.vue`: 개별 상품 정보 표시 UI.
+    - `api/shoppingApi.js`: 쇼핑 관련 API 함수.
 
-- **주요 파일**: `pages/ShoppingPage.vue`, `api/shopping.js`
-- **구현 내용**:
-    - **기능**: 백엔드의 쇼핑 API와 연동하여 실제 데이터를 화면에 렌더링합니다.
-    - **상세**:
-        - 검색 바를 통해 키워드를 입력하면 `GET /api/shopping/search` API를 호출하여 상품 목록을 표시합니다.
-        - 동일 키워드로 `GET /api/shopping/recommendations` API를 호출하여 추천 상품 목록을 별도 카드에 표시합니다.
-        - 로딩 및 에러 상태 처리가 구현되어 있습니다.
-
-### 3.3. 식단 계획 페이지 (`/meal-plans`)
-
-- **주요 파일**: `pages/MealPlanPage.vue`
-- **구현 내용**:
-    - **기능**: 현재 **UI 목업(Mockup) 상태**이며, 실제 데이터 연동은 되어있지 않습니다.
-    - **상세**:
-        - 한 달 식단 통계(목표 달성률, 평균 섭취 칼로리 등)와 월별 식단 개요를 보여주는 복잡한 레이아웃이 디자인되어 있습니다.
-        - 현재는 컴포넌트 내에 하드코딩된 더미 데이터(`exampleDays`)를 사용해 화면을 그리고 있습니다.
-        - "식단 자동 생성" 버튼이 있으나, `POST /api/meal-plans` API와의 연동 기능은 아직 구현되지 않았습니다.
-
-### 3.4. 공통 컴포넌트
-
-- **위치**: `components/common/`
-- **구현 내용**:
-    - `NnButton.vue`: 기본 버튼
-    - `NnCard.vue`: UI 섹션을 나누는 카드 컴포넌트
-    - `NnInput.vue`: 기본 입력 필드
+### 라. 공통 UI 컴포넌트
+- **기능**: 애플리케이션 전반의 디자인 일관성을 유지하기 위한 재사용 가능한 기본 UI 컴포넌트 세트.
+- **주요 파일**:
+    - `components/common/NnButton.vue`
+    - `components/common/NnCard.vue`
+    - `components/common/NnInput.vue`
 
 ---
 
-## 4. 요약 및 제언
+## 4. 실행 및 테스트 방법
 
-- **Backend**: 사용자, 식단, 쇼핑의 핵심 CRUD 및 비즈니스 로직 API가 대부분 구현되어 있습니다.
-- **Frontend**: 쇼핑 페이지는 API 연동까지 완료되었으나, 핵심 기능인 **식단 계획 페이지는 UI만 구현된 상태**로 백엔드와의 데이터 연동 작업이 필요합니다.
-
-역할 분담 시, 한 명은 프론트엔드의 식단 페이지 API 연동 및 고도화 작업을, 다른 한 명은 백엔드의 미진한 부분(예: 인증, 테스트 코드, 상세 예외 처리)을 보완하는 방향으로 진행하면 효율적일 것입니다.
+1.  `frontend` 디렉토리에서 `npm install` 후 `npm run dev`로 개발 서버 실행.
+2.  브라우저에서 `/meal-plans` 경로로 접속.
+    - 최초 접속 시, 개발자 도구의 콘솔과 `localStorage`를 통해 신규 사용자 ID가 생성 및 저장되는 것을 확인.
+    - "식단 자동 생성" 버튼을 클릭하여 식단이 생성되고 30개의 카드에 데이터가 표시되는지 확인.
+3.  상단 네비게이션을 통해 `/shopping` 경로로 이동.
+    - 검색창에 '닭가슴살' 등 키워드를 입력하고 검색 버튼을 클릭하여, 하단에 상품 리스트가 나타나는지 확인.
