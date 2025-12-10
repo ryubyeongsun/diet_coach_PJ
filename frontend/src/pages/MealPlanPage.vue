@@ -12,13 +12,22 @@
           현재 사용자 ID: {{ currentUserId }}
         </p>
       </div>
-      <NnButton
-        block
-        :disabled="isLoading || !currentUserId"
-        @click="onClickGenerate"
-      >
-        {{ isLoading ? '처리 중...' : '식단 자동 생성' }}
-      </NnButton>
+      <div class="page__actions">
+        <NnButton
+          v-if="overview"
+          secondary
+          @click="onClickGoShopping"
+        >
+          이 식단 재료 장보기 (준비중)
+        </NnButton>
+        <NnButton
+          block
+          :disabled="isLoading || !currentUserId"
+          @click="onClickGenerate"
+        >
+          {{ isLoading ? '처리 중...' : '식단 자동 생성' }}
+        </NnButton>
+      </div>
     </header>
 
     <p v-if="errorMessage" class="page__error">
@@ -35,10 +44,31 @@
       </div>
 
       <div v-else>
-        <p class="page__summary">
-          총 {{ overview.totalDays }}일 · 하루 목표
-          {{ overview.targetCaloriesPerDay }} kcal
-        </p>
+        <!-- 통계 대시보드 UI -->
+        <div class="stat-board">
+          <div class="stat-card">
+            <span class="stat-card__label">기간 / 목표</span>
+            <p class="stat-card__value">
+              <strong>{{ overview.totalDays }}</strong>일 · 
+              <strong>{{ overview.targetCaloriesPerDay }}</strong>
+              <span class="stat-card__unit">kcal</span>
+            </p>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card__label">평균 섭취량</span>
+            <p class="stat-card__value">
+              <strong>{{ avgCalories }}</strong>
+              <span class="stat-card__unit">kcal</span>
+            </p>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card__label">목표 달성률</span>
+            <p class="stat-card__value">
+              <strong>{{ achievementRate }}</strong>
+              <span class="stat-card__unit">%</span>
+            </p>
+          </div>
+        </div>
 
 		<!-- ⭐ 실제 데이터 내려주기 -->
 		<MealPlanCalendar :days="overview.days" />
@@ -48,7 +78,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
 
 import NnButton from '../components/common/NnButton.vue';
 import NnCard from '../components/common/NnCard.vue';
@@ -61,6 +92,28 @@ const isLoading = ref(false);        // 식단 불러오기/생성 로딩
 const errorMessage = ref('');        // 식단 관련 에러
 const currentUserId = ref(null);     // 현재 사용 중인 유저 ID
 const overview = ref(null);          // MealPlanOverviewResponse
+const router = useRouter();
+
+// --- 통계 데이터 계산 ---
+const avgCalories = computed(() => {
+  if (!overview.value || !overview.value.days || overview.value.days.length === 0) {
+    return 0;
+  }
+  const total = overview.value.days.reduce((sum, day) => sum + day.totalCalories, 0);
+  return Math.round(total / overview.value.days.length);
+});
+
+const achievementRate = computed(() => {
+  if (!overview.value || !overview.value.targetCaloriesPerDay || avgCalories.value === 0) {
+    return 0;
+  }
+  const rate = (avgCalories.value / overview.value.targetCaloriesPerDay) * 100;
+  return Math.round(rate);
+});
+
+function onClickGoShopping() {
+  router.push('/shopping');
+}
 
 async function initUser() {
   let storedId = localStorage.getItem('userId');
@@ -83,8 +136,6 @@ async function initUser() {
       activityLevel: 'MODERATE',
       goalType: 'LOSE_WEIGHT',
     });
-
-    console.log('[MealPlanPage] Response from createUser API:', newUserId);
 
     // The API returns the ID directly as a number.
     if (newUserId) {
@@ -109,7 +160,6 @@ async function loadLatest() {
 
   try {
     overview.value = await fetchLatestMealPlan(currentUserId.value);
-    console.log('[MealPlanPage] latest overview:', overview.value);
   } catch (err) {
     console.error(err);
     // Check for specific backend message indicating no meal plan
@@ -189,6 +239,12 @@ onMounted(async () => {
   color: #6b7280;
 }
 
+.page__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .page__user {
   margin-top: 6px;
   font-size: 12px;
@@ -211,5 +267,41 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 500;
   color: #111827;
+}
+
+/* --- 통계 대시보드 스타일 --- */
+.stat-board {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  flex: 1;
+  background-color: #f3f4f6;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.stat-card__label {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.stat-card__value {
+  margin: 4px 0 0;
+  font-size: 16px;
+  color: #1f2937;
+}
+
+.stat-card__value strong {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.stat-card__unit {
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 2px;
 }
 </style>
