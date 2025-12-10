@@ -15,10 +15,10 @@
       <div class="page__actions">
         <NnButton
           v-if="overview"
-          secondary
+          variant="outline"
           @click="onClickGoShopping"
         >
-          이 식단 재료 장보기 (준비중)
+          이 식단 재료 장보기
         </NnButton>
         <NnButton
           block
@@ -71,9 +71,11 @@
         </div>
 
 		<!-- ⭐ 실제 데이터 내려주기 -->
-		<MealPlanCalendar :days="overview.days" />
+		<MealPlanCalendar :days="overview.days" @click-day="onClickDay" />
       </div>
     </NnCard>
+
+    <MealPlanDayModal v-model="isDayModalOpen" :day-id="selectedDayId" />
   </div>
 </template>
 
@@ -84,6 +86,7 @@ import { useRouter } from 'vue-router';
 import NnButton from '../components/common/NnButton.vue';
 import NnCard from '../components/common/NnCard.vue';
 import MealPlanCalendar from '../components/meal/MealPlanCalendar.vue';
+import MealPlanDayModal from '../components/meal/MealPlanDayModal.vue';
 
 import { fetchLatestMealPlan, generateMealPlan } from '../api/mealPlanApi';
 import { createUser } from '../api/usersApi.js'; // Import createUser
@@ -93,6 +96,10 @@ const errorMessage = ref('');        // 식단 관련 에러
 const currentUserId = ref(null);     // 현재 사용 중인 유저 ID
 const overview = ref(null);          // MealPlanOverviewResponse
 const router = useRouter();
+
+// --- 상세 모달 상태 ---
+const selectedDayId = ref(null);
+const isDayModalOpen = ref(false);
 
 // --- 통계 데이터 계산 ---
 const avgCalories = computed(() => {
@@ -111,8 +118,18 @@ const achievementRate = computed(() => {
   return Math.round(rate);
 });
 
+function onClickDay(day) {
+  if (!day || !day.dayId) return;
+  selectedDayId.value = day.dayId;
+  isDayModalOpen.value = true;
+}
+
 function onClickGoShopping() {
-  router.push('/shopping');
+  if (!overview.value || !overview.value.mealPlanId) return;
+  router.push({
+    path: '/shopping',
+    query: { planId: overview.value.mealPlanId },
+  });
 }
 
 async function initUser() {

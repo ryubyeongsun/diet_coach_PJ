@@ -12,6 +12,7 @@
         :key="day.dayId"
         type="button"
         class="calendar__item"
+        @click="onClickDay(day)"
       >
         <p class="calendar__date">
           {{ formatDate(day.date) }}
@@ -35,6 +36,8 @@ const props = defineProps({
   },
 });
 
+const emit = defineEmits(['click-day']);
+
 const weekday = ['일', '월', '화', '수', '목', '금', '토'];
 
 function formatDate(isoString) {
@@ -44,6 +47,10 @@ function formatDate(isoString) {
   const day = String(d.getDate()).padStart(2, '0');
   const w = weekday[d.getDay()];
   return `${m}/${day}(${w})`;
+}
+
+function onClickDay(day) {
+  emit('click-day', day);
 }
 </script>
 

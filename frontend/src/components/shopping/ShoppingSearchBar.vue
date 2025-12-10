@@ -1,15 +1,25 @@
 <script setup>
-import { ref } from 'vue';
+import { computed } from 'vue';
 import NnInput from '../common/NnInput.vue';
 import NnButton from '../common/NnButton.vue';
 
-const emit = defineEmits(['search']);
+const props = defineProps({
+  modelValue: {
+    type: String,
+    default: '',
+  },
+});
 
-const keyword = ref('닭가슴살');
+const emit = defineEmits(['update:modelValue', 'search']);
+
+const keyword = computed({
+  get: () => props.modelValue,
+  set: (val) => emit('update:modelValue', val),
+});
 
 const doSearch = () => {
   if (!keyword.value.trim()) return;
-  emit('search', keyword.value.trim());
+  emit('search');
 };
 </script>
 
@@ -18,6 +28,7 @@ const doSearch = () => {
     <NnInput
       v-model="keyword"
       placeholder="예: 닭가슴살, 현미밥, 샐러드 드레싱..."
+      @keyup.enter="doSearch"
     />
     <NnButton @click="doSearch">
       검색

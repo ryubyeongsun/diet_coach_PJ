@@ -10,8 +10,40 @@
       </div>
     </header>
 
+    <NnCard title="이 식단에 필요한 재료" v-if="planId">
+      <div v-if="isLoadingIngredients" class="page__status">
+        재료 정보를 불러오는 중입니다...
+      </div>
+      <div v-else-if="ingredientsError" class="page__error">
+        {{ ingredientsError }}
+      </div>
+      <div v-else-if="ingredients.length === 0">
+        이 식단에 대한 재료 정보가 아직 없습니다.
+      </div>
+      <ul v-else class="ingredients-list">
+        <li
+          v-for="ing in ingredients"
+          :key="ing.ingredient"
+          class="ingredients-list__item"
+        >
+          <div class="ingredients-list__info">
+            <strong>{{ ing.ingredient }}</strong>
+            <span v-if="ing.neededGram">
+              · 총 {{ ing.neededGram }} g
+            </span>
+          </div>
+          <NnButton
+            size="sm"
+            @click="searchFromIngredient(ing.ingredient)"
+          >
+            이 재료 상품 찾기
+          </NnButton>
+        </li>
+      </ul>
+    </NnCard>
+
     <NnCard title="재료 검색">
-      <ShoppingSearchBar @search="onSearch" />
+      <ShoppingSearchBar v-model="keyword" @search="onSearch" />
       <p v-if="errorMessage" class="page__error">
         {{ errorMessage }}
       </p>
@@ -56,21 +88,54 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import NnCard from '../components/common/NnCard.vue';
 import ShoppingSearchBar from '../components/shopping/ShoppingSearchBar.vue';
 import ShoppingProductCard from '../components/shopping/ShoppingProductCard.vue';
 import { searchProducts, getRecommendations } from '../api/shoppingApi.js';
+import { fetchPlanIngredients } from '../api/mealPlanApi.js';
 
+// --- 식단 재료 불러오기
+const route = useRoute();
+const planId = computed(() => route.query.planId);
+const ingredients = ref([]);
+const isLoadingIngredients = ref(false);
+const ingredientsError = ref('');
+
+watch(
+  planId,
+  async (val) => {
+    if (!val) {
+      ingredients.value = [];
+      return;
+    }
+    isLoadingIngredients.value = true;
+    ingredientsError.value = '';
+    try {
+      ingredients.value = await fetchPlanIngredients(val);
+    } catch (e) {
+      console.error(e);
+      ingredientsError.value = '식단 재료 정보를 불러오는 중 오류가 발생했습니다.';
+    } finally {
+      isLoadingIngredients.value = false;
+    }
+  },
+  { immediate: true }
+);
+
+
+// --- 상품 검색
+const keyword = ref('');
 const searchResults = ref([]);
 const recommendations = ref([]);
 const isLoading = ref(false);
 const isLoadingReco = ref(false);
 const errorMessage = ref('');
 
-async function onSearch(keyword) {
-  if (!keyword || !keyword.trim()) {
+async function onSearch() {
+  if (!keyword.value || !keyword.value.trim()) {
     errorMessage.value = '검색어를 입력해 주세요.';
     return;
   }
@@ -82,11 +147,12 @@ async function onSearch(keyword) {
   recommendations.value = [];
 
   try {
+    const searchTerm = keyword.value.trim();
     // 1) 일반 검색
-    searchResults.value = await searchProducts(keyword);
+    searchResults.value = await searchProducts(searchTerm);
 
     // 2) 추천 (일단 neededGram은 500g 고정으로 테스트)
-    recommendations.value = await getRecommendations(keyword, 500);
+    recommendations.value = await getRecommendations(searchTerm, 500);
   } catch (err) {
     console.error(err);
     errorMessage.value = '검색 중 오류가 발생했습니다.';
@@ -94,6 +160,11 @@ async function onSearch(keyword) {
     isLoading.value = false;
     isLoadingReco.value = false;
   }
+}
+
+function searchFromIngredient(name) {
+  keyword.value = name;
+  onSearch();
 }
 </script>
 
@@ -135,5 +206,38 @@ async function onSearch(keyword) {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.ingredients-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ingredients-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+}
+
+.ingredients-list__info {
+  font-size: 14px;
+  color: #374151;
+}
+
+.ingredients-list__info strong {
+  font-weight: 600;
+  color: #111827;
+}
+
+.ingredients-list__info span {
+  font-size: 13px;
+  color: #6b7280;
 }
 </style>
