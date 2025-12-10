@@ -23,18 +23,18 @@
       <ul v-else class="ingredients-list">
         <li
           v-for="ing in ingredients"
-          :key="ing.ingredient"
+          :key="ing.ingredientName"
           class="ingredients-list__item"
         >
           <div class="ingredients-list__info">
-            <strong>{{ ing.ingredient }}</strong>
-            <span v-if="ing.neededGram">
-              · 총 {{ ing.neededGram }} g
+            <strong>{{ ing.ingredientName }}</strong>
+            <span v-if="ing.totalCalories">
+              · 총 {{ ing.totalCalories }} kcal
             </span>
           </div>
           <NnButton
             size="sm"
-            @click="searchFromIngredient(ing.ingredient)"
+            @click="searchFromIngredient(ing.ingredientName)"
           >
             이 재료 상품 찾기
           </NnButton>
@@ -135,6 +135,7 @@ const isLoadingReco = ref(false);
 const errorMessage = ref('');
 
 async function onSearch() {
+  console.log('onSearch triggered with keyword:', keyword.value);
   if (!keyword.value || !keyword.value.trim()) {
     errorMessage.value = '검색어를 입력해 주세요.';
     return;
@@ -163,6 +164,7 @@ async function onSearch() {
 }
 
 function searchFromIngredient(name) {
+  console.log('searchFromIngredient called with:', name);
   keyword.value = name;
   onSearch();
 }

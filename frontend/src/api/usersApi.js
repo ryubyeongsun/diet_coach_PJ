@@ -10,7 +10,7 @@ export async function fetchUserProfile(userId) {
   return res.data.data;
 }
 
-export async function fetchUserTdee(userId) {
+export async function fetchUserTdee(userId) {				
   const res = await api.get(`/users/${userId}/tdee`);
   return res.data.data;
 }
