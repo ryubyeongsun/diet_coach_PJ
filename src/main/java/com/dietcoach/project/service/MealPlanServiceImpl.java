@@ -14,6 +14,7 @@ import com.dietcoach.project.domain.meal.MealItem;
 import com.dietcoach.project.domain.meal.MealPlan;
 import com.dietcoach.project.domain.meal.MealPlanDay;
 import com.dietcoach.project.dto.meal.DashboardSummaryResponse;
+import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
 import com.dietcoach.project.dto.meal.MealPlanDaySummaryResponse;
 import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
@@ -242,6 +243,32 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .targetCaloriesPerDay(targetPerDay)
                 .averageCalories(averageCalories)
                 .achievementRate(achievementRate)
+                .build();
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public MealPlanDayDetailResponse getDayDetail(Long dayId) {
+        MealPlanDay day = mealPlanMapper.findMealPlanDayById(dayId);
+        if (day == null) {
+            throw new BusinessException("존재하지 않는 Day 입니다. id=" + dayId);
+        }
+
+        List<MealItem> items = mealPlanMapper.findMealItemsByDayId(dayId);
+
+        List<MealPlanDayDetailResponse.MealItemResponse> itemResponses = items.stream()
+                .map(it -> MealPlanDayDetailResponse.MealItemResponse.builder()
+                        .mealTime(it.getMealTime())
+                        .foodName(it.getFoodName())
+                        .calories(it.getCalories())
+                        .memo(it.getMemo())
+                        .build())
+                .toList();
+
+        return MealPlanDayDetailResponse.builder()
+                .dayId(day.getId())
+                .date(day.getPlanDate())
+                .totalCalories(day.getTotalCalories())
+                .items(itemResponses)
                 .build();
     }
 }

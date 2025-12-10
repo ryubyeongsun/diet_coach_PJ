@@ -4,6 +4,7 @@ import com.dietcoach.project.domain.meal.MealItem;
 import com.dietcoach.project.domain.meal.MealPlan;
 import com.dietcoach.project.domain.meal.MealPlanDay;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -19,6 +20,6 @@ public interface MealPlanMapper {
     MealPlan findMealPlanById(Long id);
     List<MealPlanDay> findMealPlanDaysByPlanId(Long mealPlanId);
     List<MealItem> findMealItemsByDayId(Long mealPlanDayId);
-
+    MealPlanDay findMealPlanDayById(@Param("dayId") Long dayId);
     MealPlan findLatestMealPlanByUserId(Long userId);
 }

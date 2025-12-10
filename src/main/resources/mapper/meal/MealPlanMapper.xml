@@ -65,16 +65,32 @@
             #{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{memo}
         )
     </insert>
-
+	<select id="findMealPlanDayById" parameterType="long"
+            resultType="com.dietcoach.project.domain.meal.MealPlanDay">
+        SELECT
+            id,
+            meal_plan_id    AS mealPlanId,
+            plan_date       AS planDate,
+            day_index       AS dayIndex,
+            total_calories  AS totalCalories,
+            created_at      AS createdAt,
+            updated_at      AS updatedAt
+        FROM meal_plan_days
+        WHERE id = #{dayId}
+    </select>
     <select id="findMealItemsByDayId" resultType="com.dietcoach.project.domain.meal.MealItem">
         SELECT
-            id, meal_plan_day_id AS mealPlanDayId,
-            meal_time AS mealTime, food_name AS foodName,
-            calories, memo,
-            created_at AS createdAt, updated_at AS updatedAt
+            id,
+            meal_plan_day_id AS mealPlanDayId,
+            meal_time        AS mealTime,
+            food_name        AS foodName,
+            calories,
+            memo,
+            created_at       AS createdAt,
+            updated_at       AS updatedAt
         FROM meal_items
         WHERE meal_plan_day_id = #{mealPlanDayId}
-        ORDER BY id ASC
+        ORDER BY meal_time
     </select>
 
 </mapper>
