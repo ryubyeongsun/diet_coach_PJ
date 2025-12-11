@@ -18,7 +18,7 @@ public class MealItem {
     private String foodName;
     private Integer calories;
     private String memo;
-
+    private Integer grams;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
