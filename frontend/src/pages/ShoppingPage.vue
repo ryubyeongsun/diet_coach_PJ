@@ -2,23 +2,27 @@
   <div class="page">
     <header class="page__header">
       <div>
-        <h1>식단 재료 쇼핑 추천</h1>
+        <h1>식단 재료 쇼핑</h1>
         <p>
-          11번가 API와 연동해서 식단에 필요한 재료를 검색하고,
-          가격 비교용 추천 상품을 보여주는 화면입니다.
+          식단에 필요한 재료를 확인하고, 11번가 상품을 검색하여 합리적인
+          소비를 도와드립니다.
+        </p>
+        <p v-if="planId" class="page__sub-header">
+          현재 플랜 ID: {{ planId }}
         </p>
       </div>
     </header>
 
-    <NnCard title="이 식단에 필요한 재료" v-if="planId">
+    <!-- 1. 식단 재료 목록 -->
+    <NnCard v-if="planId" title="이 식단에 필요한 재료">
       <div v-if="isLoadingIngredients" class="page__status">
         재료 정보를 불러오는 중입니다...
       </div>
       <div v-else-if="ingredientsError" class="page__error">
         {{ ingredientsError }}
       </div>
-      <div v-else-if="ingredients.length === 0">
-        이 식단에 대한 재료 정보가 아직 없습니다.
+      <div v-else-if="!ingredients || ingredients.length === 0" class="page__status">
+        이 식단에서 집계된 재료가 없습니다.
       </div>
       <ul v-else class="ingredients-list">
         <li
@@ -28,12 +32,11 @@
         >
           <div class="ingredients-list__info">
             <strong>{{ ing.ingredientName }}</strong>
-            <span v-if="ing.totalCalories">
-              · 총 {{ ing.totalCalories }} kcal
-            </span>
+            <span v-if="ing.totalGrams">총 {{ ing.totalGrams }}g 필요</span>
           </div>
           <NnButton
             size="sm"
+            variant="outline"
             @click="searchFromIngredient(ing.ingredientName)"
           >
             이 재료 상품 찾기
@@ -42,22 +45,28 @@
       </ul>
     </NnCard>
 
-    <NnCard title="재료 검색">
-      <ShoppingSearchBar v-model="keyword" @search="onSearch" />
-      <p v-if="errorMessage" class="page__error">
-        {{ errorMessage }}
+    <NnCard v-else title="안내">
+      <p class="page__status">
+        먼저 식단 페이지에서 "이 식단 재료 장보기"를 눌러주세요.
       </p>
     </NnCard>
 
-    <NnCard title="검색 결과">
-      <div v-if="isLoading" class="page__status">
+    <!-- 2. 재료 검색 -->
+    <NnCard title="재료 검색">
+      <ShoppingSearchBar v-model="keyword" @search="onSearch" />
+      <p v-if="searchError" class="page__error">
+        {{ searchError }}
+      </p>
+    </NnCard>
+
+    <!-- 3. 검색 결과 -->
+    <NnCard :title="`'${keyword}' 검색 결과`" v-if="hasSearched">
+      <div v-if="isLoadingSearch" class="page__status">
         검색 중입니다...
       </div>
-
-      <div v-else-if="searchResults.length === 0">
-        검색어를 입력하면 이 아래에 상품 리스트가 표시됩니다.
+      <div v-else-if="searchResults.length === 0" class="page__status">
+        검색 결과가 없습니다.
       </div>
-
       <div v-else class="page__list">
         <ShoppingProductCard
           v-for="p in searchResults"
@@ -67,15 +76,17 @@
       </div>
     </NnCard>
 
-    <NnCard title="추천 상품 (테스트: 500g 기준)">
+    <!-- 4. 추천 상품 -->
+    <NnCard :title="`'${keyword}' 추천 상품 (500g 기준)`" v-if="hasSearched">
       <div v-if="isLoadingReco" class="page__status">
         추천 상품을 불러오는 중입니다...
       </div>
-
-      <div v-else-if="recommendations.length === 0">
-        아직 추천 결과가 없습니다. 위에서 검색을 먼저 해보세요.
+       <p v-if="recoError" class="page__error">
+        {{ recoError }}
+      </p>
+      <div v-else-if="recommendations.length === 0" class="page__status">
+        추천 상품이 없습니다.
       </div>
-
       <div v-else class="page__list">
         <ShoppingProductCard
           v-for="p in recommendations"
@@ -92,32 +103,37 @@ import { ref, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 import NnCard from '../components/common/NnCard.vue';
+import NnButton from '../components/common/NnButton.vue';
 import ShoppingSearchBar from '../components/shopping/ShoppingSearchBar.vue';
 import ShoppingProductCard from '../components/shopping/ShoppingProductCard.vue';
 import { searchProducts, getRecommendations } from '../api/shoppingApi.js';
 import { fetchPlanIngredients } from '../api/mealPlanApi.js';
 
-// --- 식단 재료 불러오기
+// --- 식단 재료 ---
 const route = useRoute();
-const planId = computed(() => route.query.planId);
+const planId = computed(() =>
+  route.query.planId ? Number(route.query.planId) : null
+);
 const ingredients = ref([]);
 const isLoadingIngredients = ref(false);
 const ingredientsError = ref('');
 
 watch(
   planId,
-  async (val) => {
-    if (!val) {
+  async (newPlanId) => {
+    if (!newPlanId) {
       ingredients.value = [];
       return;
     }
     isLoadingIngredients.value = true;
     ingredientsError.value = '';
     try {
-      ingredients.value = await fetchPlanIngredients(val);
+      // API 헬퍼는 이미 .data.data를 반환하므로, 결과를 바로 할당합니다.
+      const response = await fetchPlanIngredients(newPlanId);
+      ingredients.value = response || [];
     } catch (e) {
-      console.error(e);
-      ingredientsError.value = '식단 재료 정보를 불러오는 중 오류가 발생했습니다.';
+      console.error('fetchPlanIngredients error:', e);
+      ingredientsError.value = '식단 재료를 불러오는 중 오류가 발생했습니다.';
     } finally {
       isLoadingIngredients.value = false;
     }
@@ -125,48 +141,70 @@ watch(
   { immediate: true }
 );
 
-
-// --- 상품 검색
+// --- 상품 검색 및 추천 ---
 const keyword = ref('');
 const searchResults = ref([]);
 const recommendations = ref([]);
-const isLoading = ref(false);
+const isLoadingSearch = ref(false);
 const isLoadingReco = ref(false);
-const errorMessage = ref('');
+const searchError = ref('');
+const recoError = ref('');
+const hasSearched = ref(false); // 검색 실행 여부 상태
 
-async function onSearch() {
-  console.log('onSearch triggered with keyword:', keyword.value);
+async function executeSearch() {
   if (!keyword.value || !keyword.value.trim()) {
-    errorMessage.value = '검색어를 입력해 주세요.';
+    searchError.value = '검색어를 입력해 주세요.';
     return;
   }
+  
+  hasSearched.value = true; // 검색을 시작했음을 기록
 
-  isLoading.value = true;
+  // 로딩 상태 및 이전 결과 초기화
+  isLoadingSearch.value = true;
   isLoadingReco.value = true;
-  errorMessage.value = '';
+  searchError.value = '';
+  recoError.value = '';
   searchResults.value = [];
   recommendations.value = [];
 
-  try {
-    const searchTerm = keyword.value.trim();
-    // 1) 일반 검색
-    searchResults.value = await searchProducts(searchTerm);
+  const searchTerm = keyword.value.trim();
 
-    // 2) 추천 (일단 neededGram은 500g 고정으로 테스트)
-    recommendations.value = await getRecommendations(searchTerm, 500);
-  } catch (err) {
-    console.error(err);
-    errorMessage.value = '검색 중 오류가 발생했습니다.';
-  } finally {
-    isLoading.value = false;
-    isLoadingReco.value = false;
+  // API 병렬 호출
+  const [searchResult, recoResult] = await Promise.allSettled([
+    searchProducts(searchTerm),
+    getRecommendations(searchTerm, 500), // neededGram은 500g으로 고정
+  ]);
+
+  // 일반 검색 결과 처리
+  if (searchResult.status === 'fulfilled') {
+    // API 헬퍼는 이미 .data.data를 반환하므로, .value가 실제 데이터 배열입니다.
+    searchResults.value = searchResult.value || [];
+  } else {
+    console.error('searchProducts error:', searchResult.reason);
+    searchError.value = '상품 검색 중 오류가 발생했습니다.';
   }
+  isLoadingSearch.value = false;
+
+  // 추천 상품 결과 처리
+  if (recoResult.status === 'fulfilled') {
+     // API 헬퍼는 이미 .data.data를 반환하므로, .value가 실제 데이터 배열입니다.
+    recommendations.value = recoResult.value || [];
+  } else {
+    console.error('getRecommendations error:', recoResult.reason);
+    recoError.value = '추천 상품을 불러오는 중 오류가 발생했습니다.';
+  }
+  isLoadingReco.value = false;
 }
 
+// 검색바에서 직접 검색
+function onSearch() {
+  executeSearch();
+}
+
+// 재료 목록에서 검색
 function searchFromIngredient(name) {
-  console.log('searchFromIngredient called with:', name);
   keyword.value = name;
-  onSearch();
+  executeSearch();
 }
 </script>
 
@@ -177,7 +215,7 @@ function searchFromIngredient(name) {
   padding: 20px 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .page__header h1 {
@@ -193,6 +231,17 @@ function searchFromIngredient(name) {
   color: #6b7280;
 }
 
+.page__sub-header {
+  margin-top: 8px !important;
+  font-size: 12px;
+  font-weight: 500;
+  color: #4b5563;
+  background-color: #f3f4f6;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
 .page__error {
   margin-top: 8px;
   font-size: 13px;
@@ -200,14 +249,16 @@ function searchFromIngredient(name) {
 }
 
 .page__status {
-  font-size: 13px;
+  padding: 16px 0;
+  text-align: center;
+  font-size: 14px;
   color: #6b7280;
 }
 
 .page__list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .ingredients-list {
@@ -223,23 +274,32 @@ function searchFromIngredient(name) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px;
+  padding: 12px;
   background-color: #f9fafb;
+  border: 1px solid #f3f4f6;
   border-radius: 8px;
+  transition: background-color 0.2s;
+}
+.ingredients-list__item:hover {
+  background-color: #f3f4f6;
 }
 
 .ingredients-list__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-size: 14px;
   color: #374151;
 }
 
 .ingredients-list__info strong {
   font-weight: 600;
+  font-size: 15px;
   color: #111827;
 }
 
 .ingredients-list__info span {
   font-size: 13px;
-  color: #6b7280;
+  color: #4b5563;
 }
 </style>
