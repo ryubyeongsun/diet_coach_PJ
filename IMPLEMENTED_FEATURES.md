@@ -19,7 +19,11 @@
     - `src/pages`: 라우팅되는 메인 페이지 컴포넌트
     - `src/router`: Vue Router 설정
 
-### 나. API 통신
+### 나. 백엔드
+- **기술 스택**: Java 17, Spring Boot, Maven
+- **데이터베이스**: MySQL, MyBatis
+
+### 다. API 통신
 - **중앙 클라이언트**: `src/api/http.js`에 `axios` 인스턴스를 중앙화하여 관리.
 - **공통 처리**: 모든 API 요청/응답을 가로채는 인터셉터(Interceptor)를 구현.
     - **요청 인터셉터**: API 호출 시 콘솔에 로그를 기록하여 디버깅 편의성 증대.
@@ -27,7 +31,7 @@
 
 ---
 
-## 3. 구현된 기능 상세
+## 3. 구현된 기능 상세 (프론트엔드 관점)
 
 ### 가. 사용자 관리 (핵심 기반)
 - **기능**:
@@ -68,7 +72,80 @@
 
 ---
 
-## 4. 실행 및 테스트 방법
+## 4. 백엔드 API 엔드포인트 상세
+
+이 섹션은 백엔드에서 제공하는 REST API 엔드포인트의 상세 명세입니다.
+
+### 가. User API (`/api/users`)
+
+- **`POST /api/users`**
+    - **설명**: 신규 사용자를 생성하고, 프로필 정보와 TDEE(총 일일 에너지 소비량)를 함께 계산하여 저장합니다.
+    - **Request Body**: `UserCreateRequest`
+    - **Success Response**: `ApiResponse<Long>` (생성된 사용자 ID)
+
+- **`GET /api/users/{id}`**
+    - **설명**: 특정 사용자의 프로필 정보(TDEE 포함)를 조회합니다.
+    - **Path Variable**: `id` (사용자 ID)
+    - **Success Response**: `ApiResponse<UserProfileResponse>`
+
+- **`GET /api/users/{id}/tdee`**
+    - **설명**: 특정 사용자의 TDEE 정보만 별도로 조회합니다.
+    - **Path Variable**: `id` (사용자 ID)
+    - **Success Response**: `ApiResponse<TdeeResponse>`
+
+### 나. Meal Plan API (`/api`)
+
+- **`POST /api/meal-plans`**
+    - **설명**: 특정 사용자를 위해 한 달(30일) 분량의 식단을 자동으로 생성합니다.
+    - **Request Body**: `MealPlanCreateRequest` (`userId`, `startDate` 포함)
+    - **Success Response**: `ApiResponse<MealPlanOverviewResponse>` (생성된 식단 전체 개요)
+
+- **`GET /api/meal-plans/{planId}`**
+    - **설명**: 특정 식단 플랜의 상세 정보를 조회합니다.
+    - **Path Variable**: `planId` (식단 플랜 ID)
+    - **Success Response**: `ApiResponse<MealPlanOverviewResponse>`
+
+- **`GET /api/users/{userId}/meal-plans/latest`**
+    - **설명**: 특정 사용자의 가장 최근 식단 플랜을 조회합니다.
+    - **Path Variable**: `userId` (사용자 ID)
+    - **Success Response**: `ApiResponse<MealPlanOverviewResponse>`
+
+- **`GET /api/meal-plans/{planId}/ingredients`**
+    - **설명**: 특정 식단 플랜에 포함된 모든 재료의 목록과 총 필요량을 조회합니다.
+    - **Path Variable**: `planId` (식단 플랜 ID)
+    - **Success Response**: `ApiResponse<List<MealPlanIngredientResponse>>`
+
+- **`GET /api/users/{userId}/dashboard-summary`**
+    - **설명**: 특정 사용자의 대시보드 요약 정보(오늘의 칼로리, 최근 식단 등)를 조회합니다.
+    - **Path Variable**: `userId` (사용자 ID)
+    - **Success Response**: `ApiResponse<DashboardSummaryResponse>`
+
+- **`GET /api/meal-plans/days/{dayId}`**
+    - **설명**: 특정 날짜(day)에 해당하는 식단의 상세 정보(아침, 점심, 저녁 메뉴 등)를 조회합니다.
+    - **Path Variable**: `dayId` (식단 날짜 ID)
+    - **Success Response**: `ApiResponse<MealPlanDayDetailResponse>`
+
+### 다. Shopping API (`/api/shopping`)
+
+- **`GET /api/shopping/search`**
+    - **설명**: 키워드를 기반으로 상품을 검색합니다. (11번가 API 연동)
+    - **Query Parameters**: `keyword`, `page` (옵션), `size` (옵션)
+    - **Success Response**: `ApiResponse<List<ShoppingProductResponse>>`
+
+- **`GET /api/shopping/recommendations`**
+    - **설명**: 특정 식재료와 필요량을 기반으로 가장 적합한 상품을 추천합니다.
+    - **Query Parameters**: `ingredient`, `neededGram` (옵션)
+    - **Success Response**: `ApiResponse<List<ShoppingProductResponse>>`
+
+### 라. Health Check API (`/api/health`)
+
+- **`GET /api/health`**
+    - **설명**: 백엔드 서버의 상태를 확인하는 헬스 체크 엔드포인트입니다.
+    - **Success Response**: `ApiResponse<String>` (상태 메시지 및 "UP" 상태)
+
+---
+
+## 5. 실행 및 테스트 방법
 
 1.  `frontend` 디렉토리에서 `npm install` 후 `npm run dev`로 개발 서버 실행.
 2.  브라우저에서 `/meal-plans` 경로로 접속.

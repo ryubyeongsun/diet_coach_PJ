@@ -59,6 +59,8 @@ CREATE TABLE meal_items (
     CONSTRAINT fk_meal_items_meal_plan_day
         FOREIGN KEY (meal_plan_day_id) REFERENCES meal_plan_days(id)
 );
+ALTER TABLE meal_items
+    ADD COLUMN grams INT NOT NULL DEFAULT 100;
 
 
 
