@@ -42,4 +42,13 @@
         LIMIT 1
     </select>
 
+    <select id="findByUserIdAndDateOnOrBefore" resultType="com.dietcoach.project.domain.WeightRecord">
+        SELECT id, user_id AS userId, record_date AS recordDate, weight, memo, created_at AS createdAt, updated_at AS updatedAt
+        FROM weight_records
+        WHERE user_id = #{userId}
+          AND record_date <= #{recordDate}
+        ORDER BY record_date DESC
+        LIMIT 1
+    </select>
+
 </mapper>
