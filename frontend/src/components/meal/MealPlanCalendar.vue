@@ -18,7 +18,7 @@
           {{ formatDate(day.date) }}
         </p>
         <p class="calendar__kcal">
-          {{ day.totalCalories }} kcal
+          {{ day.totalCalories != null ? day.totalCalories : '-' }} kcal
         </p>
         <p class="calendar__memo">
           {{ day.memo || '상세 식단은 추후 추가 예정입니다.' }}

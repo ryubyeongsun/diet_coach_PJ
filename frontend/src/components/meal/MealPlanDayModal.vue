@@ -31,7 +31,10 @@
                   <span class="item__name">{{ item.foodName }}</span>
                   <span v-if="item.memo" class="item__memo">{{ item.memo }}</span>
                 </div>
-                <span class="item__kcal">{{ item.calories }} kcal</span>
+                <span class="item__kcal">
+                  <span v-if="item.grams != null">{{ item.grams }}g · </span>
+                  {{ item.calories }} kcal
+                </span>
               </li>
             </ul>
           </div>
