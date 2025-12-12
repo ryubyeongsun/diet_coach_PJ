@@ -123,4 +123,10 @@
     GROUP BY mi.food_name
     ORDER BY daysCount DESC
 </select>
+<update id="updateMealPlanDayTotalCalories">
+    UPDATE meal_plan_days
+    SET total_calories = #{totalCalories},
+        updated_at = NOW()
+    WHERE id = #{dayId}
+</update>
 </mapper>

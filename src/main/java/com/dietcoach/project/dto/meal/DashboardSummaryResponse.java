@@ -22,7 +22,9 @@ public class DashboardSummaryResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private int totalDays;
-
+    private Double latestWeight;
+    private Double weightChange7Days;
+    private Boolean hasWeightRecords;
     private int targetCaloriesPerDay;
     private int averageCalories;
     private int achievementRate; // %
