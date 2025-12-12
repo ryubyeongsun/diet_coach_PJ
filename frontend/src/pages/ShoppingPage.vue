@@ -32,7 +32,7 @@
         >
           <div class="ingredients-list__info">
             <strong>{{ ing.ingredientName }}</strong>
-            <span v-if="ing.totalGrams">총 {{ ing.totalGrams }}g 필요</span>
+            <span v-if="ing.totalGram">총 {{ ing.totalGram }}g 필요</span>
           </div>
           <NnButton
             size="sm"
@@ -72,6 +72,7 @@
           v-for="p in searchResults"
           :key="p.externalId"
           :product="p"
+          @add-to-cart="addToCart"
         />
       </div>
     </NnCard>
@@ -92,7 +93,34 @@
           v-for="p in recommendations"
           :key="`reco-${p.externalId}`"
           :product="p"
+          @add-to-cart="addToCart"
         />
+      </div>
+    </NnCard>
+
+    <!-- 5. 임시 장바구니 요약 -->
+    <NnCard title="선택한 상품 요약">
+      <div v-if="cartSummary.totalCount === 0" class="page__status">
+        담은 상품이 없습니다.
+      </div>
+      <div v-else class="cart-summary">
+        <div class="summary-line">
+          <span>담은 상품:</span>
+          <strong>{{ cartSummary.totalCount }}개</strong>
+        </div>
+        <div class="summary-line">
+          <span>총 금액:</span>
+          <strong>{{ cartSummary.totalPrice.toLocaleString() }}원</strong>
+        </div>
+        <div v-if="cartSummary.totalGram > 0" class="summary-line">
+          <span>총 무게:</span>
+          <strong>약 {{ cartSummary.totalGram.toLocaleString() }}g</strong>
+        </div>
+        <div class="cart-summary__actions">
+          <NnButton size="sm" @click="clearCart">
+            선택 초기화
+          </NnButton>
+        </div>
       </div>
     </NnCard>
   </div>
@@ -128,7 +156,6 @@ watch(
     isLoadingIngredients.value = true;
     ingredientsError.value = '';
     try {
-      // API 헬퍼는 이미 .data.data를 반환하므로, 결과를 바로 할당합니다.
       const response = await fetchPlanIngredients(newPlanId);
       ingredients.value = response || [];
     } catch (e) {
@@ -149,7 +176,7 @@ const isLoadingSearch = ref(false);
 const isLoadingReco = ref(false);
 const searchError = ref('');
 const recoError = ref('');
-const hasSearched = ref(false); // 검색 실행 여부 상태
+const hasSearched = ref(false);
 
 async function executeSearch() {
   if (!keyword.value || !keyword.value.trim()) {
@@ -157,9 +184,8 @@ async function executeSearch() {
     return;
   }
   
-  hasSearched.value = true; // 검색을 시작했음을 기록
+  hasSearched.value = true;
 
-  // 로딩 상태 및 이전 결과 초기화
   isLoadingSearch.value = true;
   isLoadingReco.value = true;
   searchError.value = '';
@@ -169,42 +195,66 @@ async function executeSearch() {
 
   const searchTerm = keyword.value.trim();
 
-  // API 병렬 호출
   const [searchResult, recoResult] = await Promise.allSettled([
     searchProducts(searchTerm),
-    getRecommendations(searchTerm, 500), // neededGram은 500g으로 고정
+    getRecommendations(searchTerm, 500),
   ]);
 
-  // 일반 검색 결과 처리
   if (searchResult.status === 'fulfilled') {
-    // API 헬퍼는 이미 .data.data를 반환하므로, .value가 실제 데이터 배열입니다.
     searchResults.value = searchResult.value || [];
-  } else {
+  }
+  else {
     console.error('searchProducts error:', searchResult.reason);
     searchError.value = '상품 검색 중 오류가 발생했습니다.';
   }
   isLoadingSearch.value = false;
 
-  // 추천 상품 결과 처리
   if (recoResult.status === 'fulfilled') {
-     // API 헬퍼는 이미 .data.data를 반환하므로, .value가 실제 데이터 배열입니다.
     recommendations.value = recoResult.value || [];
-  } else {
+  }
+  else {
     console.error('getRecommendations error:', recoResult.reason);
     recoError.value = '추천 상품을 불러오는 중 오류가 발생했습니다.';
   }
   isLoadingReco.value = false;
 }
 
-// 검색바에서 직접 검색
 function onSearch() {
   executeSearch();
 }
 
-// 재료 목록에서 검색
 function searchFromIngredient(name) {
   keyword.value = name;
   executeSearch();
+}
+
+// --- 임시 장바구니 ---
+const selectedProducts = ref([]);
+
+const cartSummary = computed(() => {
+  const totalCount = selectedProducts.value.length;
+  
+  const totalPrice = selectedProducts.value.reduce((sum, product) => {
+    return sum + (product.price || 0);
+  }, 0);
+
+  const totalGram = selectedProducts.value.reduce((sum, product) => {
+    return sum + (product.gramPerUnit || 0);
+  }, 0);
+
+  return {
+    totalCount,
+    totalPrice,
+    totalGram,
+  };
+});
+
+function addToCart(product) {
+  selectedProducts.value.push(product);
+}
+
+function clearCart() {
+  selectedProducts.value = [];
 }
 </script>
 
@@ -301,5 +351,27 @@ function searchFromIngredient(name) {
 .ingredients-list__info span {
   font-size: 13px;
   color: #4b5563;
+}
+
+.cart-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.summary-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+.summary-line strong {
+  font-weight: 700;
+  font-size: 16px;
+}
+.cart-summary__actions {
+  margin-top: 12px;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 12px;
+  text-align: right;
 }
 </style>

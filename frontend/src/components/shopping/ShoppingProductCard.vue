@@ -7,6 +7,8 @@ const props = defineProps({
     required: true,
   },
 });
+
+const emit = defineEmits(['add-to-cart']);
 </script>
 
 <template>
@@ -21,37 +23,37 @@ const props = defineProps({
     </div>
 
     <div class="product-card__body">
-      <div class="product-card__title">
-        {{ product.name }}
-      </div>
+      <p class="product-card__title">{{ product.name }}</p>
 
-      <div class="product-card__meta">
-        <div class="product-card__price">
-          <span class="product-card__price-main">
-            {{ product.price?.toLocaleString() }}원
-          </span>
-          <span
-            v-if="product.pricePer100g"
-            class="product-card__price-sub"
-          >
-            (100g당 {{ product.pricePer100g.toLocaleString() }}원)
-          </span>
-        </div>
-        <div class="product-card__mall">
-          {{ product.mallName || '11번가' }}
-        </div>
+      <div class="product-card__details">
+        <p class="product-card__price">
+          {{ product.price?.toLocaleString() }}원
+        </p>
+        <p v-if="product.mallName" class="product-card__mall">
+          {{ product.mallName }}
+        </p>
+        <p class="product-card__gram-info">
+          <span v-if="product.gramPerUnit">약 {{ product.gramPerUnit.toLocaleString() }}g</span>
+          <span v-if="product.gramPerUnit && product.pricePer100g"> · </span>
+          <span v-if="product.pricePer100g">100g당 {{ product.pricePer100g.toLocaleString() }}원</span>
+        </p>
       </div>
 
       <div class="product-card__actions">
+        <NnButton
+          size="sm"
+          variant="outline"
+          @click="emit('add-to-cart', product)"
+        >
+          담기
+        </NnButton>
         <a
-          v-if="product.productUrl"
           :href="product.productUrl"
           target="_blank"
           rel="noopener noreferrer"
+          v-if="product.productUrl"
         >
-          <NnButton size="small">
-            상품 보러가기
-          </NnButton>
+          <NnButton size="sm">상세 보기</NnButton>
         </a>
       </div>
     </div>
@@ -61,17 +63,17 @@ const props = defineProps({
 <style scoped>
 .product-card {
   display: flex;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 16px;
+  padding: 16px;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   background: #ffffff;
 }
 
 .product-card__thumb {
-  width: 64px;
-  height: 64px;
-  border-radius: 12px;
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
   background: #f3f4f6;
   overflow: hidden;
   flex-shrink: 0;
@@ -87,44 +89,52 @@ const props = defineProps({
 }
 
 .product-card__placeholder {
-  font-size: 24px;
+  font-size: 32px;
 }
 
 .product-card__body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .product-card__title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: #111827;
+  margin: 0;
+  line-height: 1.4;
 }
 
-.product-card__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  font-size: 12px;
+.product-card__details {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #374151;
+}
+.product-card__details p {
+  margin: 0 0 2px;
 }
 
-.product-card__price-main {
+.product-card__price {
+  font-size: 14px;
   font-weight: 700;
-  color: #111827;
-}
-
-.product-card__price-sub {
-  margin-left: 4px;
-  color: #6b7280;
 }
 
 .product-card__mall {
   color: #6b7280;
+  font-size: 12px;
+}
+
+.product-card__gram-info {
+  color: #6b7280;
+  font-size: 12px;
 }
 
 .product-card__actions {
-  margin-top: 6px;
+  margin-top: auto;
+  padding-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

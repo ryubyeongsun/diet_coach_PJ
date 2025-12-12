@@ -6,13 +6,15 @@
       `nn-button--${variant}`,
       { 'nn-button--block': block },
     ]"
-    @click="$emit('click', $event)"
+    @click="emit('click', $event)"
   >
     <slot />
   </button>
 </template>
 
 <script setup>
+const emit = defineEmits(['click']);
+
 const props = defineProps({
   type: {
     type: String,
