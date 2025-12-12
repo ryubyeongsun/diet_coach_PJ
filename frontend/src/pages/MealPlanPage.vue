@@ -5,7 +5,6 @@
         <h1>한 달 식단 플랜</h1>
         <p>
           TDEE와 예산을 기반으로 자동 생성될 식단의 레이아웃입니다.
-          지금은 백엔드에서 받아온 데이터를 바인딩하고 있습니다.
         </p>
 
         <p v-if="currentUserId" class="page__user">
@@ -33,6 +32,35 @@
     <p v-if="errorMessage" class="page__error">
       {{ errorMessage }}
     </p>
+
+    <!-- 대시보드 요약 -->
+    <p v-if="dashboardError" class="page__error">{{ dashboardError }}</p>
+    <section class="dashboard-summary" v-if="dashboard">
+      <NnCard>
+        <div class="dashboard-summary__row">
+          <div>
+            <div class="dashboard-summary__label">현재 체중</div>
+            <div class="dashboard-summary__value">
+              {{ dashboard.latestWeight }} kg
+            </div>
+          </div>
+          <div>
+            <div class="dashboard-summary__label">7일 변화</div>
+            <div class="dashboard-summary__value">
+              <span v-if="dashboard.weightChange7Days > 0" class="positive">
+                +{{ dashboard.weightChange7Days }} kg
+              </span>
+              <span v-else-if="dashboard.weightChange7Days < 0" class="negative">
+                {{ dashboard.weightChange7Days }} kg
+              </span>
+              <span v-else>
+                {{ dashboard.weightChange7Days }} kg
+              </span>
+            </div>
+          </div>
+        </div>
+      </NnCard>
+    </section>
 
     <NnCard title="이번 달 식단 개요">
       <div v-if="isLoading" class="page__status">
@@ -89,13 +117,18 @@ import MealPlanCalendar from '../components/meal/MealPlanCalendar.vue';
 import MealPlanDayModal from '../components/meal/MealPlanDayModal.vue';
 
 import { fetchLatestMealPlan, generateMealPlan } from '../api/mealPlanApi';
-import { createUser } from '../api/usersApi.js'; // Import createUser
+import { createUser } from '../api/usersApi.js';
+import { fetchDashboardSummary } from '../api/dashboardApi.js';
 
-const isLoading = ref(false);        // 식단 불러오기/생성 로딩
-const errorMessage = ref('');        // 식단 관련 에러
-const currentUserId = ref(null);     // 현재 사용 중인 유저 ID
-const overview = ref(null);          // MealPlanOverviewResponse
+const isLoading = ref(false);
+const errorMessage = ref('');
+const currentUserId = ref(null);
+const overview = ref(null);
 const router = useRouter();
+
+// --- 대시보드 ---
+const dashboard = ref(null);
+const dashboardError = ref('');
 
 // --- 상세 모달 상태 ---
 const selectedDayId = ref(null);
@@ -136,7 +169,6 @@ async function initUser() {
   let storedId = localStorage.getItem('userId');
   if (storedId) {
     currentUserId.value = Number(storedId);
-    console.log('[MealPlanPage] Loaded userId from localStorage:', currentUserId.value);
     return;
   }
 
@@ -154,14 +186,11 @@ async function initUser() {
       goalType: 'LOSE_WEIGHT',
     });
 
-    // The API returns the ID directly as a number.
     if (newUserId) {
       currentUserId.value = newUserId;
       localStorage.setItem('userId', String(newUserId));
-      console.log('[MealPlanPage] Created new user with ID:', currentUserId.value);
     } else {
       errorMessage.value = '사용자 생성 후 서버로부터 올바른 ID를 받지 못했습니다.';
-      console.error('Unexpected response from createUser (expected a user ID):', newUserId);
     }
   } catch (err) {
     console.error('[MealPlanPage] createUser error:', err);
@@ -179,14 +208,24 @@ async function loadLatest() {
     overview.value = await fetchLatestMealPlan(currentUserId.value);
   } catch (err) {
     console.error(err);
-    // Check for specific backend message indicating no meal plan
     if (err.response && err.response.data && err.response.data.message === '해당 유저의 최근 식단 플랜이 없습니다.') {
-      overview.value = null; // No meal plan, display "아직 생성된 식단이 없습니다."
+      overview.value = null;
     } else {
       errorMessage.value = '식단 정보를 불러오는 중 오류가 발생했습니다.';
     }
   } finally {
     isLoading.value = false;
+  }
+}
+
+async function loadDashboardSummary() {
+  if (!currentUserId.value) return;
+  try {
+    dashboardError.value = '';
+    dashboard.value = await fetchDashboardSummary(currentUserId.value);
+  } catch (err) {
+    console.error(err);
+    dashboardError.value = '대시보드 정보를 불러오는 중 오류가 발생했습니다.';
   }
 }
 
@@ -206,9 +245,8 @@ async function onClickGenerate() {
       startDate: today,
       totalDays: 30,
     });
-
-    // 새로 생성 후 최신 식단 다시 로드
-    await loadLatest();
+    
+    await Promise.all([loadLatest(), loadDashboardSummary()]);
   } catch (err) {
     console.error(err);
     errorMessage.value = '식단 생성 중 오류가 발생했습니다.';
@@ -220,7 +258,7 @@ async function onClickGenerate() {
 onMounted(async () => {
   await initUser();
   if (currentUserId.value) {
-    await loadLatest();
+    await Promise.all([loadLatest(), loadDashboardSummary()]);
   }
 });
 </script>
@@ -233,7 +271,7 @@ onMounted(async () => {
   padding: 20px 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .page__header {
@@ -275,15 +313,37 @@ onMounted(async () => {
 }
 
 .page__status {
-  font-size: 13px;
+  padding: 16px 0;
+  text-align: center;
+  font-size: 14px;
   color: #6b7280;
 }
 
-.page__summary {
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 500;
+/* --- 대시보드 요약 --- */
+.dashboard-summary {
+  margin-bottom: -8px;
+}
+.dashboard-summary__row {
+  display: flex;
+  justify-content: space-around;
+  gap: 16px;
+  text-align: center;
+}
+.dashboard-summary__label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+.dashboard-summary__value {
+  font-size: 18px;
+  font-weight: 700;
   color: #111827;
+}
+.dashboard-summary__value .positive {
+  color: #dc2626;
+}
+.dashboard-summary__value .negative {
+  color: #166534;
 }
 
 /* --- 통계 대시보드 스타일 --- */

@@ -33,8 +33,8 @@ const go = (path) => {
           <button class="sidebar-nav__item" @click="go('/shopping')">
             🛒 재료 쇼핑
           </button>
-          <button class="sidebar-nav__item" disabled>
-            ⚖️ 체중 기록 (준비중)
+          <button class="sidebar-nav__item" @click="go('/weights')">
+            ⚖️ 체중 기록
           </button>
           <button class="sidebar-nav__item" disabled>
             💪 운동 기록 (준비중)
