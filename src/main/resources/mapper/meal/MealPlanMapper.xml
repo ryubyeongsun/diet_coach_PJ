@@ -60,10 +60,24 @@
     <insert id="insertMealItem" parameterType="com.dietcoach.project.domain.meal.MealItem"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO meal_items (
-            meal_plan_day_id, meal_time, food_name, calories, memo
-        ) VALUES (
-            #{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{memo}
-        )
+        meal_plan_day_id,
+        meal_time,
+        food_name,
+        calories,
+        grams,
+        memo,
+        created_at,
+        updated_at
+    ) VALUES (
+        #{mealPlanDayId},
+        #{mealTime},
+        #{foodName},
+        #{calories},
+        #{grams},
+        #{memo},
+        NOW(),
+        NOW()
+    )
     </insert>
 	<select id="findMealPlanDayById" parameterType="long"
             resultType="com.dietcoach.project.domain.meal.MealPlanDay">
@@ -80,29 +94,33 @@
     </select>
     <select id="findMealItemsByDayId" resultType="com.dietcoach.project.domain.meal.MealItem">
         SELECT
-            id,
-            meal_plan_day_id AS mealPlanDayId,
-            meal_time        AS mealTime,
-            food_name        AS foodName,
-            calories,
-            memo,
-            created_at       AS createdAt,
-            updated_at       AS updatedAt
-        FROM meal_items
-        WHERE meal_plan_day_id = #{mealPlanDayId}
-        ORDER BY meal_time
+        id,
+        meal_plan_day_id AS mealPlanDayId,
+        meal_time        AS mealTime,
+        food_name        AS foodName,
+        calories,
+        grams,
+        memo,
+        created_at       AS createdAt,
+        updated_at       AS updatedAt
+    FROM meal_items
+    WHERE meal_plan_day_id = #{mealPlanDayId}
+    ORDER BY meal_time
     </select>
 	<select id="findIngredientsForPlan" parameterType="long"
-            resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">
-        SELECT
-            m.food_name                            AS ingredientName,
-            NULL                                   AS totalGram,      -- 현재 g 정보 없으므로 null
-            SUM(m.calories)                        AS totalCalories,
-            COUNT(DISTINCT d.id)                   AS daysCount
-        FROM meal_items m
-        JOIN meal_plan_days d ON m.meal_plan_day_id = d.id
-        WHERE d.meal_plan_id = #{planId}
-        GROUP BY m.food_name
-        ORDER BY daysCount DESC
-    </select>
+        resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">
+    SELECT
+        mi.food_name AS ingredientName,
+        SUM(mi.grams) AS totalGram,        -- 🔥 grams 집계 추가
+        SUM(mi.calories) AS totalCalories,
+        COUNT(DISTINCT mi.meal_plan_day_id) AS daysCount
+    FROM meal_items mi
+    WHERE mi.meal_plan_day_id IN (
+        SELECT id
+        FROM meal_plan_days
+        WHERE meal_plan_id = #{planId}
+    )
+    GROUP BY mi.food_name
+    ORDER BY daysCount DESC
+</select>
 </mapper>

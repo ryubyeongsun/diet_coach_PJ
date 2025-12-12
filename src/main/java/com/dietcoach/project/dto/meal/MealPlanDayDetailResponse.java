@@ -24,14 +24,5 @@ public class MealPlanDayDetailResponse {
 	    private Integer totalCalories;    // 하루 총 kcal
 	    private List<MealItemResponse> items;
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class MealItemResponse {
-        private String mealTime;   // "BREAKFAST" / "LUNCH" / ...
-        private String foodName;
-        private int calories;
-        private String memo;
-    }
+  
 }
