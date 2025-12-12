@@ -1,4 +1,3 @@
-create database yumyum;
 
 use yumyum;
 
@@ -63,8 +62,26 @@ ALTER TABLE meal_items
     ADD COLUMN grams INT NOT NULL DEFAULT 100;
 
 
-
 SELECT id, email, name, gender, birth_date, height, weight,
        activity_level, goal_type, bmr, tdee, target_calories
 FROM users;
+CREATE TABLE IF NOT EXISTS weight_records (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  record_date DATE NOT NULL,
+  weight DECIMAL(5,2) NOT NULL,
+  memo VARCHAR(255) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_date (user_id, record_date),
+  CONSTRAINT fk_weight_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 select *from users;
+SELECT * FROM users;
+SELECT * FROM meal_plans;
+SELECT * FROM meal_plan_days;
+SELECT * FROM meal_items;
+
+SELECT *
+FROM meal_items
+WHERE meal_plan_day_id = 1;

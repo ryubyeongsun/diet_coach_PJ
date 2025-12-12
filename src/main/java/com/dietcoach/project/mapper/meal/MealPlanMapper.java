@@ -23,4 +23,6 @@ public interface MealPlanMapper {
     MealPlanDay findMealPlanDayById(@Param("dayId") Long dayId);
     MealPlan findLatestMealPlanByUserId(@Param("userId") Long userId);
     List<MealPlanIngredientResponse> findIngredientsForPlan(@Param("planId") Long planId);
+    int updateMealPlanDayTotalCalories(@Param("dayId") Long dayId,
+            @Param("totalCalories") Integer totalCalories);
 }
