@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import MealPlanPage from '../pages/MealPlanPage.vue';
 import ShoppingPage from '../pages/ShoppingPage.vue';
+import WeightPage from '../pages/WeightPage.vue';
 
 const routes = [
   {
@@ -9,11 +10,18 @@ const routes = [
   },
   {
     path: '/meal-plans',
+    name: 'meal-plans',
     component: MealPlanPage,
   },
   {
     path: '/shopping',
+    name: 'shopping',
     component: ShoppingPage,
+  },
+  {
+    path: '/weights',
+    name: 'weights',
+    component: WeightPage,
   },
 ];
 
