@@ -72,8 +72,9 @@ import NnInput from '../components/common/NnInput.vue';
 import TrendChart from '../components/dashboard/TrendChart.vue';
 import { createWeight, fetchWeights } from '../api/weightApi.js';
 import { fetchDashboardTrend } from '../api/dashboardApi.js';
+import { getCurrentUser } from '@/utils/auth.js';
 
-const userId = Number(localStorage.getItem('userId') || 1);
+const currentUser = ref(null);
 
 const form = ref({
   recordDate: new Date().toISOString().slice(0, 10),
@@ -98,6 +99,7 @@ const todaysRecord = computed(() => {
 });
 
 async function loadTrendData() {
+  const userId = currentUser.value?.id;
   if (!userId) return;
   isTrendLoading.value = true;
   trendError.value = '';
@@ -134,6 +136,8 @@ async function loadTrendData() {
 }
 
 async function loadRecords() {
+  const userId = currentUser.value?.id;
+  if (!userId) return;
   isLoadingList.value = true;
   listError.value = '';
   try {
@@ -156,6 +160,11 @@ async function loadRecords() {
 }
 
 async function onClickSave() {
+  const userId = currentUser.value?.id;
+  if (!userId) {
+    saveError.value = '로그인이 필요합니다.';
+    return;
+  }
   if (!form.value.weight) {
     alert('체중을 입력해 주세요.');
     return;
@@ -187,7 +196,10 @@ async function onClickSave() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadRecords(), loadTrendData()]);
+  currentUser.value = getCurrentUser();
+  if (currentUser.value) {
+    await Promise.all([loadRecords(), loadTrendData()]);
+  }
 });
 </script>
 

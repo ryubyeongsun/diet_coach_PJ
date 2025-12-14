@@ -1,5 +1,6 @@
 // src/api/http.js
 import axios from 'axios';
+import { getToken } from '../utils/auth';
 
 const api = axios.create({
   baseURL: '/api',
@@ -10,6 +11,10 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     console.log(`[API Request] ${config.method.toUpperCase()} ${config.url}`);
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {
