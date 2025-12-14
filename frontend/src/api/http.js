@@ -1,15 +1,20 @@
 // src/api/http.js
 import axios from 'axios';
+import { getToken } from '../utils/auth';
 
 const api = axios.create({
   baseURL: 'http://localhost:8080/api',
-  timeout: 5000,
+  timeout: 10000,
 });
 
 // Request interceptor for logging
 api.interceptors.request.use(
   (config) => {
     console.log(`[API Request] ${config.method.toUpperCase()} ${config.url}`);
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {

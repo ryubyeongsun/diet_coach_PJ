@@ -7,8 +7,8 @@
           TDEE와 예산을 기반으로 자동 생성될 식단의 레이아웃입니다.
         </p>
 
-        <p v-if="currentUserId" class="page__user">
-          현재 사용자 ID: {{ currentUserId }}
+        <p v-if="currentUser" class="page__user">
+          현재 사용자 ID: {{ currentUser.id }}
         </p>
       </div>
       <div class="page__actions">
@@ -21,7 +21,7 @@
         </NnButton>
         <NnButton
           block
-          :disabled="isLoading || !currentUserId"
+          :disabled="isLoading || !currentUser"
           @click="onClickGenerate"
         >
           {{ isLoading ? '처리 중...' : '식단 자동 생성' }}
@@ -133,12 +133,12 @@ import MealPlanDayModal from '../components/meal/MealPlanDayModal.vue';
 import TrendChart from '../components/dashboard/TrendChart.vue';
 
 import { fetchLatestMealPlan, generateMealPlan } from '../api/mealPlanApi';
-import { createUser } from '../api/usersApi.js';
+import { getCurrentUser } from '@/utils/auth.js';
 import { fetchDashboardSummary, fetchDashboardTrend } from '../api/dashboardApi.js';
 
 const isLoading = ref(false);
 const errorMessage = ref('');
-const currentUserId = ref(null);
+const currentUser = ref(null);
 const overview = ref(null);
 const router = useRouter();
 
@@ -186,47 +186,15 @@ function onClickGoShopping() {
   });
 }
 
-async function initUser() {
-  let storedId = localStorage.getItem('userId');
-  if (storedId) {
-    currentUserId.value = Number(storedId);
-    return;
-  }
-
-  try {
-    const uniqueEmail = `test-user-${Date.now()}@example.com`;
-    const newUserId = await createUser({
-      email: uniqueEmail,
-      password: '1234',
-      name: '테스트유저',
-      gender: 'MALE',
-      birthDate: '1998-01-01',
-      height: 175,
-      weight: 70,
-      activityLevel: 'MODERATE',
-      goalType: 'LOSE_WEIGHT',
-    });
-
-    if (newUserId) {
-      currentUserId.value = newUserId;
-      localStorage.setItem('userId', String(newUserId));
-    } else {
-      errorMessage.value = '사용자 생성 후 서버로부터 올바른 ID를 받지 못했습니다.';
-    }
-  } catch (err) {
-    console.error('[MealPlanPage] createUser error:', err);
-    errorMessage.value = '사용자 생성 중 오류가 발생했습니다.';
-  }
-}
-
 async function loadLatest() {
-  if (!currentUserId.value) return;
+  const userId = currentUser.value?.id;
+  if (!userId) return;
 
   isLoading.value = true;
   errorMessage.value = '';
 
   try {
-    overview.value = await fetchLatestMealPlan(currentUserId.value);
+    overview.value = await fetchLatestMealPlan(userId);
   } catch (err) {
     console.error(err);
     if (err.response && err.response.data && err.response.data.message === '해당 유저의 최근 식단 플랜이 없습니다.') {
@@ -240,10 +208,11 @@ async function loadLatest() {
 }
 
 async function loadDashboardSummary() {
-  if (!currentUserId.value) return;
+  const userId = currentUser.value?.id;
+  if (!userId) return;
   try {
     dashboardError.value = '';
-    dashboard.value = await fetchDashboardSummary(currentUserId.value);
+    dashboard.value = await fetchDashboardSummary(userId);
   } catch (err) {
     console.error(err);
     dashboardError.value = '대시보드 정보를 불러오는 중 오류가 발생했습니다.';
@@ -251,7 +220,8 @@ async function loadDashboardSummary() {
 }
 
 async function loadTrendData() {
-  if (!currentUserId.value) return;
+  const userId = currentUser.value?.id;
+  if (!userId) return;
   isTrendLoading.value = true;
   trendError.value = '';
   try {
@@ -262,7 +232,7 @@ async function loadTrendData() {
     const to = today.toISOString().slice(0, 10);
     const from = fromDate.toISOString().slice(0, 10);
 
-    trend.value = await fetchDashboardTrend(currentUserId.value, { from, to });
+    trend.value = await fetchDashboardTrend(userId, { from, to });
   } catch (err) {
     console.warn('Trend API error, using mock data', err);
     trendError.value = '트렌드 데이터를 불러오는 중 오류가 발생했습니다. 임시 데이터로 표시합니다.';
@@ -288,7 +258,8 @@ async function loadTrendData() {
 }
 
 async function onClickGenerate() {
-  if (!currentUserId.value) {
+  const userId = currentUser.value?.id;
+  if (!userId) {
     errorMessage.value = '사용자 정보가 준비되지 않았습니다.';
     return;
   }
@@ -299,7 +270,7 @@ async function onClickGenerate() {
   try {
     const today = new Date().toISOString().slice(0, 10);
     await generateMealPlan({
-      userId: currentUserId.value,
+      userId: userId,
       startDate: today,
       totalDays: 30,
     });
@@ -314,8 +285,8 @@ async function onClickGenerate() {
 }
 
 onMounted(async () => {
-  await initUser();
-  if (currentUserId.value) {
+  currentUser.value = getCurrentUser();
+  if (currentUser.value) {
     await Promise.all([loadLatest(), loadDashboardSummary(), loadTrendData()]);
   }
 });

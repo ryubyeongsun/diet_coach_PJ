@@ -1,24 +1,48 @@
 <script setup>
 import { RouterView, useRouter, useRoute } from 'vue-router';
+import { ref, computed, watch } from 'vue';
+import { getCurrentUser, clearAuth } from './utils/auth';
 
 const router = useRouter();
 const route = useRoute();
 
+const currentUser = ref(getCurrentUser());
+
+const isAuthPage = computed(() => route.path === '/login' || route.path === '/signup');
+
+watch(
+  () => route.path,
+  () => {
+    currentUser.value = getCurrentUser();
+  }
+);
+
 const go = (path) => {
   router.push(path);
+};
+
+const handleLogout = () => {
+  clearAuth();
+  currentUser.value = null;
+  router.push('/login');
 };
 </script>
 
 <template>
-  <div class="layout">
+  <div v-if="!isAuthPage" class="layout">
     <!-- 상단 헤더 -->
     <header class="layout__header">
       <div class="layout__logo" @click="go('/')">
         🥑 <span>남남코치</span>
       </div>
       <div class="layout__header-right">
-        <button class="layout__chip">30일 플랜</button>
-        <button class="layout__chip layout__chip--primary">오늘 기록하기</button>
+        <div v-if="currentUser" class="user-info">
+          <span>{{ currentUser.name }}님</span>
+          <button @click="handleLogout" class="layout__chip layout__chip--secondary">로그아웃</button>
+        </div>
+        <div v-else>
+           <button class="layout__chip" @click="go('/login')">로그인</button>
+        </div>
       </div>
     </header>
 
@@ -72,9 +96,20 @@ const go = (path) => {
       </main>
     </div>
   </div>
+  <div v-else>
+    <RouterView />
+  </div>
 </template>
 
 <style scoped>
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
 .layout {
   min-height: 100vh;
   display: flex;
@@ -126,6 +161,12 @@ const go = (path) => {
   border-color: #22c55e;
   background: #22c55e;
   color: white;
+}
+
+.layout__chip--secondary {
+  border-color: #ef4444;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 /* 바디 */
