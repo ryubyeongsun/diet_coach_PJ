@@ -262,7 +262,11 @@ async function loadTrendData() {
     const to = today.toISOString().slice(0, 10);
     const from = fromDate.toISOString().slice(0, 10);
 
-    trend.value = await fetchDashboardTrend(currentUserId.value, { from, to });
+    trend.value = await fetchDashboardTrend({ 
+      userId: currentUserId.value, 
+      from, 
+      to 
+    });
   } catch (err) {
     console.warn('Trend API error, using mock data', err);
     trendError.value = '트렌드 데이터를 불러오는 중 오류가 발생했습니다. 임시 데이터로 표시합니다.';
