@@ -31,7 +31,7 @@
         FROM weight_records
         WHERE user_id = #{userId}
           AND record_date BETWEEN #{from} AND #{to}
-        ORDER BY record_date ASC
+        ORDER BY record_date DESC
     </select>
 
     <select id="findLatestByUserId" resultType="com.dietcoach.project.domain.WeightRecord">
@@ -46,7 +46,7 @@
         SELECT id, user_id AS userId, record_date AS recordDate, weight, memo, created_at AS createdAt, updated_at AS updatedAt
         FROM weight_records
         WHERE user_id = #{userId}
-          AND record_date <= #{recordDate}
+          AND record_date &lt;= #{recordDate}
         ORDER BY record_date DESC
         LIMIT 1
     </select>
