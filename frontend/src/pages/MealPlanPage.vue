@@ -62,6 +62,21 @@
       </NnCard>
     </section>
 
+    <!-- 트렌드 차트 -->
+    <section class="trend-section">
+      <div v-if="isTrendLoading" class="page__status">
+        트렌드 데이터를 불러오는 중입니다...
+      </div>
+      <div v-else-if="trendError" class="page__error">
+        {{ trendError }}
+      </div>
+      <TrendChart
+        v-else-if="trend"
+        :day-trends="trend.dayTrends"
+        period-label="최근 7일"
+      />
+    </section>
+
     <NnCard title="이번 달 식단 개요">
       <div v-if="isLoading" class="page__status">
         식단 정보를 불러오는 중입니다...
@@ -115,10 +130,11 @@ import NnButton from '../components/common/NnButton.vue';
 import NnCard from '../components/common/NnCard.vue';
 import MealPlanCalendar from '../components/meal/MealPlanCalendar.vue';
 import MealPlanDayModal from '../components/meal/MealPlanDayModal.vue';
+import TrendChart from '../components/dashboard/TrendChart.vue';
 
 import { fetchLatestMealPlan, generateMealPlan } from '../api/mealPlanApi';
 import { createUser } from '../api/usersApi.js';
-import { fetchDashboardSummary } from '../api/dashboardApi.js';
+import { fetchDashboardSummary, fetchDashboardTrend } from '../api/dashboardApi.js';
 
 const isLoading = ref(false);
 const errorMessage = ref('');
@@ -129,6 +145,11 @@ const router = useRouter();
 // --- 대시보드 ---
 const dashboard = ref(null);
 const dashboardError = ref('');
+
+// --- 트렌드 ---
+const trend = ref(null);
+const isTrendLoading = ref(false);
+const trendError = ref('');
 
 // --- 상세 모달 상태 ---
 const selectedDayId = ref(null);
@@ -229,6 +250,43 @@ async function loadDashboardSummary() {
   }
 }
 
+async function loadTrendData() {
+  if (!currentUserId.value) return;
+  isTrendLoading.value = true;
+  trendError.value = '';
+  try {
+    const today = new Date();
+    const fromDate = new Date();
+    fromDate.setDate(today.getDate() - 6);
+    
+    const to = today.toISOString().slice(0, 10);
+    const from = fromDate.toISOString().slice(0, 10);
+
+    trend.value = await fetchDashboardTrend(currentUserId.value, { from, to });
+  } catch (err) {
+    console.warn('Trend API error, using mock data', err);
+    trendError.value = '트렌드 데이터를 불러오는 중 오류가 발생했습니다. 임시 데이터로 표시합니다.';
+    
+    // Fallback to mock data
+    const mockTrends = [];
+    const today = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(today.getDate() - i);
+      mockTrends.push({
+        date: date.toISOString().slice(0, 10),
+        totalCalories: 1800 + Math.floor(Math.random() * 500),
+        targetCalories: 2200,
+        weight: 72.5 + (Math.random() - 0.5),
+      });
+    }
+    trend.value = { dayTrends: mockTrends };
+
+  } finally {
+    isTrendLoading.value = false;
+  }
+}
+
 async function onClickGenerate() {
   if (!currentUserId.value) {
     errorMessage.value = '사용자 정보가 준비되지 않았습니다.';
@@ -246,7 +304,7 @@ async function onClickGenerate() {
       totalDays: 30,
     });
     
-    await Promise.all([loadLatest(), loadDashboardSummary()]);
+    await Promise.all([loadLatest(), loadDashboardSummary(), loadTrendData()]);
   } catch (err) {
     console.error(err);
     errorMessage.value = '식단 생성 중 오류가 발생했습니다.';
@@ -258,7 +316,7 @@ async function onClickGenerate() {
 onMounted(async () => {
   await initUser();
   if (currentUserId.value) {
-    await Promise.all([loadLatest(), loadDashboardSummary()]);
+    await Promise.all([loadLatest(), loadDashboardSummary(), loadTrendData()]);
   }
 });
 </script>
