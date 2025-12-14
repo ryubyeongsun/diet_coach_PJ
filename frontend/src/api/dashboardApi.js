@@ -6,3 +6,10 @@ export async function fetchDashboardSummary(userId) {
   return res.data.data;
   // 예: { latestWeight, weightChange7Days, targetCalories, avgCaloriesThisMonth, ... }
 }
+
+export async function fetchDashboardTrend(userId, { from, to } = {}) {
+  const res = await api.get('/dashboard/trend', {
+    params: { userId, from, to },
+  });
+  return res.data.data; // { dayTrends: [...] }
+}
