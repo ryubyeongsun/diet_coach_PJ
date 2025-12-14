@@ -3,8 +3,8 @@ import axios from 'axios';
 import { getToken } from '../utils/auth';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
-  timeout: 10000,
+  baseURL: '/api',
+  timeout: 5000,
 });
 
 // Request interceptor for logging
