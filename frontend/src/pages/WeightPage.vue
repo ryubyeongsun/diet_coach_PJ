@@ -4,8 +4,27 @@
       <h1>체중 기록</h1>
       <p>오늘 체중을 기록하고, 최근 변화를 확인해 보세요.</p>
     </header>
+    
+    <NnCard title="최근 30일 체중 변화">
+      <div v-if="isTrendLoading" class="page__status">
+        트렌드 데이터를 불러오는 중입니다...
+      </div>
+      <div v-else-if="trendError" class="page__error">
+        {{ trendError }}
+      </div>
+      <TrendChart
+        v-else-if="trend"
+        :day-trends="trend.dayTrends"
+        :show-calories="false"
+        period-label="최근 30일"
+      />
+    </NnCard>
 
     <NnCard title="오늘 체중 기록하기">
+      <div v-if="todaysRecord" class="todays-record-info">
+        💡 오늘 기록된 체중: <strong>{{ todaysRecord.weight }}kg</strong>. 다시 저장하면 덮어씁니다.
+      </div>
+
       <form @submit.prevent="onClickSave" class="form">
         <div class="form-group">
           <label for="recordDate">날짜</label>
@@ -24,7 +43,7 @@
 
         <div class="form-actions">
           <NnButton type="submit" :disabled="isSaving">
-            {{ isSaving ? '저장 중...' : '기록하기' }}
+            {{ isSaving ? '저장 중...' : (todaysRecord ? '수정하기' : '기록하기') }}
           </NnButton>
         </div>
       </form>
@@ -46,11 +65,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import NnCard from '../components/common/NnCard.vue';
 import NnButton from '../components/common/NnButton.vue';
 import NnInput from '../components/common/NnInput.vue';
+import TrendChart from '../components/dashboard/TrendChart.vue';
 import { createWeight, fetchWeights } from '../api/weightApi.js';
+import { fetchDashboardTrend } from '../api/dashboardApi.js';
 
 const userId = Number(localStorage.getItem('userId') || 1);
 
@@ -66,6 +87,51 @@ const saveError = ref('');
 const isLoadingList = ref(false);
 const listError = ref('');
 const records = ref([]);
+
+// --- 트렌드 ---
+const trend = ref(null);
+const isTrendLoading = ref(false);
+const trendError = ref('');
+
+const todaysRecord = computed(() => {
+  return records.value.find(r => r.recordDate === form.value.recordDate);
+});
+
+async function loadTrendData() {
+  if (!userId) return;
+  isTrendLoading.value = true;
+  trendError.value = '';
+  try {
+    const today = new Date();
+    const fromDate = new Date();
+    fromDate.setDate(today.getDate() - 29);
+    
+    const to = today.toISOString().slice(0, 10);
+    const from = fromDate.toISOString().slice(0, 10);
+
+    trend.value = await fetchDashboardTrend(userId, { from, to });
+  } catch (err) {
+    console.warn('Trend API error on WeightPage, using mock data', err);
+    trendError.value = '트렌드 데이터를 불러오는 중 오류가 발생했습니다. 임시 데이터로 표시합니다.';
+    
+    const mockTrends = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(today.getDate() - i);
+      mockTrends.push({
+        date: date.toISOString().slice(0, 10),
+        totalCalories: 0, // Not shown
+        targetCalories: 0, // Not shown
+        weight: 72.5 + (Math.random() - 0.5) * 2,
+      });
+    }
+    trend.value = { dayTrends: mockTrends };
+
+  } finally {
+    isTrendLoading.value = false;
+  }
+}
 
 async function loadRecords() {
   isLoadingList.value = true;
@@ -107,10 +173,10 @@ async function onClickSave() {
     await createWeight(userId, payload);
     alert('체중이 기록되었습니다.');
     
-    // 폼 초기화 및 리스트 새로고침
+    // 폼 초기화 및 리스트/차트 새로고침
     form.value.weight = '';
     form.value.memo = '';
-    await loadRecords();
+    await Promise.all([loadRecords(), loadTrendData()]);
 
   } catch (err) {
     console.error('createWeight error:', err);
@@ -121,7 +187,7 @@ async function onClickSave() {
 }
 
 onMounted(async () => {
-  await loadRecords();
+  await Promise.all([loadRecords(), loadTrendData()]);
 });
 </script>
 
@@ -235,5 +301,15 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.todays-record-info {
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #4338ca;
 }
 </style>

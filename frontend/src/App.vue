@@ -1,7 +1,8 @@
 <script setup>
-import { RouterView, useRouter } from 'vue-router';
+import { RouterView, useRouter, useRoute } from 'vue-router';
 
 const router = useRouter();
+const route = useRoute();
 
 const go = (path) => {
   router.push(path);
@@ -27,13 +28,25 @@ const go = (path) => {
         <nav class="sidebar-nav">
           <div class="sidebar-nav__section">메뉴</div>
 
-          <button class="sidebar-nav__item" @click="go('/meal-plans')">
+          <button
+            class="sidebar-nav__item"
+            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/meal-plans') }"
+            @click="go('/meal-plans')"
+          >
             🍱 식단 관리
           </button>
-          <button class="sidebar-nav__item" @click="go('/shopping')">
+          <button
+            class="sidebar-nav__item"
+            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/shopping') }"
+            @click="go('/shopping')"
+          >
             🛒 재료 쇼핑
           </button>
-          <button class="sidebar-nav__item" @click="go('/weights')">
+          <button
+            class="sidebar-nav__item"
+            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/weights') }"
+            @click="go('/weights')"
+          >
             ⚖️ 체중 기록
           </button>
           <button class="sidebar-nav__item" disabled>
@@ -158,8 +171,10 @@ const go = (path) => {
   background: transparent;
   padding: 8px 10px;
   font-size: 13px;
+  font-weight: 500;
   color: #374151;
   cursor: pointer;
+  transition: all 0.2s ease-in-out;
 }
 
 .sidebar-nav__item:disabled {
@@ -170,6 +185,12 @@ const go = (path) => {
 .sidebar-nav__item:not(:disabled):hover {
   background: #ecfdf5;
   color: #047857;
+}
+
+.sidebar-nav__item--active {
+  background: #d1fae5;
+  color: #065f46;
+  font-weight: 700;
 }
 
 .sidebar-meal {
