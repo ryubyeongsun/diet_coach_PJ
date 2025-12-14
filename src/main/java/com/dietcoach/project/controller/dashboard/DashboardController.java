@@ -15,6 +15,8 @@ import java.time.LocalDate;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    
+    
 
     @GetMapping("/trend")
     public ApiResponse<DashboardTrendResponse> getTrend(

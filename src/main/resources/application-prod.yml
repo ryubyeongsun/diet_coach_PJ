@@ -1,0 +1,25 @@
+# PROD Profile
+# 운영 환경 설정 (운영 DB, INFO 레벨 로깅 등)
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+logging:
+  level:
+    com.dietcoach.project: INFO
+
+# 11번가 API 키 (운영용)
+elevenst:
+  api:
+    key: ${ELEVENST_API_KEY}
+
+shopping:
+  elevenst:
+    useMockWhenError: false
+
+# JWT 설정 (운영용)
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: 3600000 # 1시간

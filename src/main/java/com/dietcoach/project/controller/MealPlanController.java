@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -69,13 +70,9 @@ public class MealPlanController {
     }
 
     // 🔽 4-2. 대시보드 요약 API
-    @GetMapping("/users/{userId}/dashboard-summary")
-    public ApiResponse<DashboardSummaryResponse> getDashboardSummary(
-            @PathVariable Long userId
-    ) {
-        DashboardSummaryResponse summary =
-                mealPlanService.getDashboardSummary(userId);
-        return ApiResponse.success(summary);
+    @GetMapping("/dashboard/summary")
+    public ApiResponse<DashboardSummaryResponse> summary(@AuthenticationPrincipal Long userId) {
+        return ApiResponse.success(mealPlanService.getDashboardSummary(userId));
     }
     @GetMapping("/meal-plans/days/{dayId}")
     public ApiResponse<MealPlanDayDetailResponse> getDayDetail(@PathVariable Long dayId) {

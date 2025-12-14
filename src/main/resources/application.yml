@@ -1,0 +1,21 @@
+# 공통 설정
+spring:
+  application:
+    name: dietCoach
+  profiles:
+    active: dev # 기본 활성 프로필을 dev로 설정
+
+server:
+  port: 8080
+
+# MyBatis 설정
+mybatis:
+  mapper-locations: classpath:/mapper/**/*.xml
+  type-aliases-package: com.dietcoach.project.domain
+  configuration:
+    map-underscore-to-camel-case: true
+
+# 11번가 API 공통 설정
+elevenst:
+  api:
+    base-url: https://openapi.11st.co.kr/openapi/OpenApiService.tmall
