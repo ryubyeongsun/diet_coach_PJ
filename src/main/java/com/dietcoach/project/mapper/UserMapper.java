@@ -13,4 +13,6 @@ public interface UserMapper {
 
     User findByEmail(@Param("email") String email);   // ⭐ 여기 이름이 XML id랑 100% 같아야 함
     int updateUserEnergy(User user);
+    int updateUserProfile(User user);
+
 }
