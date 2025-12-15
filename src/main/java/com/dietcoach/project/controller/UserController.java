@@ -9,6 +9,7 @@ import com.dietcoach.project.common.ApiResponse;
 import com.dietcoach.project.dto.TdeeResponse;
 import com.dietcoach.project.dto.UserCreateRequest;
 import com.dietcoach.project.dto.UserProfileResponse;
+import com.dietcoach.project.dto.user.UserProfileUpdateRequest;
 import com.dietcoach.project.service.UserService;
 
 import lombok.RequiredArgsConstructor;

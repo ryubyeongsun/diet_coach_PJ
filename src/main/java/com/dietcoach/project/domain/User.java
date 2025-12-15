@@ -39,4 +39,10 @@ public class User {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    public boolean isProfileCompleted() {
+        return gender != null
+                && height != null
+                && activityLevel != null
+                && goalType != null;
+    }
 }

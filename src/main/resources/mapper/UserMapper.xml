@@ -93,5 +93,20 @@
         updated_at = NOW()
     WHERE id = #{id}
 </update>
+<update id="updateUserProfile" parameterType="com.dietcoach.project.domain.User">
+    UPDATE users
+    SET
+        gender = #{gender},
+        height = #{height},
+        activity_level = #{activityLevel},
+        goal_type = #{goalType},
+        -- ✅ 프로필 바뀌면 기존 에너지값 무효화 (다음 식단 생성 시 재계산)
+        bmr = NULL,
+        tdee = NULL,
+        target_calories = NULL,
+        updated_at = NOW()
+    WHERE id = #{id}
+</update>
+
 
 </mapper>

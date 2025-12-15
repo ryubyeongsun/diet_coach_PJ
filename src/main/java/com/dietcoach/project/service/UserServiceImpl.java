@@ -10,6 +10,7 @@ import com.dietcoach.project.domain.User;
 import com.dietcoach.project.dto.TdeeResponse;
 import com.dietcoach.project.dto.UserCreateRequest;
 import com.dietcoach.project.dto.UserProfileResponse;
+import com.dietcoach.project.dto.user.UserProfileUpdateRequest;
 import com.dietcoach.project.mapper.UserMapper;
 
 import lombok.RequiredArgsConstructor;

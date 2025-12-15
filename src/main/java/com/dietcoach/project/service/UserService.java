@@ -14,4 +14,5 @@ public interface UserService {
     UserProfileResponse updateUserProfile(Long userId, UserProfileUpdateRequest request);
 
     TdeeResponse getUserTdee(Long userId);
+    void updateUserProfile(Long userId, UserProfileUpdateRequest request);
 }

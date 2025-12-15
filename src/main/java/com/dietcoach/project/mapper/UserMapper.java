@@ -16,4 +16,6 @@ public interface UserMapper {
     int updateUserProfile(User user);
 
     int updateUserEnergy(User user);
+    int updateUserProfile(User user);
+
 }
