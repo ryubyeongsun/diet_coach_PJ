@@ -37,4 +37,13 @@ public class WeightRecordController {
     ) {
         return ApiResponse.success(weightRecordService.getWeightRecords(userId, from, to));
     }
+
+    @DeleteMapping("/{recordId}")
+    public ApiResponse<Void> deleteWeight(
+            @PathVariable Long userId,
+            @PathVariable Long recordId
+    ) {
+        weightRecordService.deleteWeightRecord(userId, recordId);
+        return ApiResponse.success("기록이 삭제되었습니다.", null);
+    }
 }

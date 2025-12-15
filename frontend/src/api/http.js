@@ -1,16 +1,17 @@
 // src/api/http.js
 import axios from 'axios';
 import { getToken } from '../utils/auth';
+import { setLoading, setError } from '../utils/globalState';
 
-const api = axios.create({
+const http = axios.create({
   baseURL: '/api',
   timeout: 5000,
 });
 
-// Request interceptor for logging
-api.interceptors.request.use(
+// Request interceptor
+http.interceptors.request.use(
   (config) => {
-    console.log(`[API Request] ${config.method.toUpperCase()} ${config.url}`);
+    setLoading(true); // 로딩 시작
     const token = getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -18,27 +19,36 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('[API Request Error]', error);
+    setLoading(false); // 에러 시 로딩 종료
     return Promise.reject(error);
   }
 );
 
 // Response interceptor
-api.interceptors.response.use(
+http.interceptors.response.use(
   (response) => {
-    // Assuming backend always returns an object with a 'success' property
+    setLoading(false); // 응답 시 로딩 종료
     if (response.data && response.data.success === false) {
-      // If backend indicates failure, throw an error with the message
-      throw new Error(response.data.message || 'Backend operation failed');
+      setError(response.data.message || '오류가 발생했습니다.');
+      return Promise.reject(new Error(response.data.message));
     }
-    return response;
+    return response.data; // 실제 데이터만 반환하도록 변경
   },
   (error) => {
-    console.error('[API Error]', error.response?.data || error.message || error);
-    // If it's an HTTP error (e.g., 4xx, 5xx), the error object will typically have a response property
-    // We re-throw the error so it can be caught by the caller
+    setLoading(false); // 에러 시 로딩 종료
+    
+    let errorMessage = '네트워크 오류 또는 서버에 문제가 발생했습니다.';
+    if (error.response) {
+      // 서버에서 보낸 에러 메시지가 있는 경우
+      errorMessage = error.response.data?.message || errorMessage;
+      if (error.response.status === 401 || error.response.status === 403) {
+        errorMessage = '인증에 실패했습니다. 다시 로그인해주세요.';
+        // 필요시 로그인 페이지로 리다이렉트하는 로직 추가 가능
+      }
+    }
+    setError(errorMessage);
     return Promise.reject(error);
   }
 );
 
-export default api;
+export default http;

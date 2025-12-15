@@ -1,5 +1,7 @@
 package com.dietcoach.project.controller;
 
+import com.dietcoach.project.dto.UserProfileUpdateRequest;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -37,17 +39,18 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(profile));
     }
 
-@GetMapping("/{id}/tdee")
-public ResponseEntity<ApiResponse<TdeeResponse>> getUserTdee(@PathVariable Long id) {
-    TdeeResponse tdee = userService.getUserTdee(id);
-    return ResponseEntity.ok(ApiResponse.success(tdee));
-}
-@PutMapping("/{id}/profile")
-public ApiResponse<Void> updateProfile(
-        @PathVariable Long id,
-        @RequestBody UserProfileUpdateRequest request
-) {
-    userService.updateUserProfile(id, request);
-    return ApiResponse.success("profile updated", null);
-}
+    /**
+     * 프로필 수정
+     */
+    @PutMapping("/{id}/profile")
+    public ApiResponse<UserProfileResponse> updateUserProfile(@PathVariable Long id, @RequestBody @Valid UserProfileUpdateRequest request) {
+        UserProfileResponse updatedProfile = userService.updateUserProfile(id, request);
+        return ApiResponse.success("프로필 업데이트 완료", updatedProfile);
+    }
+
+    @GetMapping("/{id}/tdee")
+    public ResponseEntity<ApiResponse<TdeeResponse>> getUserTdee(@PathVariable Long id) {
+        TdeeResponse tdee = userService.getUserTdee(id);
+        return ResponseEntity.ok(ApiResponse.success(tdee));
+    }
 }

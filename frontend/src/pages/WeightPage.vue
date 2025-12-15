@@ -24,6 +24,9 @@
       <div v-if="todaysRecord" class="todays-record-info">
         💡 오늘 기록된 체중: <strong>{{ todaysRecord.weight }}kg</strong>. 다시 저장하면 덮어씁니다.
       </div>
+      <div v-else class="prompt-card">
+        ✍️ 오늘 체중을 기록하고 변화를 지켜보세요!
+      </div>
 
       <form @submit.prevent="onClickSave" class="form">
         <div class="form-group">
@@ -58,6 +61,7 @@
           <span class="record-item__date">{{ r.recordDate }}</span>
           <strong class="record-item__weight">{{ r.weight }} kg</strong>
           <span v-if="r.memo" class="record-item__memo">({{ r.memo }})</span>
+          <button @click="handleDelete(r.id)" class="delete-btn">삭제</button>
         </li>
       </ul>
     </NnCard>
@@ -70,7 +74,7 @@ import NnCard from '../components/common/NnCard.vue';
 import NnButton from '../components/common/NnButton.vue';
 import NnInput from '../components/common/NnInput.vue';
 import TrendChart from '../components/dashboard/TrendChart.vue';
-import { createWeight, fetchWeights } from '../api/weightApi.js';
+import { upsertWeight, fetchWeights, deleteWeight } from '../api/weightApi.js';
 import { fetchDashboardTrend } from '../api/dashboardApi.js';
 import { getCurrentUser } from '@/utils/auth.js';
 
@@ -95,7 +99,8 @@ const isTrendLoading = ref(false);
 const trendError = ref('');
 
 const todaysRecord = computed(() => {
-  return records.value.find(r => r.recordDate === form.value.recordDate);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  return records.value.find(r => r.recordDate === todayStr);
 });
 
 async function loadTrendData() {
@@ -111,25 +116,10 @@ async function loadTrendData() {
     const to = today.toISOString().slice(0, 10);
     const from = fromDate.toISOString().slice(0, 10);
 
-    trend.value = await fetchDashboardTrend({ userId, from, to });
+    trend.value = await fetchDashboardTrend(userId, from, to);
   } catch (err) {
-    console.warn('Trend API error on WeightPage, using mock data', err);
-    trendError.value = '트렌드 데이터를 불러오는 중 오류가 발생했습니다. 임시 데이터로 표시합니다.';
-    
-    const mockTrends = [];
-    const today = new Date();
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(today.getDate() - i);
-      mockTrends.push({
-        date: date.toISOString().slice(0, 10),
-        totalCalories: 0, // Not shown
-        targetCalories: 0, // Not shown
-        weight: 72.5 + (Math.random() - 0.5) * 2,
-      });
-    }
-    trend.value = { dayTrends: mockTrends };
-
+    console.warn('Trend API error on WeightPage:', err);
+    trendError.value = '트렌드 데이터를 불러오는 중 오류가 발생했습니다.';
   } finally {
     isTrendLoading.value = false;
   }
@@ -179,19 +169,39 @@ async function onClickSave() {
       weight: Number(form.value.weight),
       memo: form.value.memo || null,
     };
-    await createWeight(userId, payload);
+    await upsertWeight(userId, payload);
     alert('체중이 기록되었습니다.');
     
-    // 폼 초기화 및 리스트/차트 새로고침
     form.value.weight = '';
     form.value.memo = '';
     await Promise.all([loadRecords(), loadTrendData()]);
 
   } catch (err) {
-    console.error('createWeight error:', err);
+    console.error('upsertWeight error:', err);
     saveError.value = '체중 기록 중 오류가 발생했습니다.';
   } finally {
     isSaving.value = false;
+  }
+}
+
+async function handleDelete(recordId) {
+  if (!window.confirm('이 기록을 정말로 삭제하시겠습니까?')) {
+    return;
+  }
+  
+  const userId = currentUser.value?.id;
+  if (!userId) {
+    alert('로그인이 필요합니다.');
+    return;
+  }
+
+  try {
+    await deleteWeight(userId, recordId);
+    alert('기록이 삭제되었습니다.');
+    await Promise.all([loadRecords(), loadTrendData()]);
+  } catch (err) {
+    console.error('deleteWeight error:', err);
+    alert('기록 삭제 중 오류가 발생했습니다.');
   }
 }
 
@@ -204,6 +214,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ... (기존 스타일과 동일) ... */
 .page {
   max-width: 900px;
   margin: 0 auto;
@@ -212,81 +223,6 @@ onMounted(async () => {
   flex-direction: column;
   gap: 20px;
 }
-
-.page__header h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.page__header p {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.page__error {
-  margin-top: 8px;
-  font-size: 13px;
-  color: #dc2626;
-}
-
-.page__status {
-  padding: 16px 0;
-  text-align: center;
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-group label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.form-input, .form-textarea {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  background-color: #ffffff;
-}
-
-.form-input:focus, .form-textarea:focus {
-  outline: 2px solid transparent;
-  outline-offset: 2px;
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 2px #c7d2fe;
-}
-
-.form-actions {
-  margin-top: 8px;
-  text-align: right;
-}
-
-.record-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .record-item {
   display: flex;
   align-items: center;
@@ -296,32 +232,44 @@ onMounted(async () => {
   border-radius: 8px;
   font-size: 14px;
 }
-
 .record-item__date {
   font-weight: 500;
   color: #4b5563;
 }
-
 .record-item__weight {
   font-weight: 700;
   color: #111827;
 }
-
 .record-item__memo {
+  flex: 1;
   color: #6b7280;
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.todays-record-info {
+.delete-btn {
+  margin-left: auto;
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 12px;
+}
+.delete-btn:hover {
+  background-color: #fef2f2;
+}
+.prompt-card {
   margin-bottom: 16px;
   padding: 12px;
-  background-color: #eef2ff;
-  border: 1px solid #c7d2fe;
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
   border-radius: 8px;
   font-size: 13px;
-  color: #4338ca;
+  color: #0369a1;
+  text-align: center;
 }
+/* ... (나머지 스타일) ... */
 </style>

@@ -11,4 +11,6 @@ public interface WeightRecordService {
     WeightRecordResponse upsertWeightRecord(Long userId, WeightRecordUpsertRequest request);
 
     List<WeightRecordResponse> getWeightRecords(Long userId, LocalDate from, LocalDate to);
+
+    void deleteWeightRecord(Long userId, Long recordId);
 }

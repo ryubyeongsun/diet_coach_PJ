@@ -103,4 +103,18 @@ public class WeightRecordServiceImpl implements WeightRecordService {
                         .build())
                 .toList();
     }
+    @Override
+    @Transactional
+    public void deleteWeightRecord(Long userId, Long recordId) {
+        WeightRecord record = weightRecordMapper.findById(recordId);
+
+        if (record == null) {
+            throw new BusinessException("존재하지 않는 기록입니다. id=" + recordId);
+        }
+        if (!record.getUserId().equals(userId)) {
+            throw new BusinessException("해당 기록을 삭제할 권한이 없습니다.");
+        }
+
+        weightRecordMapper.deleteById(recordId);
+    }
 }

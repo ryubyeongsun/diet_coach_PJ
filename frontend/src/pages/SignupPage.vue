@@ -70,6 +70,10 @@ async function handleSignup() {
     errorMessage.value = '비밀번호가 일치하지 않습니다.';
     return;
   }
+  if (!name.value.trim() || !email.value.trim() || !password.value.trim()) {
+    errorMessage.value = '모든 필드를 입력해 주세요.';
+    return;
+  }
   if (isLoading.value) return;
 
   isLoading.value = true;
