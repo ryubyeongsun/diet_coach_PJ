@@ -31,7 +31,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { login } from '@/api/authApi.js';
+import { login, fetchMe } from '@/api/authApi.js';
 import { saveAuth } from '@/utils/auth.js';
 import NnCard from '@/components/common/NnCard.vue';
 import NnInput from '@/components/common/NnInput.vue';
@@ -50,16 +50,26 @@ async function handleLogin() {
   errorMessage.value = '';
 
   try {
-    const response = await login({
+    const loginResponse = await login({
       email: email.value,
       password: password.value,
     });
 
-    if (response.success && response.data) {
-      saveAuth(response.data.token, response.data.user);
+    if (loginResponse.data && loginResponse.data.accessToken) {
+      const token = loginResponse.data.accessToken;
+      // 1. 토큰만 우선 저장 (다음 API 호출을 위해)
+      saveAuth(token, null); 
+      
+      // 2. 사용자 정보 가져오기
+      const meResponse = await fetchMe();
+      const user = meResponse.data;
+
+      // 3. 토큰과 사용자 정보 함께 저장
+      saveAuth(token, user);
+
       await router.push('/meal-plans');
     } else {
-      errorMessage.value = response.message || '이메일 또는 비밀번호를 확인해 주세요.';
+      errorMessage.value = loginResponse.message || '이메일 또는 비밀번호를 확인해 주세요.';
     }
   } catch (error) {
     console.error('Login failed:', error);

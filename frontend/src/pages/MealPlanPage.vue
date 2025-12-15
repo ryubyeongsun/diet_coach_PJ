@@ -17,7 +17,7 @@
           variant="outline"
           @click="onClickGoShopping"
         >
-          이 식단 재료 장보기
+          이번 달 식단 재료 장보기
         </NnButton>
         <NnButton
           block
@@ -58,22 +58,44 @@
               </span>
             </div>
           </div>
+          <div>
+            <div class="dashboard-summary__label">목표 칼로리</div>
+            <div class="dashboard-summary__value">
+              {{ dashboard.targetCalories }} kcal
+            </div>
+          </div>
+          <div>
+            <div class="dashboard-summary__label">최근 평균 섭취량</div>
+            <div class="dashboard-summary__value">
+              {{ dashboard.averageIntake }} kcal
+            </div>
+          </div>
         </div>
       </NnCard>
     </section>
 
     <!-- 트렌드 차트 -->
     <section class="trend-section">
+      <div class="trend-header">
+        <h2>성능 트렌드</h2>
+        <div class="period-selector">
+          <button @click="setPeriod(7)" :class="{ active: period === 7 }">7일</button>
+          <button @click="setPeriod(30)" :class="{ active: period === 30 }">30일</button>
+        </div>
+      </div>
       <div v-if="isTrendLoading" class="page__status">
         트렌드 데이터를 불러오는 중입니다...
       </div>
       <div v-else-if="trendError" class="page__error">
         {{ trendError }}
       </div>
+      <div v-else-if="!trend || trend.dayTrends.length < 3" class="page__status">
+        데이터가 충분하지 않습니다.
+      </div>
       <TrendChart
         v-else-if="trend"
         :day-trends="trend.dayTrends"
-        period-label="최근 7일"
+        :period-label="`최근 ${period}일`"
       />
     </section>
 
@@ -150,6 +172,7 @@ const dashboardError = ref('');
 const trend = ref(null);
 const isTrendLoading = ref(false);
 const trendError = ref('');
+const period = ref(7); // 7일 또는 30일
 
 // --- 상세 모달 상태 ---
 const selectedDayId = ref(null);
@@ -227,34 +250,23 @@ async function loadTrendData() {
   try {
     const today = new Date();
     const fromDate = new Date();
-    fromDate.setDate(today.getDate() - 6);
+    fromDate.setDate(today.getDate() - (period.value - 1));
     
     const to = today.toISOString().slice(0, 10);
     const from = fromDate.toISOString().slice(0, 10);
 
-    trend.value = await fetchDashboardTrend(userId, { from, to });
+    trend.value = await fetchDashboardTrend(userId, from, to);
   } catch (err) {
-    console.warn('Trend API error, using mock data', err);
-    trendError.value = '트렌드 데이터를 불러오는 중 오류가 발생했습니다. 임시 데이터로 표시합니다.';
-    
-    // Fallback to mock data
-    const mockTrends = [];
-    const today = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(today.getDate() - i);
-      mockTrends.push({
-        date: date.toISOString().slice(0, 10),
-        totalCalories: 1800 + Math.floor(Math.random() * 500),
-        targetCalories: 2200,
-        weight: 72.5 + (Math.random() - 0.5),
-      });
-    }
-    trend.value = { dayTrends: mockTrends };
-
+    console.error('Trend API error:', err);
+    trendError.value = '트렌드 데이터를 불러오는 중 오류가 발생했습니다.';
   } finally {
     isTrendLoading.value = false;
   }
+}
+
+function setPeriod(days) {
+  period.value = days;
+  loadTrendData();
 }
 
 async function onClickGenerate() {
@@ -294,6 +306,7 @@ onMounted(async () => {
 
 
 <style scoped>
+/* ... existing styles ... */
 .page {
   max-width: 900px;
   margin: 0 auto;
@@ -374,6 +387,39 @@ onMounted(async () => {
 .dashboard-summary__value .negative {
   color: #166534;
 }
+
+.trend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.trend-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+.period-selector button {
+  padding: 4px 12px;
+  border: 1px solid #d1d5db;
+  background-color: #ffffff;
+  color: #374151;
+  cursor: pointer;
+}
+.period-selector button:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.period-selector button:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  border-left: none;
+}
+.period-selector button.active {
+  background-color: #e5e7eb;
+  font-weight: 600;
+}
+
 
 /* --- 통계 대시보드 스타일 --- */
 .stat-board {

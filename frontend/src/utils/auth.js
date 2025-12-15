@@ -24,3 +24,8 @@ export function getCurrentUser() {
     return null;
   }
 }
+
+export function updateCurrentUser(user) {
+  if (!user) return;
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}

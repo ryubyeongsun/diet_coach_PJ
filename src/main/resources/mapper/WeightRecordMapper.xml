@@ -51,4 +51,15 @@
         LIMIT 1
     </select>
 
+    <select id="findById" resultType="com.dietcoach.project.domain.WeightRecord">
+        SELECT id, user_id AS userId, record_date AS recordDate, weight, memo, created_at AS createdAt, updated_at AS updatedAt
+        FROM weight_records
+        WHERE id = #{id}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM weight_records
+        WHERE id = #{id}
+    </delete>
+
 </mapper>
