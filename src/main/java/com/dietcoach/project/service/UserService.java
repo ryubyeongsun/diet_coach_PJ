@@ -3,6 +3,7 @@ package com.dietcoach.project.service;
 import com.dietcoach.project.dto.TdeeResponse;
 import com.dietcoach.project.dto.UserCreateRequest;
 import com.dietcoach.project.dto.UserProfileResponse;
+import com.dietcoach.project.dto.user.UserProfileUpdateRequest;
 
 public interface UserService {
 
@@ -10,4 +11,5 @@ public interface UserService {
 
     UserProfileResponse getUserProfile(Long userId);
     TdeeResponse getUserTdee(Long userId);
+    void updateUserProfile(Long userId, UserProfileUpdateRequest request);
 }

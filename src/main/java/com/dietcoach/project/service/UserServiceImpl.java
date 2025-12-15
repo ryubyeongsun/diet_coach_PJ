@@ -9,6 +9,7 @@ import com.dietcoach.project.domain.User;
 import com.dietcoach.project.dto.TdeeResponse;
 import com.dietcoach.project.dto.UserCreateRequest;
 import com.dietcoach.project.dto.UserProfileResponse;
+import com.dietcoach.project.dto.user.UserProfileUpdateRequest;
 import com.dietcoach.project.mapper.UserMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -97,6 +98,20 @@ public TdeeResponse getUserTdee(Long userId) {
             .tdee(user.getTdee() != null ? user.getTdee() : 0.0)
             .targetCalories(user.getTargetCalories() != null ? user.getTargetCalories() : 0.0)
             .build();
+}
+@Override
+@Transactional
+public void updateUserProfile(Long userId, UserProfileUpdateRequest request) {
+    User user = userMapper.findById(userId);
+    if (user == null) throw new BusinessException("존재하지 않는 사용자입니다. id=" + userId);
+    
+    user.setGender(request.getGender());
+    user.setHeight(request.getHeight());
+    user.setActivityLevel(request.getActivityLevel());
+    user.setGoalType(request.getGoalType());
+
+    int updated = userMapper.updateUserProfile(user);
+    if (updated != 1) throw new BusinessException("프로필 업데이트에 실패했습니다. id=" + userId);
 }
 
 }
