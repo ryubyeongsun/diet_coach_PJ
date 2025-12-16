@@ -11,6 +11,10 @@ const currentUser = ref(getCurrentUser());
 
 const isAuthPage = computed(() => route.path === '/login' || route.path === '/signup');
 
+const cartItemCount = computed(() => {
+  return globalState.cart.reduce((total, item) => total + item.quantity, 0);
+});
+
 watch(
   () => route.path,
   () => {
@@ -46,6 +50,7 @@ const handleLogout = () => {
       </div>
       <div class="layout__header-right">
         <div v-if="currentUser" class="user-info">
+          <span class="cart-status" @click="go('/cart')">🛒 ({{ cartItemCount }})</span>
           <span>{{ currentUser.name }}님</span>
           <button @click="handleLogout" class="layout__chip layout__chip--secondary">로그아웃</button>
         </div>
@@ -63,14 +68,14 @@ const handleLogout = () => {
 
           <button
             class="sidebar-nav__item"
-            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/meal-plans') }"
+            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/meal-plans') || route.path === '/' }"
             @click="go('/meal-plans')"
           >
             🍱 식단 관리
           </button>
           <button
             class="sidebar-nav__item"
-            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/shopping') }"
+            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/shopping') || route.path.startsWith('/cart') }"
             @click="go('/shopping')"
           >
             🛒 재료 쇼핑
@@ -156,6 +161,11 @@ const handleLogout = () => {
   gap: 12px;
   font-size: 14px;
   font-weight: 500;
+}
+
+.cart-status {
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .layout {

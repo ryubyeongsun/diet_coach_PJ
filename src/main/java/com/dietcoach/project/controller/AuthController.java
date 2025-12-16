@@ -1,7 +1,10 @@
 package com.dietcoach.project.controller;
 
 import com.dietcoach.project.common.ApiResponse;
-import com.dietcoach.project.dto.auth.*;
+import com.dietcoach.project.dto.UserProfileResponse;
+import com.dietcoach.project.dto.auth.AuthResponse;
+import com.dietcoach.project.dto.auth.LoginRequest;
+import com.dietcoach.project.dto.auth.SignupRequest;
 import com.dietcoach.project.service.auth.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +30,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ApiResponse<MeResponse> me(@AuthenticationPrincipal Long userId) {
+    public ApiResponse<UserProfileResponse> me(@AuthenticationPrincipal Long userId) {
         return ApiResponse.success(authService.me(userId));
     }
 }

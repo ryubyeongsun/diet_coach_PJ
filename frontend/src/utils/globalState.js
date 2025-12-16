@@ -3,6 +3,7 @@ import { reactive } from 'vue';
 export const globalState = reactive({
   isLoading: false,
   error: null,
+  cart: [],
 });
 
 export function setLoading(status) {
@@ -15,4 +16,23 @@ export function setError(message) {
   setTimeout(() => {
     globalState.error = null;
   }, 5000);
+}
+
+export function addToCart(product) {
+  const existingItem = globalState.cart.find(
+    (item) => item.productCode === product.externalId
+  );
+
+  if (existingItem) {
+    existingItem.quantity += 1;
+  } else {
+    globalState.cart.push({
+      productCode: product.externalId,
+      name: product.name,
+      price: product.price,
+      imageUrl: product.imageUrl,
+      quantity: 1,
+    });
+  }
+  alert(`${product.name} 상품이 장바구니에 추가되었습니다.`);
 }

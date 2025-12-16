@@ -103,10 +103,10 @@ async function handleSubmit() {
   try {
     const updatedProfile = await updateUserProfile(currentUser.value.id, form.value);
     // 로컬 스토리지의 유저 정보도 업데이트
-    updateCurrentUser(updatedProfile);
+    updateCurrentUser(updatedProfile.data);
     
-    // PRD 요구사항: 완료 시 /meal-plan으로 이동
-    router.push('/meal-plan');
+    // PRD 요구사항: 완료 시 /meal-plan으로 이동 (전체 리로드)
+    window.location.href = '/meal-plans';
   } catch (err) {
     console.error(err);
     errorMessage.value = '프로필 업데이트 중 오류가 발생했습니다.';
