@@ -2,7 +2,10 @@ package com.dietcoach.project.service.auth;
 
 import com.dietcoach.project.common.error.BusinessException;
 import com.dietcoach.project.domain.User;
-import com.dietcoach.project.dto.auth.*;
+import com.dietcoach.project.dto.UserProfileResponse;
+import com.dietcoach.project.dto.auth.AuthResponse;
+import com.dietcoach.project.dto.auth.LoginRequest;
+import com.dietcoach.project.dto.auth.SignupRequest;
 import com.dietcoach.project.mapper.UserMapper;
 import com.dietcoach.project.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
@@ -57,13 +60,22 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional(readOnly = true)
-    public MeResponse me(Long userId) {
+    public UserProfileResponse me(Long userId) {
         User user = userMapper.findById(userId);
         if (user == null) throw new BusinessException("존재하지 않는 사용자입니다.");
-        return MeResponse.builder()
+        return UserProfileResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .name(user.getName())
+                .gender(user.getGender())
+                .birthDate(user.getBirthDate())
+                .height(user.getHeight())
+                .weight(user.getWeight())
+                .activityLevel(user.getActivityLevel())
+                .goalType(user.getGoalType())
+                .bmr(user.getBmr())
+                .tdee(user.getTdee())
+                .targetCalories(user.getTargetCalories())
                 .build();
     }
 }

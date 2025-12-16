@@ -51,9 +51,26 @@
         먼저 식단 페이지에서 "이번 달 식단 재료 장보기"를 눌러주세요.
       </p>
     </NnCard>
-    
-    <!-- (이하 생략) -->
-    
+
+    <!-- 2. 상품 직접 검색 -->
+    <NnCard title="상품 직접 검색">
+      <ShoppingSearchBar @search="handleSearch" :initial-query="searchQuery" />
+    </NnCard>
+
+    <!-- 3. 검색 결과 -->
+    <NnCard title="상품 검색 결과" v-if="searchedProducts !== null">
+      <div v-if="isLoadingSearch" class="page__status">상품을 검색 중입니다...</div>
+      <div v-else-if="searchError" class="page__error">{{ searchError }}</div>
+      <div v-else-if="searchedProducts.length === 0" class="page__status">검색 결과가 없습니다.</div>
+      <div v-else class="products-grid">
+        <ShoppingProductCard
+          v-for="p in searchedProducts"
+          :key="p.externalId"
+          :product="p"
+          @add-to-cart="handleAddToCart"
+        />
+      </div>
+    </NnCard>
   </div>
 </template>
 
@@ -67,6 +84,7 @@ import ShoppingSearchBar from '../components/shopping/ShoppingSearchBar.vue';
 import ShoppingProductCard from '../components/shopping/ShoppingProductCard.vue';
 import { searchProducts, getRecommendations } from '../api/shoppingApi.js';
 import { fetchPlanIngredients, fetchMealPlan } from '../api/mealPlanApi.js';
+import { addToCart } from '../utils/globalState.js';
 
 // --- 식단 재료 ---
 const route = useRoute();
@@ -99,12 +117,10 @@ watch(
       }
       else {
         console.error('fetchMealPlan error:', planResult.reason);
-        // 날짜를 못불러와도 재료는 보여줄 수 있으므로 에러를 막지는 않음
       }
       
       if (ingredientsResult.status === 'fulfilled') {
         const rawIngredients = ingredientsResult.value || [];
-        // 재료 집계 로직
         const ingredientMap = new Map();
         rawIngredients.forEach(ing => {
           if (ingredientMap.has(ing.ingredientName)) {
@@ -131,12 +147,90 @@ watch(
   { immediate: true }
 );
 
-// (이하 생략)
+
+// --- 상품 검색 ---
+const searchQuery = ref('');
+const searchedProducts = ref(null);
+const isLoadingSearch = ref(false);
+const searchError = ref('');
+
+async function executeSearch(keyword) {
+  if (!keyword?.trim()) return;
+  
+  searchQuery.value = keyword;
+  isLoadingSearch.value = true;
+  searchError.value = '';
+  searchedProducts.value = null;
+
+  try {
+    const results = await searchProducts(keyword);
+    searchedProducts.value = results;
+  } catch (e) {
+    console.error('상품 검색 에러:', e);
+    searchError.value = '상품을 검색하는 중 오류가 발생했습니다.';
+  } finally {
+    isLoadingSearch.value = false;
+  }
+}
+
+function searchFromIngredient(ingredientName) {
+  executeSearch(ingredientName);
+  // Scroll to search results for better UX
+  // This requires the result card to be rendered, so we do it in the next tick.
+  setTimeout(() => {
+    const resultsCard = document.querySelector('[title="상품 검색 결과"]');
+    if (resultsCard) {
+      resultsCard.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, 100);
+}
+
+function handleSearch(keyword) {
+  executeSearch(keyword);
+}
+
+function handleAddToCart(product) {
+  addToCart(product);
+}
 
 </script>
 
 <style scoped>
-/* (이하 생략) */
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.page__header {
+  margin-bottom: 8px;
+}
+.page__header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.page__header p {
+  font-size: 14px;
+  color: #6b7280;
+}
+.page__status {
+  padding: 20px;
+  text-align: center;
+  color: #4b5563;
+  font-size: 14px;
+}
+.page__error {
+  padding: 20px;
+  text-align: center;
+  color: #ef4444;
+  font-size: 14px;
+  background-color: #fef2f2;
+  border-radius: 8px;
+}
+
 .plan-period {
   font-size: 13px;
   color: #4b5563;
@@ -145,5 +239,38 @@ watch(
   border-radius: 8px;
   display: inline-block;
   margin-bottom: 16px;
+}
+.ingredients-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ingredients-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+}
+.ingredients-list__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ingredients-list__info strong {
+  font-weight: 600;
+}
+.ingredients-list__info span {
+  font-size: 12px;
+  color: #6b7280;
+}
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
 }
 </style>

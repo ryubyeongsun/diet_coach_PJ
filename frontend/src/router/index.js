@@ -4,7 +4,8 @@ import ShoppingPage from '../pages/ShoppingPage.vue';
 import WeightPage from '../pages/WeightPage.vue';
 import LoginPage from '../pages/LoginPage.vue';
 import SignupPage from '../pages/SignupPage.vue';
-import ProfileSetupPage from '../pages/ProfileSetupPage.vue'; // 1. 임포트
+import ProfileSetupPage from '../pages/ProfileSetupPage.vue';
+import CartPage from '../pages/CartPage.vue';
 import { getCurrentUser } from '../utils/auth';
 
 const routes = [
@@ -18,11 +19,16 @@ const routes = [
     name: 'Signup',
     component: SignupPage,
   },
-  // 2. 라우트 추가
   {
     path: '/profile/setup',
     name: 'ProfileSetup',
     component: ProfileSetupPage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/cart',
+    name: 'Cart',
+    component: CartPage,
     meta: { requiresAuth: true },
   },
   {

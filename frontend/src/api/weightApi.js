@@ -12,7 +12,7 @@ export async function upsertWeight(userId, payload) {
 export async function fetchWeights(userId, params = {}) {
   // params: { from?: 'YYYY-MM-DD', to?: 'YYYY-MM-DD' }
   const res = await http.get(`/users/${userId}/weights`, { params });
-  return res.data.data; // WeightRecordResponse[] 또는 { records: [...] } 형태면 그에 맞게
+  return res.data; // WeightRecordResponse[] 또는 { records: [...] } 형태면 그에 맞게
 }
 
 // 특정 체중 기록 삭제
