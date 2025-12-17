@@ -56,14 +56,22 @@
       <div v-if="isLoadingList" class="page__status">기록을 불러오는 중입니다...</div>
       <div v-else-if="listError" class="page__error">{{ listError }}</div>
       <div v-else-if="!records || records.length === 0" class="page__status">아직 체중 기록이 없습니다.</div>
-      <ul v-else class="record-list">
-        <li v-for="r in records" :key="r.id" class="record-item">
-          <span class="record-item__date">{{ r.recordDate }}</span>
-          <strong class="record-item__weight">{{ r.weight }} kg</strong>
-          <span v-if="r.memo" class="record-item__memo">({{ r.memo }})</span>
-          <button @click="handleDelete(r.id)" class="delete-btn">삭제</button>
-        </li>
-      </ul>
+      <div v-else>
+        <ul class="record-list">
+          <li v-for="r in displayedRecords" :key="r.id" class="record-item">
+            <span class="record-item__date">{{ r.recordDate }}</span>
+            <strong class="record-item__weight">{{ r.weight }} kg</strong>
+            <span v-if="r.memo" class="record-item__memo">({{ r.memo }})</span>
+            <button @click="handleDelete(r.id)" class="delete-btn">삭제</button>
+          </li>
+        </ul>
+        <div class="summary-footer" v-if="records.length > 3">
+          <small v-if="!showAllRecords">최근 30일 기록 중 3개만 표시됩니다.</small>
+          <button @click="showAllRecords = !showAllRecords" class="view-all-btn">
+            {{ showAllRecords ? '간략히 보기' : '전체 기록 보기 &rarr;' }}
+          </button>
+        </div>
+      </div>
     </NnCard>
   </div>
 </template>
@@ -92,6 +100,7 @@ const saveError = ref('');
 const isLoadingList = ref(false);
 const listError = ref('');
 const records = ref([]);
+const showAllRecords = ref(false); // 전체/요약 보기 토글 상태
 
 // --- 트렌드 ---
 const trend = ref(null);
@@ -102,6 +111,15 @@ const todaysRecord = computed(() => {
   const todayStr = new Date().toISOString().slice(0, 10);
   return records.value.find(r => r.recordDate === todayStr);
 });
+
+// "전체/요약 보기" 상태에 따라 보여줄 기록을 결정하는 computed 속성
+const displayedRecords = computed(() => {
+  if (showAllRecords.value) {
+    return records.value;
+  }
+  return records.value.slice(0, 3);
+});
+
 
 async function loadTrendData() {
   const userId = currentUser.value?.id;
@@ -140,7 +158,10 @@ async function loadRecords() {
       to: to.toISOString().slice(0, 10),
     };
 
-    records.value = await fetchWeights(userId, params);
+    // API로부터 받은 데이터를 날짜 내림차순으로 정렬
+    const fetchedRecords = await fetchWeights(userId, params);
+    records.value = fetchedRecords.sort((a, b) => new Date(b.recordDate) - new Date(a.recordDate));
+
   } catch (err) {
     console.error('fetchWeights error:', err);
     listError.value = '체중 기록을 불러오는 중 오류가 발생했습니다.';
@@ -232,6 +253,9 @@ onMounted(async () => {
   border-radius: 8px;
   font-size: 14px;
 }
+.record-item:not(:last-child) {
+  margin-bottom: 8px;
+}
 .record-item__date {
   font-weight: 500;
   color: #4b5563;
@@ -270,6 +294,29 @@ onMounted(async () => {
   font-size: 13px;
   color: #0369a1;
   text-align: center;
+}
+.summary-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #6b7280;
+}
+.view-all-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2563eb;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.view-all-btn:hover {
+  text-decoration: underline;
 }
 /* ... (나머지 스타일) ... */
 </style>

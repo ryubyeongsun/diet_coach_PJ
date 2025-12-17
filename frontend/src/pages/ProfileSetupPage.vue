@@ -35,10 +35,10 @@
           <select v-model="form.activityLevel" class="select-input" required>
             <option disabled value="">활동량을 선택하세요</option>
             <option value="SEDENTARY">거의 운동 안 함</option>
-            <option value="LIGHT">가벼운 활동 (주 1-3일)</option>
+            <option value="LIGHTLY_ACTIVE">가벼운 활동 (주 1-3일)</option>
             <option value="MODERATE">보통 활동 (주 3-5일)</option>
-            <option value="ACTIVE">적극적인 활동 (주 6-7일)</option>
-            <option value="VERY_ACTIVE">매우 활동적 (격렬한 운동)</option>
+            <option value="VERY_ACTIVE">적극적인 활동 (주 6-7일)</option>
+            <option value="SUPER_ACTIVE">매우 활동적 (격렬한 운동)</option>
           </select>
         </div>
 
@@ -163,3 +163,4 @@ async function handleSubmit() {
   text-align: center;
 }
 </style>
+
