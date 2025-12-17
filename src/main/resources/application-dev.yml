@@ -18,7 +18,7 @@ elevenst:
 
 shopping:
   elevenst:
-    useMockWhenError: true # 에러 발생 시 Mock 데이터 사용
+    useMockWhenError: false # 에러 발생 시 Mock 데이터 사용 안 함
 
 # JWT 설정 (개발용)
 jwt:

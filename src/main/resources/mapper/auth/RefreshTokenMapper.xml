@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dietcoach.project.mapper.auth.RefreshTokenMapper">
+
+  <resultMap id="RefreshTokenMap" type="com.dietcoach.project.domain.auth.RefreshToken">
+    <id property="id" column="id"/>
+    <result property="userId" column="user_id"/>
+    <result property="tokenHash" column="token_hash"/>
+    <result property="expiresAt" column="expires_at"/>
+    <result property="revoked" column="revoked"/>
+    <result property="createdAt" column="created_at"/>
+    <result property="updatedAt" column="updated_at"/>
+  </resultMap>
+
+  <select id="findByTokenHash" resultMap="RefreshTokenMap">
+    SELECT id, user_id, token_hash, expires_at, revoked, created_at, updated_at
+    FROM refresh_tokens
+    WHERE token_hash = #{tokenHash}
+    LIMIT 1
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO refresh_tokens (user_id, token_hash, expires_at, revoked, created_at, updated_at)
+    VALUES (#{userId}, #{tokenHash}, #{expiresAt}, #{revoked}, NOW(), NOW())
+  </insert>
+
+  <update id="revokeById">
+    UPDATE refresh_tokens
+    SET revoked = 1, updated_at = NOW()
+    WHERE id = #{id}
+  </update>
+
+</mapper>

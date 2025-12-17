@@ -2,8 +2,10 @@
 import http from './http';
 
 export async function fetchDashboardSummary(userId) {
-  const res = await http.get('/dashboard/summary', { params: { userId } }); // ✅
-  return res.data;
+  const res = await http.get(`/dashboard/summary`, {
+    params: { userId },
+  });
+  return res.data.data;
 }
 
 export async function fetchDashboardTrend(userId, from, to) {
