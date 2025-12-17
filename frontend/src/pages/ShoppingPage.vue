@@ -165,10 +165,11 @@ async function executeSearch(keyword) {
 
   try {
     const results = await searchProducts(keyword);
-    searchedProducts.value = results;
+    searchedProducts.value = results.products;
   } catch (e) {
     console.error('상품 검색 에러:', e);
     searchError.value = '상품을 검색하는 중 오류가 발생했습니다.';
+    searchedProducts.value = []; // 에러 발생 시에도 카드 표시를 위해 빈 배열 할당
   } finally {
     isLoadingSearch.value = false;
   }

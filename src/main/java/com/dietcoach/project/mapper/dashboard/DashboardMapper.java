@@ -1,10 +1,12 @@
 package com.dietcoach.project.mapper.dashboard;
 
+import java.time.LocalDate;
+import java.util.List;
+
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-import java.time.LocalDate;
-import java.util.List;
+import lombok.Data;
 
 @Mapper
 public interface DashboardMapper {
@@ -21,24 +23,15 @@ public interface DashboardMapper {
             @Param("to") LocalDate to
     );
 
-    // === Row DTOs (MyBatis 결과 매핑용) ===
+    @Data
     class DayCaloriesRow {
         private LocalDate date;
         private Integer totalCalories;
-
-        public LocalDate getDate() { return date; }
-        public void setDate(LocalDate date) { this.date = date; }
-        public Integer getTotalCalories() { return totalCalories; }
-        public void setTotalCalories(Integer totalCalories) { this.totalCalories = totalCalories; }
     }
 
+    @Data
     class DayWeightRow {
         private LocalDate date;
         private Double weight;
-
-        public LocalDate getDate() { return date; }
-        public void setDate(LocalDate date) { this.date = date; }
-        public Double getWeight() { return weight; }
-        public void setWeight(Double weight) { this.weight = weight; }
     }
 }

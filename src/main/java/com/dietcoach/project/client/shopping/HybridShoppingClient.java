@@ -1,13 +1,10 @@
 package com.dietcoach.project.client.shopping;
 
-import com.dietcoach.project.domain.ShoppingProduct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
 
 @Slf4j
 @Primary
@@ -22,26 +19,23 @@ public class HybridShoppingClient implements ShoppingClient {
     private boolean useMockWhenError;
 
     @Override
-    public List<ShoppingProduct> searchProducts(String keyword, int page, int size) {
+    public ShoppingClientResult searchProducts(String keyword, int page, int size) {
         try {
-            List<ShoppingProduct> real =
-                    elevenstShoppingClient.searchProducts(keyword, page, size);
+            ShoppingClientResult real = elevenstShoppingClient.searchProducts(keyword, page, size);
 
-            if (real != null && !real.isEmpty()) {
-                return real;
+            if (real != null && real.getProducts() != null && !real.getProducts().isEmpty()) {
+                return real; // source=REAL
             }
 
-            log.warn("[HybridShoppingClient] Empty result from real API, fallback to mock");
+            log.warn("[HybridShoppingClient] Empty result from REAL API, fallback to MOCK");
             return mockShoppingClient.searchProducts(keyword, page, size);
 
         } catch (Exception e) {
-            log.error("[HybridShoppingClient] Real API failed", e);
+            log.error("[HybridShoppingClient] REAL API failed", e);
 
-            if (!useMockWhenError) {
-                throw e;
-            }
+            if (!useMockWhenError) throw e;
 
-            log.warn("[HybridShoppingClient] Using mock fallback");
+            log.warn("[HybridShoppingClient] Using MOCK fallback");
             return mockShoppingClient.searchProducts(keyword, page, size);
         }
     }

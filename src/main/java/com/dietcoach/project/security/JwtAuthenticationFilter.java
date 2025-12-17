@@ -25,7 +25,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (auth != null && auth.startsWith("Bearer ")) {
             String token = auth.substring(7);
-            if (jwtTokenProvider.validate(token)) {
+            if (jwtTokenProvider.validateToken(token)) {
                 Long userId = jwtTokenProvider.getUserId(token);
 
                 // principal = Long userId (주인님 컨벤션: @AuthenticationPrincipal Long)
