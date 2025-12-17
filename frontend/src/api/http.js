@@ -1,7 +1,7 @@
 // src/api/http.js
 import axios from 'axios';
-import { getToken } from '../utils/auth';
-import { setLoading, setError } from '../utils/globalState';
+import { getToken, clearAuth } from '../utils/auth';
+import { setLoading } from '../utils/globalState';
 
 const http = axios.create({
   baseURL: '/api',
@@ -11,7 +11,7 @@ const http = axios.create({
 // Request interceptor
 http.interceptors.request.use(
   (config) => {
-    setLoading(true); // 로딩 시작
+    setLoading(true);
     const token = getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -19,7 +19,7 @@ http.interceptors.request.use(
     return config;
   },
   (error) => {
-    setLoading(false); // 에러 시 로딩 종료
+    setLoading(false);
     return Promise.reject(error);
   }
 );
@@ -27,26 +27,33 @@ http.interceptors.request.use(
 // Response interceptor
 http.interceptors.response.use(
   (response) => {
-    setLoading(false); // 응답 시 로딩 종료
+    setLoading(false);
+    // 백엔드에서 success: false 응답을 보내는 경우를 위한 처리
     if (response.data && response.data.success === false) {
-      setError(response.data.message || '오류가 발생했습니다.');
-      return Promise.reject(new Error(response.data.message));
+      return Promise.reject(new Error(response.data.message || '오류가 발생했습니다.'));
     }
-    return response.data; // 실제 데이터만 반환하도록 변경
+    return response.data;
   },
   (error) => {
-    setLoading(false); // 에러 시 로딩 종료
-    
-    let errorMessage = '네트워크 오류 또는 서버에 문제가 발생했습니다.';
+    setLoading(false);
+
     if (error.response) {
-      // 서버에서 보낸 에러 메시지가 있는 경우
-      errorMessage = error.response.data?.message || errorMessage;
-      if (error.response.status === 401 || error.response.status === 403) {
-        errorMessage = '인증에 실패했습니다. 다시 로그인해주세요.';
-        // 필요시 로그인 페이지로 리다이렉트하는 로직 추가 가능
+      const { status } = error.response;
+
+      if (status === 401) {
+        clearAuth(); // 토큰 및 사용자 정보 삭제
+        alert('로그인 시간이 만료되었습니다.\n다시 로그인해 주세요.');
+        // SPA 라우팅이 아닌 전체 페이지 리로드로 상태를 초기화
+        window.location.href = '/login';
+      } else if (status >= 500) {
+        // 5xx 서버 에러 공통 처리
+        alert('서버 오류가 발생했습니다.\n잠시 후 다시 시도해 주세요.');
       }
+    } else {
+      // 네트워크 에러 등 response가 없는 경우
+      alert('네트워크 오류가 발생했습니다.\n연결을 확인해 주세요.');
     }
-    setError(errorMessage);
+    
     return Promise.reject(error);
   }
 );
