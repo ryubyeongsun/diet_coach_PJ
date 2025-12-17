@@ -155,6 +155,7 @@ const isLoadingSearch = ref(false);
 const searchError = ref('');
 
 async function executeSearch(keyword) {
+  if (isLoadingSearch.value) return; // 중복 호출 방지 가드
   if (!keyword?.trim()) return;
   
   searchQuery.value = keyword;

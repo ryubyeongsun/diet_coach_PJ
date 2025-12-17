@@ -43,10 +43,11 @@ const props = defineProps({
   },
 });
 
-const hasData = computed(() => props.dayTrends && props.dayTrends.length > 0);
+// PRD 요구사항: 데이터 포인트가 2개 이상일 때만 차트 표시
+const isDataSufficient = computed(() => props.dayTrends && props.dayTrends.length >= 2);
 
 const chartData = computed(() => {
-  if (!hasData.value) {
+  if (!isDataSufficient.value) {
     return { labels: [], datasets: [] };
   }
 
@@ -139,31 +140,40 @@ const chartOptions = computed(() => {
 
 <template>
   <div class="trend-chart-container">
-    <div v-if="hasData" class="chart-wrapper">
+    <div v-if="isDataSufficient" class="chart-wrapper">
       <LineChart :data="chartData" :options="chartOptions" />
     </div>
-    <div v-else class="no-data-message">
-      <p>표시할 데이터가 없습니다. 식단을 생성하고 체중을 기록해 보세요.</p>
+    <!-- PRD 요구사항: 데이터 부족 시 안내 메시지 표준화 -->
+    <div v-else class="insufficient-data-notice">
+      <p>아직 데이터가 충분하지 않습니다.</p>
+      <p>2일 이상 기록하면 그래프를 확인할 수 있어요.</p>
     </div>
   </div>
 </template>
 
 <style scoped>
 .trend-chart-container {
-  padding: 1rem;
-  background-color: #f9f9f9;
-  border-radius: 8px;
+  position: relative;
+  height: 350px; /* 높이 확보 */
 }
 .chart-wrapper {
   position: relative;
-  height: 300px;
+  height: 100%;
 }
-.no-data-message {
+.insufficient-data-notice {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  height: 300px;
+  height: 100%;
+  padding: 20px;
   text-align: center;
-  color: #888;
+  color: #666;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background-color: #fafafa;
+}
+.insufficient-data-notice p {
+  margin: 0;
 }
 </style>
