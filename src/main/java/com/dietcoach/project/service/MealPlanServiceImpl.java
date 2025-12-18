@@ -12,19 +12,20 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dietcoach.project.common.TdeeCalculator;
 import com.dietcoach.project.common.error.BusinessException;
 import com.dietcoach.project.domain.User;
+import com.dietcoach.project.domain.WeightRecord;
 import com.dietcoach.project.domain.meal.MealItem;
 import com.dietcoach.project.domain.meal.MealPlan;
 import com.dietcoach.project.domain.meal.MealPlanDay;
-import com.dietcoach.project.domain.WeightRecord;
 import com.dietcoach.project.dto.meal.DashboardSummaryResponse;
 import com.dietcoach.project.dto.meal.MealItemResponse;
+import com.dietcoach.project.dto.meal.MealPlanCreateRequest;
 import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
 import com.dietcoach.project.dto.meal.MealPlanDaySummaryResponse;
 import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
 import com.dietcoach.project.mapper.UserMapper;
-import com.dietcoach.project.mapper.meal.MealPlanMapper;
 import com.dietcoach.project.mapper.WeightRecordMapper;
+import com.dietcoach.project.mapper.meal.MealPlanMapper;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -38,8 +39,6 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     private final UserMapper userMapper;
     private final MealPlanMapper mealPlanMapper;
-
-    // ✅ 체중까지 붙이려면 주입 필요
     private final WeightRecordMapper weightRecordMapper;
 
     // =========================
@@ -91,6 +90,7 @@ public class MealPlanServiceImpl implements MealPlanService {
             throw new BusinessException("존재하지 않는 사용자입니다. id=" + userId);
         }
 
+        // 에너지 필드가 비어있으면 채우고 저장
         if (user.getBmr() == null || user.getTdee() == null || user.getTargetCalories() == null) {
             TdeeCalculator.fillUserEnergyFields(user);
             userMapper.updateUserEnergy(user);
@@ -106,6 +106,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .totalDays(DEFAULT_PLAN_DAYS)
                 .targetCaloriesPerDay(targetKcalPerDay)
                 .build();
+
         mealPlanMapper.insertMealPlan(mealPlan);
 
         List<MealPlanDay> days = new ArrayList<>();
@@ -141,7 +142,7 @@ public class MealPlanServiceImpl implements MealPlanService {
 
             // ✅ 1) 객체에 세팅
             day.setTotalCalories(totalCaloriesForDay);
-            // ✅ 2) DB에도 저장 (요청한 그 부분: 여기 한 줄!)
+            // ✅ 2) DB에도 저장
             mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
 
             itemsByDayId.put(day.getId(), items);
@@ -155,6 +156,18 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .toList();
 
         return MealPlanOverviewResponse.of(mealPlan, daySummaries);
+    }
+    @Override
+    @Transactional
+    public MealPlanOverviewResponse createMonthlyPlan(Long userId, MealPlanCreateRequest request) {
+        // startDate만 우선 기존 로직으로 연결 (오늘은 최소 구현)
+        LocalDate startDate = (request != null) ? request.getStartDate() : null;
+
+        // ✅ (A1 저장용) request 안의 monthlyBudget/mealsPerDay/preferences/allergies는
+        // 여기서 MealPlan 엔티티에 set해서 insertMealPlan에 태워야 함.
+        // (아직 insert 전에 mealPlan에 세팅하는 부분을 추가하는 작업이 A1 핵심)
+
+        return createMonthlyPlan(userId, startDate);
     }
 
     private List<MealItem> generateMealItemsForOneMeal(Long mealPlanDayId, String mealTime, int targetCaloriesForMeal) {
@@ -174,7 +187,6 @@ public class MealPlanServiceImpl implements MealPlanService {
                 : 1.0;
 
         List<MealItem> result = new ArrayList<>();
-
         for (FoodPortion portion : template) {
             int scaledGrams = Math.max(1, (int) Math.round(portion.getBaseGrams() * scale));
             int itemCalories = scaledGrams * portion.getFood().getCaloriesPer100g() / 100;
@@ -194,6 +206,9 @@ public class MealPlanServiceImpl implements MealPlanService {
         return result;
     }
 
+    // =========================
+    // 2) 식단 플랜 상세 조회
+    // =========================
     @Override
     @Transactional(readOnly = true)
     public MealPlanOverviewResponse getMealPlan(Long planId) {
@@ -219,6 +234,9 @@ public class MealPlanServiceImpl implements MealPlanService {
         return MealPlanOverviewResponse.of(mealPlan, daySummaries);
     }
 
+    // =========================
+    // 3) 최신 식단 플랜 조회
+    // =========================
     @Override
     @Transactional(readOnly = true)
     public MealPlanOverviewResponse getLatestMealPlanForUser(Long userId) {
@@ -229,6 +247,9 @@ public class MealPlanServiceImpl implements MealPlanService {
         return getMealPlan(latestPlan.getId());
     }
 
+    // =========================
+    // 4) 재료 집계
+    // =========================
     @Override
     @Transactional(readOnly = true)
     public List<MealPlanIngredientResponse> getIngredientsForPlan(Long planId) {
@@ -245,7 +266,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     // =========================
-    // ✅ 체중까지 포함한 대시보드 요약
+    // 5) 대시보드 요약
     // =========================
     @Override
     @Transactional(readOnly = true)
@@ -268,7 +289,6 @@ public class MealPlanServiceImpl implements MealPlanService {
                 totalCalories / (double) (targetPerDay * days.size()) * 100.0
         );
 
-        // ✅ 체중: 최신 + 7일 전 대비
         WeightRecord latest = weightRecordMapper.findLatestByUserId(userId);
 
         boolean hasWeightRecords = latest != null;
@@ -280,9 +300,6 @@ public class MealPlanServiceImpl implements MealPlanService {
             WeightRecord weight7 = weightRecordMapper.findByUserIdAndDate(userId, d7);
             if (weight7 != null) {
                 weightChange7Days = latest.getWeight() - weight7.getWeight();
-            } else {
-                // 7일 전 기록이 없으면 null 유지(프론트에서 “데이터 부족” 처리)
-                weightChange7Days = null;
             }
         }
 
@@ -295,14 +312,15 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .targetCaloriesPerDay(targetPerDay)
                 .averageCalories(averageCalories)
                 .achievementRate(achievementRate)
-
-                // ✅ 추가 필드
                 .hasWeightRecords(hasWeightRecords)
                 .latestWeight(latestWeight)
                 .weightChange7Days(weightChange7Days)
                 .build();
     }
 
+    // =========================
+    // 6) 하루 상세 조회
+    // =========================
     @Override
     @Transactional(readOnly = true)
     public MealPlanDayDetailResponse getDayDetail(Long dayId) {

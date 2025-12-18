@@ -28,6 +28,10 @@ public class MealPlanOverviewResponse {
     private int targetCaloriesPerDay;
 
     private List<MealPlanDaySummaryResponse> days;
+    private Long monthlyBudget;
+    private Integer mealsPerDay;
+    private List<String> preferences;
+    private List<String> allergies;
 
     public static MealPlanOverviewResponse of(
             MealPlan plan,

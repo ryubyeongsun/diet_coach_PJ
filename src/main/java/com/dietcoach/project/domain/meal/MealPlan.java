@@ -19,7 +19,11 @@ public class MealPlan {
     private LocalDate endDate;
     private Integer totalDays;
     private Integer targetCaloriesPerDay;
+    private Long monthlyBudget;
+    private Integer mealsPerDay;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String preferences;
+    private String allergies;
 }

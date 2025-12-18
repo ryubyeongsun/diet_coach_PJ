@@ -1,6 +1,7 @@
 package com.dietcoach.project.service;
 
 import com.dietcoach.project.dto.meal.DashboardSummaryResponse;
+import com.dietcoach.project.dto.meal.MealPlanCreateRequest;
 import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
 import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
@@ -18,4 +19,5 @@ public interface MealPlanService {
     List<MealPlanIngredientResponse> getIngredientsForPlan(Long planId);
     DashboardSummaryResponse getDashboardSummary(Long userId);
     MealPlanDayDetailResponse getDayDetail(Long dayId);
+    MealPlanOverviewResponse createMonthlyPlan(Long userId, MealPlanCreateRequest request);
 }
