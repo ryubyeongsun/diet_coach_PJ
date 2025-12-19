@@ -12,19 +12,20 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dietcoach.project.common.TdeeCalculator;
 import com.dietcoach.project.common.error.BusinessException;
 import com.dietcoach.project.domain.User;
+import com.dietcoach.project.domain.WeightRecord;
 import com.dietcoach.project.domain.meal.MealItem;
 import com.dietcoach.project.domain.meal.MealPlan;
 import com.dietcoach.project.domain.meal.MealPlanDay;
-import com.dietcoach.project.domain.WeightRecord;
 import com.dietcoach.project.dto.meal.DashboardSummaryResponse;
 import com.dietcoach.project.dto.meal.MealItemResponse;
+import com.dietcoach.project.dto.meal.MealPlanCreateRequest;
 import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
 import com.dietcoach.project.dto.meal.MealPlanDaySummaryResponse;
 import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
 import com.dietcoach.project.mapper.UserMapper;
-import com.dietcoach.project.mapper.meal.MealPlanMapper;
 import com.dietcoach.project.mapper.WeightRecordMapper;
+import com.dietcoach.project.mapper.meal.MealPlanMapper;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -38,8 +39,6 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     private final UserMapper userMapper;
     private final MealPlanMapper mealPlanMapper;
-
-    // ✅ 체중까지 붙이려면 주입 필요
     private final WeightRecordMapper weightRecordMapper;
 
     // =========================
@@ -77,19 +76,17 @@ public class MealPlanServiceImpl implements MealPlanService {
     );
 
     // =========================
-    // 1) 한 달 식단 생성
+    // ✅ 1) 한 달 식단 생성 (단일 진입점)
     // =========================
     @Override
     @Transactional
-    public MealPlanOverviewResponse createMonthlyPlan(Long userId, LocalDate startDate) {
-        if (startDate == null) {
-            startDate = LocalDate.now();
-        }
+    public MealPlanOverviewResponse createMonthlyPlan(Long userId, MealPlanCreateRequest request) {
+        LocalDate startDate = (request != null && request.getStartDate() != null)
+                ? request.getStartDate()
+                : LocalDate.now();
 
         User user = userMapper.findById(userId);
-        if (user == null) {
-            throw new BusinessException("존재하지 않는 사용자입니다. id=" + userId);
-        }
+        if (user == null) throw new BusinessException("존재하지 않는 사용자입니다. id=" + userId);
 
         if (user.getBmr() == null || user.getTdee() == null || user.getTargetCalories() == null) {
             TdeeCalculator.fillUserEnergyFields(user);
@@ -99,13 +96,28 @@ public class MealPlanServiceImpl implements MealPlanService {
         int targetKcalPerDay = (int) Math.round(user.getTargetCalories());
         LocalDate endDate = startDate.plusDays(DEFAULT_PLAN_DAYS - 1);
 
+        // ✅ mealsPerDay 기본값 3
+        int mealsPerDay = (request != null && request.getMealsPerDay() != null)
+                ? request.getMealsPerDay()
+                : 3;
+        if (mealsPerDay < 1 || mealsPerDay > 3) {
+            throw new BusinessException("mealsPerDay는 1~3만 가능합니다.");
+        }
+
         MealPlan mealPlan = MealPlan.builder()
                 .userId(userId)
                 .startDate(startDate)
                 .endDate(endDate)
                 .totalDays(DEFAULT_PLAN_DAYS)
                 .targetCaloriesPerDay(targetKcalPerDay)
+
+                // ✅ A1 저장
+                .monthlyBudget(request != null ? request.getMonthlyBudget() : null)
+                .mealsPerDay(mealsPerDay)
+                .preferences(toCsvSafe(request != null ? request.getPreferences() : null))
+                .allergies(toCsvSafe(request != null ? request.getAllergies() : null))
                 .build();
+
         mealPlanMapper.insertMealPlan(mealPlan);
 
         List<MealPlanDay> days = new ArrayList<>();
@@ -114,24 +126,29 @@ public class MealPlanServiceImpl implements MealPlanService {
         for (int i = 0; i < DEFAULT_PLAN_DAYS; i++) {
             LocalDate date = startDate.plusDays(i);
 
-            int breakfastTarget = (int) Math.round(targetKcalPerDay * 0.3);
-            int lunchTarget     = (int) Math.round(targetKcalPerDay * 0.4);
-            int dinnerTarget    = targetKcalPerDay - breakfastTarget - lunchTarget;
-
             MealPlanDay day = MealPlanDay.builder()
                     .mealPlanId(mealPlan.getId())
                     .planDate(date)
                     .dayIndex(i + 1)
                     .totalCalories(0)
                     .build();
-
             mealPlanMapper.insertMealPlanDay(day);
             days.add(day);
 
+            // ✅ mealsPerDay에 따른 끼니 구성
+            List<String> mealTimes = switch (mealsPerDay) {
+                case 1 -> List.of("LUNCH");                 // 1끼: 점심만
+                case 2 -> List.of("BREAKFAST", "DINNER");   // 2끼: 아침/저녁
+                default -> List.of("BREAKFAST", "LUNCH", "DINNER"); // 3끼
+            };
+
+            // ✅ 간단 분배
+            Map<String, Integer> targets = distributeCalories(targetKcalPerDay, mealTimes);
+
             List<MealItem> items = new ArrayList<>();
-            items.addAll(generateMealItemsForOneMeal(day.getId(), "BREAKFAST", breakfastTarget));
-            items.addAll(generateMealItemsForOneMeal(day.getId(), "LUNCH", lunchTarget));
-            items.addAll(generateMealItemsForOneMeal(day.getId(), "DINNER", dinnerTarget));
+            for (String mealTime : mealTimes) {
+                items.addAll(generateMealItemsForOneMeal(day.getId(), mealTime, targets.get(mealTime)));
+            }
 
             int totalCaloriesForDay = 0;
             for (MealItem item : items) {
@@ -139,24 +156,30 @@ public class MealPlanServiceImpl implements MealPlanService {
                 totalCaloriesForDay += item.getCalories();
             }
 
-            // ✅ 1) 객체에 세팅
             day.setTotalCalories(totalCaloriesForDay);
-            // ✅ 2) DB에도 저장 (요청한 그 부분: 여기 한 줄!)
             mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
 
             itemsByDayId.put(day.getId(), items);
         }
 
         List<MealPlanDaySummaryResponse> daySummaries = days.stream()
-                .map(day -> MealPlanDaySummaryResponse.from(
-                        day,
-                        itemsByDayId.getOrDefault(day.getId(), List.of())
-                ))
+                .map(d -> MealPlanDaySummaryResponse.from(d, itemsByDayId.getOrDefault(d.getId(), List.of())))
                 .toList();
 
         return MealPlanOverviewResponse.of(mealPlan, daySummaries);
     }
 
+    // =========================
+    // ✅ (추가) Integer -> int 안전 래퍼 (빨간줄 해결)
+    // =========================
+    private List<MealItem> generateMealItemsForOneMeal(Long mealPlanDayId, String mealTime, Integer targetCaloriesForMeal) {
+        int target = (targetCaloriesForMeal == null) ? 0 : targetCaloriesForMeal;
+        return generateMealItemsForOneMeal(mealPlanDayId, mealTime, target);
+    }
+
+    // =========================
+    // ✅ (추가) 실제 생성 로직 (없으면 반드시 필요)
+    // =========================
     private List<MealItem> generateMealItemsForOneMeal(Long mealPlanDayId, String mealTime, int targetCaloriesForMeal) {
         List<FoodPortion> template = switch (mealTime) {
             case "BREAKFAST" -> BREAKFAST_TEMPLATE;
@@ -174,7 +197,6 @@ public class MealPlanServiceImpl implements MealPlanService {
                 : 1.0;
 
         List<MealItem> result = new ArrayList<>();
-
         for (FoodPortion portion : template) {
             int scaledGrams = Math.max(1, (int) Math.round(portion.getBaseGrams() * scale));
             int itemCalories = scaledGrams * portion.getFood().getCaloriesPer100g() / 100;
@@ -190,10 +212,49 @@ public class MealPlanServiceImpl implements MealPlanService {
 
             result.add(item);
         }
-
         return result;
     }
 
+    // ===== helpers =====
+    private String toCsvSafe(List<String> list) {
+        if (list == null || list.isEmpty()) return "";
+        return list.stream()
+                .map(s -> s == null ? "" : s.trim())
+                .filter(s -> !s.isEmpty())
+                .reduce((a, b) -> a + "," + b)
+                .orElse("");
+    }
+
+    private Map<String, Integer> distributeCalories(int total, List<String> mealTimes) {
+        Map<String, Integer> map = new HashMap<>();
+
+        if (mealTimes.size() == 1) {
+            map.put(mealTimes.get(0), total);
+            return map;
+        }
+
+        if (mealTimes.size() == 2) {
+            // 아침 45% / 저녁 55%
+            for (String t : mealTimes) {
+                if ("BREAKFAST".equals(t)) map.put(t, (int) Math.round(total * 0.45));
+                else map.put(t, total - map.getOrDefault("BREAKFAST", 0));
+            }
+            return map;
+        }
+
+        // 3끼: 30/40/30
+        int b = (int) Math.round(total * 0.30);
+        int l = (int) Math.round(total * 0.40);
+        int d = total - b - l;
+        map.put("BREAKFAST", b);
+        map.put("LUNCH", l);
+        map.put("DINNER", d);
+        return map;
+    }
+
+    // =========================
+    // 2) 식단 플랜 상세 조회
+    // =========================
     @Override
     @Transactional(readOnly = true)
     public MealPlanOverviewResponse getMealPlan(Long planId) {
@@ -219,6 +280,9 @@ public class MealPlanServiceImpl implements MealPlanService {
         return MealPlanOverviewResponse.of(mealPlan, daySummaries);
     }
 
+    // =========================
+    // 3) 최신 식단 플랜 조회
+    // =========================
     @Override
     @Transactional(readOnly = true)
     public MealPlanOverviewResponse getLatestMealPlanForUser(Long userId) {
@@ -229,6 +293,9 @@ public class MealPlanServiceImpl implements MealPlanService {
         return getMealPlan(latestPlan.getId());
     }
 
+    // =========================
+    // 4) 재료 집계
+    // =========================
     @Override
     @Transactional(readOnly = true)
     public List<MealPlanIngredientResponse> getIngredientsForPlan(Long planId) {
@@ -245,7 +312,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     // =========================
-    // ✅ 체중까지 포함한 대시보드 요약
+    // 5) 대시보드 요약
     // =========================
     @Override
     @Transactional(readOnly = true)
@@ -268,7 +335,6 @@ public class MealPlanServiceImpl implements MealPlanService {
                 totalCalories / (double) (targetPerDay * days.size()) * 100.0
         );
 
-        // ✅ 체중: 최신 + 7일 전 대비
         WeightRecord latest = weightRecordMapper.findLatestByUserId(userId);
 
         boolean hasWeightRecords = latest != null;
@@ -280,9 +346,6 @@ public class MealPlanServiceImpl implements MealPlanService {
             WeightRecord weight7 = weightRecordMapper.findByUserIdAndDate(userId, d7);
             if (weight7 != null) {
                 weightChange7Days = latest.getWeight() - weight7.getWeight();
-            } else {
-                // 7일 전 기록이 없으면 null 유지(프론트에서 “데이터 부족” 처리)
-                weightChange7Days = null;
             }
         }
 
@@ -295,14 +358,15 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .targetCaloriesPerDay(targetPerDay)
                 .averageCalories(averageCalories)
                 .achievementRate(achievementRate)
-
-                // ✅ 추가 필드
                 .hasWeightRecords(hasWeightRecords)
                 .latestWeight(latestWeight)
                 .weightChange7Days(weightChange7Days)
                 .build();
     }
 
+    // =========================
+    // 6) 하루 상세 조회
+    // =========================
     @Override
     @Transactional(readOnly = true)
     public MealPlanDayDetailResponse getDayDetail(Long dayId) {

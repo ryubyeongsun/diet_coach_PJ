@@ -1,14 +1,28 @@
 package com.dietcoach.project.dto.meal;
 
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
+import lombok.*;
 
 import java.time.LocalDate;
+import java.util.List;
 
-@Getter
-@Setter
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class MealPlanCreateRequest {
 
     private Long userId;
-    private LocalDate startDate;  // null이면 오늘 기준으로 30일 생성
+    private LocalDate startDate;
+
+    @Min(0)
+    private Long monthlyBudget;
+
+    @Min(1)
+    @Max(3)
+    private Integer mealsPerDay;
+
+    private List<String> preferences;
+    private List<String> allergies;
 }
