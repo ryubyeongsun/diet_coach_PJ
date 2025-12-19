@@ -13,8 +13,8 @@ export async function fetchMealPlan(planId) {
   return res.data.data ?? res.data;
 }
 
-// 한 달 식단 생성
-export async function generateMealPlan(payload) {
+// 30일 식단 생성 (PRD 기반)
+export async function createMealPlan(payload) {
   const res = await http.post('/meal-plans', payload);
   return res.data.data ?? res.data;
 }

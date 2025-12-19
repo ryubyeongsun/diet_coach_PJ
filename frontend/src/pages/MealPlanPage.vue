@@ -19,15 +19,15 @@
         >
           이번 달 식단 재료 장보기
         </NnButton>
-        <NnButton
-          block
-          :disabled="isLoading || !currentUser"
-          @click="onClickGenerate"
-        >
-          {{ isLoading ? '처리 중...' : '식단 자동 생성' }}
-        </NnButton>
       </div>
     </header>
+
+    <MealPlanCreatePanel 
+      :user="currentUser"
+      :is-loading="isLoading"
+      :has-plan="!!overview"
+      @create-plan="handleCreatePlan"
+    />
 
     <p v-if="errorMessage" class="page__error">
       {{ errorMessage }}
@@ -91,8 +91,8 @@
       <div v-else-if="trendError" class="page__error">
         {{ trendError }}
       </div>
-      <div v-else-if="!trend || trend.dayTrends.length < 3" class="page__status">
-        데이터가 충분하지 않습니다.
+      <div v-else-if="!trend || trend.dayTrends.length < 2" class="page__status">
+        그래프를 표시하려면 최소 2일 이상의 체중 기록이 필요합니다. <br> 꾸준히 기록해주세요!
       </div>
       <TrendChart
         v-else-if="trend"
@@ -147,16 +147,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import NnButton from '../components/common/NnButton.vue';
 import NnCard from '../components/common/NnCard.vue';
 import MealPlanCalendar from '../components/meal/MealPlanCalendar.vue';
+import MealPlanCreatePanel from '../components/meal/MealPlanCreatePanel.vue';
 import MealPlanDayModal from '../components/meal/MealPlanDayModal.vue';
 import TrendChart from '../components/dashboard/TrendChart.vue';
 
-import { fetchLatestMealPlan, generateMealPlan } from '../api/mealPlanApi';
+import { fetchLatestMealPlan, createMealPlan } from '../api/mealPlanApi';
 import { getCurrentUser } from '@/utils/auth.js';
 import { fetchDashboardSummary, fetchDashboardTrend } from '../api/dashboardApi.js';
 
@@ -267,15 +268,17 @@ async function loadTrendData() {
   }
 }
 
+// `period` 값이 변경되면 트렌드 데이터를 다시 로드합니다.
+watch(period, loadTrendData);
+
+// 버튼 클릭 시 `period` 값만 변경합니다. 데이터 로딩은 watch가 처리합니다.
 function setPeriod(days) {
   period.value = days;
-  loadTrendData();
 }
 
-async function onClickGenerate() {
-  const userId = currentUser.value?.id;
-  if (!userId) {
-    errorMessage.value = '사용자 정보가 준비되지 않았습니다.';
+async function handleCreatePlan(payload) {
+  if (!currentUser.value) {
+    errorMessage.value = '사용자 정보가 필요합니다. 다시 로그인해주세요.';
     return;
   }
 
@@ -283,26 +286,38 @@ async function onClickGenerate() {
   errorMessage.value = '';
 
   try {
-    const today = new Date().toISOString().slice(0, 10);
-    await generateMealPlan({
-      userId: userId,
-      startDate: today,
-      totalDays: 30,
+    await createMealPlan({
+      ...payload,
+      userId: currentUser.value.id,
     });
-    
+
+    alert('식단이 성공적으로 생성되었습니다!');
+
+    // 식단 생성 후에는 모든 관련 데이터를 다시 불러옵니다.
     await Promise.all([loadLatest(), loadDashboardSummary(), loadTrendData()]);
+
   } catch (err) {
-    console.error(err);
-    errorMessage.value = '식단 생성 중 오류가 발생했습니다.';
+    console.error('Error creating meal plan:', err);
+    if (err.response?.status === 400) {
+      errorMessage.value = `입력값을 확인해주세요: ${err.response.data.message || ''}`;
+    } else if (err.response?.status === 401) {
+      router.push('/login');
+    } else {
+      errorMessage.value = '식단 생성 중 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+    }
   } finally {
     isLoading.value = false;
   }
 }
 
-onMounted(async () => {
+onMounted(() => {
   currentUser.value = getCurrentUser();
   if (currentUser.value) {
-    await Promise.all([loadLatest(), loadDashboardSummary(), loadTrendData()]);
+    // 최초 로딩 시 모든 데이터를 불러옵니다.
+    // loadTrendData는 period의 초기값(7)에 대해 자동으로 호출됩니다.
+    loadLatest();
+    loadDashboardSummary();
+    loadTrendData();
   }
 });
 </script>
