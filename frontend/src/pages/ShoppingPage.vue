@@ -1,200 +1,125 @@
 <template>
   <div class="page">
     <header class="page__header">
-      <div>
-        <h1>식단 재료 쇼핑</h1>
-        <p>
-          식단에 필요한 재료를 확인하고, 11번가 상품을 검색하여 합리적인
-          소비를 도와드립니다.
-        </p>
-      </div>
+      <h1>장보기 리스트</h1>
+      <p v-if="shoppingData">
+        <strong>{{ shoppingData.fromDate }} ~ {{ shoppingData.toDate }}</strong> 기간의 필요 재료입니다.
+      </p>
+      <p v-else>식단 플랜에 따른 재료 목록을 확인하고 구매해 보세요.</p>
     </header>
 
-    <!-- 1. 식단 재료 목록 -->
-    <NnCard v-if="planId" title="이번 달 식단 재료 장보기">
-      <div v-if="planDetails" class="plan-period">
-        {{ planDetails.startDate }} ~ {{ planDetails.endDate }}
-      </div>
-
-      <div v-if="isLoadingIngredients" class="page__status">
-        재료 정보를 불러오는 중입니다...
-      </div>
-      <div v-else-if="ingredientsError" class="page__error">
-        {{ ingredientsError }}
-      </div>
-      <div v-else-if="!ingredients || ingredients.length === 0" class="page__status">
-        이 식단에서 집계된 재료가 없습니다.
-      </div>
-      <ul v-else class="ingredients-list">
-        <li
-          v-for="ing in ingredients"
-          :key="ing.ingredientName"
-          class="ingredients-list__item"
-        >
-          <div class="ingredients-list__info">
-            <strong>{{ ing.ingredientName }}</strong>
-            <span v-if="ing.totalGram">총 {{ ing.totalGram.toLocaleString() }}g 필요</span>
-          </div>
-          <NnButton
-            size="sm"
-            variant="outline"
-            @click="searchFromIngredient(ing.ingredientName)"
+    <div v-if="isValidPlanId">
+      <div class="controls">
+        <div class="period-selector">
+          <button
+            @click="setRange('TODAY')"
+            :class="{ active: range === 'TODAY' }"
           >
-            이 재료 상품 찾기
-          </NnButton>
-        </li>
-      </ul>
-    </NnCard>
+            오늘
+          </button>
+          <button
+            @click="setRange('WEEK')"
+            :class="{ active: range === 'WEEK' }"
+          >
+            이번 주
+          </button>
+          <button
+            @click="setRange('MONTH')"
+            :class="{ active: range === 'MONTH' }"
+          >
+            이번 달
+          </button>
+        </div>
+      </div>
 
-    <NnCard v-else title="안내">
-      <p class="page__status">
-        먼저 식단 페이지에서 "이번 달 식단 재료 장보기"를 눌러주세요.
-      </p>
-    </NnCard>
-
-    <!-- 2. 상품 직접 검색 -->
-    <NnCard title="상품 직접 검색">
-      <ShoppingSearchBar @search="handleSearch" :initial-query="searchQuery" />
-    </NnCard>
-
-    <!-- 3. 검색 결과 -->
-    <NnCard title="상품 검색 결과" v-if="searchedProducts !== null">
-      <div v-if="isLoadingSearch" class="page__status">상품을 검색 중입니다...</div>
-      <div v-else-if="searchError" class="page__error">{{ searchError }}</div>
-      <div v-else-if="searchedProducts.length === 0" class="page__status">검색 결과가 없습니다.</div>
-      <div v-else class="products-grid">
-        <ShoppingProductCard
-          v-for="p in searchedProducts"
-          :key="p.externalId"
-          :product="p"
-          @add-to-cart="handleAddToCart"
+      <div v-if="isLoading" class="page__status">
+        <p>장보기 목록을 불러오는 중입니다...</p>
+      </div>
+      <div v-else-if="error" class="page__error">
+        <p>{{ error }}</p>
+      </div>
+      <div v-else-if="shoppingData && shoppingData.items.length > 0" class="item-list">
+        <ShoppingItemCard
+          v-for="(item, index) in shoppingData.items"
+          :key="index"
+          :item="item"
         />
       </div>
-    </NnCard>
+      <div v-else class="page__status">
+        <p>표시할 재료가 없습니다.</p>
+      </div>
+    </div>
+
+    <div v-else class="page__error">
+      <p>유효한 식단 정보가 없습니다. 식단 관리 페이지로 돌아가서 다시 시도해주세요.</p>
+      <NnButton @click="goBack">돌아가기</NnButton>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
-
-import NnCard from '../components/common/NnCard.vue';
+import { ref, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { fetchShoppingList } from '../api/shoppingApi.js';
+import ShoppingItemCard from '../components/shopping/ShoppingItemCard.vue';
 import NnButton from '../components/common/NnButton.vue';
-import ShoppingSearchBar from '../components/shopping/ShoppingSearchBar.vue';
-import ShoppingProductCard from '../components/shopping/ShoppingProductCard.vue';
-import { searchProducts, getRecommendations } from '../api/shoppingApi.js';
-import { fetchPlanIngredients, fetchMealPlan } from '../api/mealPlanApi.js';
-import { addToCart } from '../utils/globalState.js';
 
-// --- 식단 재료 ---
 const route = useRoute();
-const planId = computed(() =>
-  route.query.planId ? Number(route.query.planId) : null
-);
-const ingredients = ref([]);
-const planDetails = ref(null);
-const isLoadingIngredients = ref(false);
-const ingredientsError = ref('');
+const router = useRouter();
 
-watch(
-  planId,
-  async (newPlanId) => {
-    if (!newPlanId) {
-      ingredients.value = [];
-      planDetails.value = null;
-      return;
-    }
-    isLoadingIngredients.value = true;
-    ingredientsError.value = '';
-    try {
-      const [ingredientsResult, planResult] = await Promise.allSettled([
-        fetchPlanIngredients(newPlanId),
-        fetchMealPlan(newPlanId),
-      ]);
+const planId = ref(null);
+const isValidPlanId = ref(false);
+const range = ref('MONTH'); // 기본값 MONTH
+const shoppingData = ref(null);
+const isLoading = ref(false);
+const error = ref('');
 
-      if (planResult.status === 'fulfilled') {
-        planDetails.value = planResult.value;
-      }
-      else {
-        console.error('fetchMealPlan error:', planResult.reason);
-      }
-      
-      if (ingredientsResult.status === 'fulfilled') {
-        const rawIngredients = ingredientsResult.value || [];
-        const ingredientMap = new Map();
-        rawIngredients.forEach(ing => {
-          if (ingredientMap.has(ing.ingredientName)) {
-            const existing = ingredientMap.get(ing.ingredientName);
-            existing.totalGram += ing.totalGram;
-          }
-          else {
-            ingredientMap.set(ing.ingredientName, { ...ing });
-          }
-        });
-        ingredients.value = Array.from(ingredientMap.values());
-      }
-      else {
-        throw ingredientsResult.reason;
-      }
+async function loadShoppingList() {
+  if (!isValidPlanId.value) return;
 
-    } catch (e) {
-      console.error('재료 로딩 프로세스 에러:', e);
-      ingredientsError.value = '식단 재료를 불러오는 중 오류가 발생했습니다.';
-    } finally {
-      isLoadingIngredients.value = false;
-    }
-  },
-  { immediate: true }
-);
-
-
-// --- 상품 검색 ---
-const searchQuery = ref('');
-const searchedProducts = ref(null);
-const isLoadingSearch = ref(false);
-const searchError = ref('');
-
-async function executeSearch(keyword) {
-  if (isLoadingSearch.value) return; // 중복 호출 방지 가드
-  if (!keyword?.trim()) return;
-  
-  searchQuery.value = keyword;
-  isLoadingSearch.value = true;
-  searchError.value = '';
-  searchedProducts.value = null;
+  isLoading.value = true;
+  error.value = '';
+  // shoppingData.value = null; // 이전 데이터 clear
 
   try {
-    const results = await searchProducts(keyword);
-    searchedProducts.value = results.products;
-  } catch (e) {
-    console.error('상품 검색 에러:', e);
-    searchError.value = '상품을 검색하는 중 오류가 발생했습니다.';
-    searchedProducts.value = []; // 에러 발생 시에도 카드 표시를 위해 빈 배열 할당
+    const response = await fetchShoppingList(planId.value, range.value);
+    shoppingData.value = response;
+  } catch (err) {
+    console.error('Error fetching shopping list:', err);
+    if (err.response?.status === 401) {
+      router.push('/login');
+    } else {
+      error.value = '장보기 정보를 불러올 수 없습니다. 다시 시도해주세요.';
+    }
+    shoppingData.value = null;
   } finally {
-    isLoadingSearch.value = false;
+    isLoading.value = false;
   }
 }
 
-function searchFromIngredient(ingredientName) {
-  executeSearch(ingredientName);
-  // Scroll to search results for better UX
-  // This requires the result card to be rendered, so we do it in the next tick.
-  setTimeout(() => {
-    const resultsCard = document.querySelector('[title="상품 검색 결과"]');
-    if (resultsCard) {
-      resultsCard.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, 100);
+function setRange(newRange) {
+  range.value = newRange;
 }
 
-function handleSearch(keyword) {
-  executeSearch(keyword);
+function goBack() {
+  router.push('/meal-plan');
 }
 
-function handleAddToCart(product) {
-  addToCart(product);
-}
+watch(range, () => {
+  // range가 변경되면 데이터를 다시 불러옵니다.
+  loadShoppingList();
+});
 
+onMounted(() => {
+  const id = route.query.planId;
+  if (id && !isNaN(id)) {
+    planId.value = Number(id);
+    isValidPlanId.value = true;
+    loadShoppingList(); // planId가 유효하면 데이터 로드 시작
+  } else {
+    isValidPlanId.value = false;
+  }
+});
 </script>
 
 <style scoped>
@@ -206,73 +131,78 @@ function handleAddToCart(product) {
   flex-direction: column;
   gap: 20px;
 }
+
 .page__header {
-  margin-bottom: 8px;
-}
-.page__header h1 {
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-.page__header p {
-  font-size: 14px;
-  color: #6b7280;
-}
-.page__status {
-  padding: 20px;
-  text-align: center;
-  color: #4b5563;
-  font-size: 14px;
-}
-.page__error {
-  padding: 20px;
-  text-align: center;
-  color: #ef4444;
-  font-size: 14px;
-  background-color: #fef2f2;
-  border-radius: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.plan-period {
-  font-size: 13px;
-  color: #4b5563;
-  background-color: #f3f4f6;
-  padding: 6px 10px;
-  border-radius: 8px;
-  display: inline-block;
-  margin-bottom: 16px;
+.page__header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
 }
-.ingredients-list {
+
+.page__header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.controls {
+  margin-bottom: 20px;
+}
+
+.period-selector {
+  display: inline-flex;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+}
+
+.period-selector button {
+  padding: 10px 20px;
+  border: none;
+  background-color: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.period-selector button:not(:last-child) {
+  border-right: 1px solid #d1d5db;
+}
+
+.period-selector button.active {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.period-selector button:hover:not(.active) {
+  background-color: #f3f4f6;
+}
+
+.item-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  list-style: none;
-  padding: 0;
-  margin: 0;
 }
-.ingredients-list__item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
+
+.page__status,
+.page__error {
+  padding: 40px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: #6b7280;
   background-color: #f9fafb;
   border-radius: 8px;
 }
-.ingredients-list__info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.ingredients-list__info strong {
-  font-weight: 600;
-}
-.ingredients-list__info span {
-  font-size: 12px;
-  color: #6b7280;
-}
-.products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
+
+.page__error {
+  color: #dc2626;
+  background-color: #fef2f2;
 }
 </style>
