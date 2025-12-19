@@ -9,21 +9,23 @@
        ResultMaps
   ========================== -->
 
-  <resultMap id="MealPlanMap" type="com.dietcoach.project.domain.meal.MealPlan">
-    <id property="id" column="id"/>
-    <result property="userId" column="user_id"/>
-    <result property="startDate" column="start_date"/>
-    <result property="endDate" column="end_date"/>
-    <result property="totalDays" column="total_days"/>
+   <resultMap id="MealPlanResultMap" type="com.dietcoach.project.domain.meal.MealPlan">
+    <id     property="id"                 column="id"/>
+    <result property="userId"             column="user_id"/>
+
+    <result property="startDate"          column="start_date" jdbcType="DATE"/>
+    <result property="endDate"            column="end_date"   jdbcType="DATE"/>
+
+    <result property="totalDays"          column="total_days"/>
     <result property="targetCaloriesPerDay" column="target_calories_per_day"/>
 
-    <result property="monthlyBudget" column="monthly_budget"/>
-    <result property="mealsPerDay" column="meals_per_day"/>
-    <result property="preferences" column="preferences"/>
-    <result property="allergies" column="allergies"/>
+    <result property="monthlyBudget"      column="monthly_budget"/>
+    <result property="mealsPerDay"        column="meals_per_day"/>
+    <result property="preferences"        column="preferences"/>
+    <result property="allergies"          column="allergies"/>
 
-    <result property="createdAt" column="created_at"/>
-    <result property="updatedAt" column="updated_at"/>
+    <result property="createdAt"          column="created_at"/>
+    <result property="updatedAt"          column="updated_at"/>
   </resultMap>
 
   <resultMap id="MealPlanDayMap" type="com.dietcoach.project.domain.meal.MealPlanDay">
@@ -53,7 +55,7 @@
   ========================== -->
 
   <!-- MealPlan -->
-  <insert id="insertMealPlan"
+   <insert id="insertMealPlan"
           parameterType="com.dietcoach.project.domain.meal.MealPlan"
           useGeneratedKeys="true" keyProperty="id">
     INSERT INTO meal_plans
@@ -106,40 +108,22 @@
        Selects
   ========================== -->
 
-  <select id="findMealPlanById" resultMap="MealPlanMap">
-     SELECT
-    id,
-    user_id AS userId,
-    start_date AS startDate,
-    end_date AS endDate,
-    total_days AS totalDays,
-    target_calories_per_day AS targetCaloriesPerDay,
-    monthly_budget AS monthlyBudget,
-    meals_per_day AS mealsPerDay,
-    preferences AS preferences,
-    allergies AS allergies,
-    created_at AS createdAt,
-    updated_at AS updatedAt
-  FROM meal_plans
-  WHERE id = #{id}
+    <select id="findMealPlanById" resultMap="MealPlanResultMap">
+    SELECT
+      id, user_id, start_date, end_date, total_days, target_calories_per_day,
+      monthly_budget, meals_per_day, preferences, allergies,
+      created_at, updated_at
+    FROM meal_plans
+    WHERE id = #{id}
   </select>
 
-  <select id="findLatestMealPlanByUserId" resultMap="MealPlanMap">
+  <select id="findLatestMealPlanByUserId" resultMap="MealPlanResultMap">
     SELECT
-    id,
-    user_id AS userId,
-    start_date AS startDate,
-    end_date AS endDate,
-    total_days AS totalDays,
-    target_calories_per_day AS targetCaloriesPerDay,
-    monthly_budget AS monthlyBudget,
-    meals_per_day AS mealsPerDay,
-    preferences AS preferences,
-    allergies AS allergies,
-    created_at AS createdAt,
-    updated_at AS updatedAt
-  FROM meal_plans
-  WHERE id = #{id}
+      id, user_id, start_date, end_date, total_days, target_calories_per_day,
+      monthly_budget, meals_per_day, preferences, allergies,
+      created_at, updated_at
+    FROM meal_plans
+    WHERE user_id = #{userId}
     ORDER BY start_date DESC, id DESC
     LIMIT 1
   </select>

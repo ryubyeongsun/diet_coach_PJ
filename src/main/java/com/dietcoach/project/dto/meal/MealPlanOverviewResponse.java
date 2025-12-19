@@ -30,7 +30,15 @@ public class MealPlanOverviewResponse {
     private List<String> preferences;
     private List<String> allergies;
 
+    private Long dailyBudgetGuide;
+
     public static MealPlanOverviewResponse of(MealPlan plan, List<MealPlanDaySummaryResponse> daySummaries) {
+
+        Long dailyBudgetGuide = null;
+        if (plan.getMonthlyBudget() != null && plan.getTotalDays() != null && plan.getTotalDays() > 0) {
+            dailyBudgetGuide = plan.getMonthlyBudget() / plan.getTotalDays();
+        }
+
         return MealPlanOverviewResponse.builder()
                 .mealPlanId(plan.getId())
                 .userId(plan.getUserId())
@@ -39,12 +47,14 @@ public class MealPlanOverviewResponse {
                 .targetCaloriesPerDay(plan.getTargetCaloriesPerDay() == null ? 0 : plan.getTargetCaloriesPerDay())
                 .days(daySummaries)
 
-                // ✅ A1 필드 포함
+                // ✅ A1 필드
                 .monthlyBudget(plan.getMonthlyBudget())
                 .mealsPerDay(plan.getMealsPerDay())
                 .preferences(parseCsv(plan.getPreferences()))
                 .allergies(parseCsv(plan.getAllergies()))
 
+                // ✅ A3 최소 반영(가이드 값)
+                .dailyBudgetGuide(dailyBudgetGuide)
                 .build();
     }
 
