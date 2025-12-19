@@ -25,15 +25,14 @@ public class MealPlanController {
      * 한 달 식단 자동 생성
      * POST /api/meal-plans
      *
-     * ✅ userId는 토큰에서 꺼낸다(@AuthenticationPrincipal Long)
-     * ✅ request는 예산/끼니수/선호/알레르기 포함 가능(A1)
+     * ✅ userId는 토큰(@AuthenticationPrincipal)에서만 받음
+     * ✅ request는 A1: monthlyBudget/mealsPerDay/preferences/allergies 포함 가능
      */
     @PostMapping("/meal-plans")
     public ApiResponse<MealPlanOverviewResponse> createMealPlan(
             @AuthenticationPrincipal Long userId,
             @RequestBody MealPlanCreateRequest request
     ) {
-        // userId를 바디에서 받지 않고 principal로 강제
         MealPlanOverviewResponse response = mealPlanService.createMonthlyPlan(userId, request);
         return ApiResponse.success("meal plan created", response);
     }
@@ -44,21 +43,16 @@ public class MealPlanController {
      */
     @GetMapping("/meal-plans/{planId}")
     public ApiResponse<MealPlanOverviewResponse> getMealPlan(@PathVariable Long planId) {
-        MealPlanOverviewResponse response = mealPlanService.getMealPlan(planId);
-        return ApiResponse.success(response);
+        return ApiResponse.success(mealPlanService.getMealPlan(planId));
     }
 
     /**
-     * 유저의 가장 최신 식단 플랜 조회
+     * 유저의 가장 최신 식단 플랜 조회 (기존 유지)
      * GET /api/users/{userId}/meal-plans/latest
-     *
-     * (선택) 보안상 principal 기반으로도 하나 더 제공 가능.
-     * 지금은 기존 경로 유지.
      */
     @GetMapping("/users/{userId}/meal-plans/latest")
     public ApiResponse<MealPlanOverviewResponse> getLatestMealPlan(@PathVariable Long userId) {
-        MealPlanOverviewResponse response = mealPlanService.getLatestMealPlanForUser(userId);
-        return ApiResponse.success(response);
+        return ApiResponse.success(mealPlanService.getLatestMealPlanForUser(userId));
     }
 
     /**
@@ -67,8 +61,7 @@ public class MealPlanController {
      */
     @GetMapping("/meal-plans/latest")
     public ApiResponse<MealPlanOverviewResponse> getMyLatestMealPlan(@AuthenticationPrincipal Long userId) {
-        MealPlanOverviewResponse response = mealPlanService.getLatestMealPlanForUser(userId);
-        return ApiResponse.success(response);
+        return ApiResponse.success(mealPlanService.getLatestMealPlanForUser(userId));
     }
 
     /**
@@ -77,8 +70,7 @@ public class MealPlanController {
      */
     @GetMapping("/meal-plans/{planId}/ingredients")
     public ApiResponse<List<MealPlanIngredientResponse>> getIngredients(@PathVariable Long planId) {
-        List<MealPlanIngredientResponse> ingredients = mealPlanService.getIngredientsForPlan(planId);
-        return ApiResponse.success(ingredients);
+        return ApiResponse.success(mealPlanService.getIngredientsForPlan(planId));
     }
 
     /**
@@ -96,7 +88,6 @@ public class MealPlanController {
      */
     @GetMapping("/meal-plans/days/{dayId}")
     public ApiResponse<MealPlanDayDetailResponse> getDayDetail(@PathVariable Long dayId) {
-        MealPlanDayDetailResponse detail = mealPlanService.getDayDetail(dayId);
-        return ApiResponse.success(detail);
+        return ApiResponse.success(mealPlanService.getDayDetail(dayId));
     }
 }

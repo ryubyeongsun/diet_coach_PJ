@@ -76,14 +76,15 @@ public class MealPlanServiceImpl implements MealPlanService {
     );
 
     // =========================
-    // 1) 한 달 식단 생성
+    // ✅ 1) 한 달 식단 생성 (단일 진입점)
     // =========================
     @Override
     @Transactional
-    public MealPlanOverviewResponse createMonthlyPlan(Long userId, LocalDate startDate) {
-        if (startDate == null) {
-            startDate = LocalDate.now();
-        }
+    public MealPlanOverviewResponse createMonthlyPlan(Long userId, MealPlanCreateRequest request) {
+        if (userId == null) throw new BusinessException("userId is required");
+
+        LocalDate startDate = (request != null) ? request.getStartDate() : null;
+        if (startDate == null) startDate = LocalDate.now();
 
         User user = userMapper.findById(userId);
         if (user == null) {
@@ -99,12 +100,26 @@ public class MealPlanServiceImpl implements MealPlanService {
         int targetKcalPerDay = (int) Math.round(user.getTargetCalories());
         LocalDate endDate = startDate.plusDays(DEFAULT_PLAN_DAYS - 1);
 
+        // ✅ A1 필드 처리(오늘 목표: 저장/전달)
+        Long monthlyBudget = (request != null) ? request.getMonthlyBudget() : null;
+        Integer mealsPerDay = (request != null) ? request.getMealsPerDay() : null;
+
+        String preferencesCsv = toCsv((request != null) ? request.getPreferences() : null);
+        String allergiesCsv   = toCsv((request != null) ? request.getAllergies() : null);
+
         MealPlan mealPlan = MealPlan.builder()
                 .userId(userId)
                 .startDate(startDate)
                 .endDate(endDate)
                 .totalDays(DEFAULT_PLAN_DAYS)
                 .targetCaloriesPerDay(targetKcalPerDay)
+
+                // ✅ A1 저장 필드
+                .monthlyBudget(monthlyBudget)
+                .mealsPerDay(mealsPerDay)
+                .preferences(preferencesCsv)
+                .allergies(allergiesCsv)
+
                 .build();
 
         mealPlanMapper.insertMealPlan(mealPlan);
@@ -140,9 +155,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                 totalCaloriesForDay += item.getCalories();
             }
 
-            // ✅ 1) 객체에 세팅
             day.setTotalCalories(totalCaloriesForDay);
-            // ✅ 2) DB에도 저장
             mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
 
             itemsByDayId.put(day.getId(), items);
@@ -157,17 +170,10 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         return MealPlanOverviewResponse.of(mealPlan, daySummaries);
     }
-    @Override
-    @Transactional
-    public MealPlanOverviewResponse createMonthlyPlan(Long userId, MealPlanCreateRequest request) {
-        // startDate만 우선 기존 로직으로 연결 (오늘은 최소 구현)
-        LocalDate startDate = (request != null) ? request.getStartDate() : null;
 
-        // ✅ (A1 저장용) request 안의 monthlyBudget/mealsPerDay/preferences/allergies는
-        // 여기서 MealPlan 엔티티에 set해서 insertMealPlan에 태워야 함.
-        // (아직 insert 전에 mealPlan에 세팅하는 부분을 추가하는 작업이 A1 핵심)
-
-        return createMonthlyPlan(userId, startDate);
+    private String toCsv(List<String> list) {
+        if (list == null || list.isEmpty()) return "";
+        return String.join(",", list);
     }
 
     private List<MealItem> generateMealItemsForOneMeal(Long mealPlanDayId, String mealTime, int targetCaloriesForMeal) {
