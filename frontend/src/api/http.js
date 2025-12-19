@@ -16,6 +16,8 @@ http.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Content-Type을 명시적으로 설정
+    config.headers['Content-Type'] = 'application/json';
     return config;
   },
   (error) => {
