@@ -1,21 +1,28 @@
-# 공통 설정
 spring:
-  application:
-    name: dietCoach
   profiles:
-    active: dev # 기본 활성 프로필을 dev로 설정
-
-server:
-  port: 8080
-
-# MyBatis 설정
+    active: dev
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/diet_coach_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    username: root
+    password: 
+  sql:
+    init:
+      mode: always
+      
 mybatis:
-  mapper-locations: classpath:/mapper/**/*.xml
-  type-aliases-package: com.dietcoach.project.domain
+  mapper-locations: classpath:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
 
-# 11번가 API 공통 설정
-elevenst:
-  api:
-    base-url: https://openapi.11st.co.kr/openapi/OpenApiService.tmall
+jwt:
+  secret: secret-key-for-json-web-token-for-diet-coach-project
+  access-token-validity-in-seconds: 86400 
+  refresh-token-validity-in-seconds: 604800
+  
+    
+# Naver Shopping API
+naver:
+  shopping:
+    client-id: ${NAVER_SHOPPING_CLIENT_ID}
+    client-secret: ${NAVER_SHOPPING_CLIENT_SECRET}

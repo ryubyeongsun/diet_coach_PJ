@@ -6,6 +6,7 @@ import com.dietcoach.project.dto.meal.MealPlanCreateRequest;
 import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
 import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
+import com.dietcoach.project.dto.meal.ShoppingListResponse;
 import com.dietcoach.project.service.MealPlanService;
 
 import lombok.RequiredArgsConstructor;
@@ -89,5 +90,12 @@ public class MealPlanController {
     @GetMapping("/meal-plans/days/{dayId}")
     public ApiResponse<MealPlanDayDetailResponse> getDayDetail(@PathVariable Long dayId) {
         return ApiResponse.success(mealPlanService.getDayDetail(dayId));
+    }
+    @GetMapping("/meal-plans/{planId}/shopping")
+    public ApiResponse<ShoppingListResponse> getShopping(
+            @PathVariable Long planId,
+            @RequestParam(defaultValue = "MONTH") String range
+    ) {
+        return ApiResponse.success(mealPlanService.getShoppingList(planId, range));
     }
 }

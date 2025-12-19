@@ -1,15 +1,18 @@
 package com.dietcoach.project.service;
 
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.dietcoach.project.client.shopping.ShoppingClient;
 import com.dietcoach.project.client.shopping.ShoppingClientResult;
 import com.dietcoach.project.domain.ShoppingProduct;
 import com.dietcoach.project.dto.ShoppingProductResponse;
 import com.dietcoach.project.dto.ShoppingProductsResponse;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import com.dietcoach.project.dto.meal.ShoppingListResponse;
 
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +33,28 @@ public class ShoppingServiceImpl implements ShoppingService {
                 .source(result.getSource())
                 .products(mapped)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SearchOneResult searchOne(String keyword) {
+        ShoppingClientResult result = shoppingClient.searchProducts(keyword, 1, 1);
+
+        String source = (result == null || result.getSource() == null) ? "REAL" : result.getSource();
+        if (result == null || result.getProducts() == null || result.getProducts().isEmpty()) {
+            return new SearchOneResult(null, source);
+        }
+
+        ShoppingProduct p = result.getProducts().get(0);
+
+        ShoppingListResponse.ProductCard card = ShoppingListResponse.ProductCard.builder()
+                .name(p.getTitle())
+                .price(Long.valueOf(p.getPrice()))   // ✅ 여기 수정 (p.getPrice()가 int여도 OK)
+                .imageUrl(p.getImageUrl())
+                .detailUrl(p.getProductUrl())
+                .build();
+
+        return new SearchOneResult(card, source);
     }
 
     private ShoppingProductResponse toResponse(ShoppingProduct p) {

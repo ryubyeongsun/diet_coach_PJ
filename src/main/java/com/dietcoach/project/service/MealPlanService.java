@@ -5,6 +5,7 @@ import com.dietcoach.project.dto.meal.MealPlanCreateRequest;
 import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
 import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
+import com.dietcoach.project.dto.meal.ShoppingListResponse;
 
 import java.util.List;
 
@@ -20,6 +21,6 @@ public interface MealPlanService {
     List<MealPlanIngredientResponse> getIngredientsForPlan(Long planId);
 
     DashboardSummaryResponse getDashboardSummary(Long userId);
-
+    ShoppingListResponse getShoppingList(Long planId, String range);
     MealPlanDayDetailResponse getDayDetail(Long dayId);
 }

@@ -15,6 +15,7 @@ logging:
 elevenst:
   api:
     key: c79b603aecf72f9c74f74279df8dc0da # 개발용 테스트 키 (노출 주의)
+    base-url: http://openapi.11st.co.kr/openapi/OpenApiService.tmall
 
 shopping:
   elevenst:
@@ -24,3 +25,9 @@ shopping:
 jwt:
   secret: 0123456789abcdef0123456789abcdef
   expiration-ms: 86400000 # 24시간
+
+gms:
+  openai:
+    base-url: https://gms.ssafy.io/gmsapi/api.openai.com/v1
+    api-key: S14P02CE06-255ba570-2c59-48eb-a2ed-e34bac45bdd6
+    timeout-ms: 8000
