@@ -135,6 +135,7 @@ async function loadTrendData() {
     const from = fromDate.toISOString().slice(0, 10);
 
     trend.value = await fetchDashboardTrend(userId, from, to);
+    console.log('Fetched trend data:', trend.value);
   } catch (err) {
     console.warn('Trend API error on WeightPage:', err);
     trendError.value = '트렌드 데이터를 불러오는 중 오류가 발생했습니다.';
@@ -151,7 +152,7 @@ async function loadRecords() {
   try {
     const to = new Date();
     const from = new Date();
-    from.setDate(to.getDate() - 30);
+    from.setDate(to.getDate() - 29);
     
     const params = {
       from: from.toISOString().slice(0, 10),
@@ -159,10 +160,10 @@ async function loadRecords() {
     };
 
     // API로부터 받은 데이터를 날짜 내림차순으로 정렬
-    const fetchedRecords = await fetchWeights(userId, params);
-    records.value = fetchedRecords.sort((a, b) => new Date(b.recordDate) - new Date(a.recordDate));
-
-  } catch (err) {
+        const fetchedRecords = await fetchWeights(userId, params);
+        records.value = fetchedRecords.sort((a, b) => new Date(b.recordDate) - new Date(a.recordDate));
+        console.log('Fetched weight records:', records.value);
+      } catch (err) {
     console.error('fetchWeights error:', err);
     listError.value = '체중 기록을 불러오는 중 오류가 발생했습니다.';
   } finally {

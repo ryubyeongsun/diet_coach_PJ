@@ -74,6 +74,8 @@
       </NnCard>
     </section>
 
+
+
     <!-- 트렌드 차트 -->
     <section class="trend-section">
       <div class="trend-header">
@@ -166,6 +168,7 @@ const overview = ref(null);
 const router = useRouter();
 
 // --- 대시보드 ---
+
 const dashboard = ref(null);
 const dashboardError = ref('');
 

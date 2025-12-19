@@ -9,4 +9,5 @@ public interface AuthService {
     Long signup(SignupRequest request);
     AuthResponse login(LoginRequest request);
     UserProfileResponse me(Long userId);
+    AuthResponse refresh(String rawRefreshToken); // raw(혹시 Bearer 포함)도 허용
 }

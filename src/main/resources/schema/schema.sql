@@ -1,4 +1,5 @@
 create database yumyum;
+use yumyum;
 
 -- Use the 'yumyum' database
 USE yumyum;
@@ -103,7 +104,6 @@ CREATE TABLE shopping_cart_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Create refresh_tokens table
-drop table refresh_tokens;
 CREATE TABLE IF NOT EXISTS refresh_tokens (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
@@ -116,7 +116,8 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   INDEX idx_refresh_user_id (user_id),
   INDEX idx_refresh_expires_at (expires_at)
 );
-select * from refresh_tokens;
-select *from users;
-select *from weight_records;
-
+ALTER TABLE meal_plans
+  ADD COLUMN monthly_budget BIGINT NULL AFTER target_calories_per_day,
+  ADD COLUMN meals_per_day INT NULL AFTER monthly_budget,
+  ADD COLUMN preferences TEXT NULL AFTER meals_per_day,
+  ADD COLUMN allergies TEXT NULL AFTER preferences;

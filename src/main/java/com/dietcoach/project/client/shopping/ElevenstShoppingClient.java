@@ -1,22 +1,25 @@
 package com.dietcoach.project.client.shopping;
 
 import com.dietcoach.project.domain.ShoppingProduct;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import org.xml.sax.InputSource;
-import org.w3c.dom.*;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.StringReader;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import org.w3c.dom.*;
+import org.xml.sax.InputSource;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.StringReader;
 
 @Slf4j
 @Component
@@ -31,9 +34,67 @@ public class ElevenstShoppingClient implements ShoppingClient {
     @Value("${elevenst.api.key}")
     private String apiKey;
 
+    @Value("${shopping.elevenst.useMockWhenError:true}")
+    private boolean useMockWhenError;
+
+    private final List<ShoppingProduct> mockProducts = new ArrayList<>();
+
+    @PostConstruct
+    void initMockData() {
+        mockProducts.add(ShoppingProduct.builder()
+                .externalId("11st-1001")
+                .title("닭가슴살 1kg 대용량")
+                .price(12900)
+                .gramPerUnit(1000.0)
+                .imageUrl("https://example.com/chicken-1kg.jpg")
+                .productUrl("https://www.11st.co.kr/product/1001")
+                .mallName("11st")
+                .build());
+
+        mockProducts.add(ShoppingProduct.builder()
+                .externalId("11st-1002")
+                .title("닭가슴살 500g x 2팩")
+                .price(13900)
+                .gramPerUnit(1000.0)
+                .imageUrl("https://example.com/chicken-2pack.jpg")
+                .productUrl("https://www.11st.co.kr/product/1002")
+                .mallName("11st")
+                .build());
+
+        mockProducts.add(ShoppingProduct.builder()
+                .externalId("11st-2001")
+                .title("현미 4kg 국산")
+                .price(18900)
+                .gramPerUnit(4000.0)
+                .imageUrl("https://example.com/brownrice-4kg.jpg")
+                .productUrl("https://www.11st.co.kr/product/2001")
+                .mallName("11st")
+                .build());
+
+        log.info("Initialized {} mock shopping products", mockProducts.size());
+    }
+
     @Override
-    public List<ShoppingProduct> searchProducts(String keyword, int page, int size) {
-        return callRealApi(keyword, page, size);
+    public ShoppingClientResult searchProducts(String keyword, int page, int size) {
+        try {
+            List<ShoppingProduct> real = callRealApi(keyword, page, size);
+            if (real != null && !real.isEmpty()) {
+                return ShoppingClientResult.builder()
+                        .products(real)
+                        .source("REAL")
+                        .build();
+            }
+            log.warn("[11st] Empty result from REAL API. keyword={}, page={}, size={}", keyword, page, size);
+        } catch (Exception e) {
+            log.error("[11st] REAL API failed. keyword={}, page={}, size={}", keyword, page, size, e);
+            if (!useMockWhenError) throw e;
+        }
+
+        log.warn("[11st] Using MOCK fallback. keyword={}, page={}, size={}", keyword, page, size);
+        return ShoppingClientResult.builder()
+                .products(searchFromMock(keyword, page, size))
+                .source("MOCK")
+                .build();
     }
 
     private List<ShoppingProduct> callRealApi(String keyword, int page, int size) {
@@ -53,7 +114,6 @@ public class ElevenstShoppingClient implements ShoppingClient {
         String response = restTemplate.getForObject(uri, String.class);
 
         if (response == null || response.isBlank()) {
-            log.warn("[11st] Empty response");
             return List.of();
         }
 
@@ -61,18 +121,24 @@ public class ElevenstShoppingClient implements ShoppingClient {
             return parseProductsFromXml(response);
         } catch (Exception e) {
             log.error("[11st] Failed to parse XML response", e);
-            // 실API 전용: 예외를 던져 Hybrid가 fallback 하도록
-            throw new RuntimeException("11st XML parse failed", e);
+            return List.of();
         }
     }
 
-    /**
-     * 11번가 ProductSearch XML 응답을 ShoppingProduct 리스트로 변환
-     */
+    private List<ShoppingProduct> searchFromMock(String keyword, int page, int size) {
+        List<ShoppingProduct> filtered = mockProducts.stream()
+                .filter(p -> p.getTitle() != null && p.getTitle().contains(keyword))
+                .collect(Collectors.toList());
+
+        int fromIndex = Math.max(0, (page - 1) * size);
+        int toIndex = Math.min(filtered.size(), fromIndex + size);
+
+        if (fromIndex >= filtered.size()) return List.of();
+        return filtered.subList(fromIndex, toIndex);
+    }
+
     private List<ShoppingProduct> parseProductsFromXml(String xml) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-
-        // XXE 방지
         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
         factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
@@ -100,7 +166,6 @@ public class ElevenstShoppingClient implements ShoppingClient {
             String detailPageUrl = getTagValue(e, "DetailPageUrl");
             String sellerNick = getTagValue(e, "SellerNick");
 
-            // 가격: SalePrice 우선, 없으면 ProductPrice
             int price = 0;
             try {
                 if (salePriceStr != null && !salePriceStr.isBlank()) {
@@ -109,17 +174,14 @@ public class ElevenstShoppingClient implements ShoppingClient {
                     price = Integer.parseInt(productPriceStr.trim());
                 }
             } catch (NumberFormatException ex) {
-                log.warn("[11st] Cannot parse price. salePrice={}, productPrice={}", salePriceStr, productPriceStr);
+                log.warn("[11st] Cannot parse price: salePrice={}, productPrice={}", salePriceStr, productPriceStr);
             }
-
-            // gramPerUnit은 현재 응답에 없으니 null (추후 title 파싱으로 추정 가능)
-            Double gramPerUnit = null;
 
             ShoppingProduct product = ShoppingProduct.builder()
                     .externalId(productCode)
                     .title(productName)
                     .price(price)
-                    .gramPerUnit(gramPerUnit)
+                    .gramPerUnit(null)
                     .imageUrl(imageUrl)
                     .productUrl(detailPageUrl)
                     .mallName((sellerNick != null && !sellerNick.isBlank()) ? sellerNick : "11st")
@@ -132,16 +194,11 @@ public class ElevenstShoppingClient implements ShoppingClient {
         return result;
     }
 
-    /**
-     * XML Element에서 특정 태그 텍스트 값 가져오기
-     */
     private String getTagValue(Element parent, String tagName) {
         NodeList list = parent.getElementsByTagName(tagName);
         if (list.getLength() == 0) return null;
-
         Node node = list.item(0);
         if (node == null) return null;
-
         Node child = node.getFirstChild();
         return (child != null) ? child.getNodeValue() : null;
     }
