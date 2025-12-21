@@ -156,6 +156,12 @@
 		ORDER BY meal_time
 	</select>
 
+	<select id="sumMealItemCaloriesByDayId" resultType="int">
+		SELECT COALESCE(SUM(calories), 0)
+		FROM meal_items
+		WHERE meal_plan_day_id = #{mealPlanDayId}
+	</select>
+
 	<!-- 재료 집계 -->
 	<select id="findIngredientsForPlan"
 		resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">

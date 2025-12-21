@@ -10,6 +10,7 @@ import com.dietcoach.project.dto.meal.ShoppingListResponse;
 import com.dietcoach.project.service.MealPlanService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
+@Slf4j
 public class MealPlanController {
 
     private final MealPlanService mealPlanService;
@@ -34,6 +36,7 @@ public class MealPlanController {
             @AuthenticationPrincipal Long userId,
             @RequestBody MealPlanCreateRequest request
     ) {
+        log.info("[MealPlan] POST /api/meal-plans serviceClass={}", mealPlanService.getClass().getName());
         MealPlanOverviewResponse response = mealPlanService.createMonthlyPlan(userId, request);
         return ApiResponse.success("meal plan created", response);
     }

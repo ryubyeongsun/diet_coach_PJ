@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -45,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 public class MealPlanServiceImpl implements MealPlanService {
 
     private static final int DEFAULT_PLAN_DAYS = 30;
+    private static final int AI_CHUNK_DAYS = 7;
     private static final DateTimeFormatter DF = DateTimeFormatter.ISO_LOCAL_DATE;
 
     // ✅ A2 캐시 TTL 1시간
@@ -139,6 +141,9 @@ public class MealPlanServiceImpl implements MealPlanService {
         int mealsPerDay = (request != null && request.getMealsPerDay() != null) ? request.getMealsPerDay() : 3;
         if (mealsPerDay < 1 || mealsPerDay > 3) throw new BusinessException("mealsPerDay는 1~3만 가능합니다.");
 
+        log.info("[MealPlan] createMonthlyPlan start userId={}, startDate={}, mealsPerDay={}",
+                userId, startDate, mealsPerDay);
+
         MealPlan mealPlan = MealPlan.builder()
                 .userId(userId)
                 .startDate(startDate)
@@ -166,11 +171,25 @@ public class MealPlanServiceImpl implements MealPlanService {
             payload.put("preferences", request != null ? request.getPreferences() : List.of());
             payload.put("allergies", request != null ? request.getAllergies() : List.of());
 
-            skeleton = dietAiClient.generateMonthlySkeleton(payload);
-            generationSource = "AI";
+            log.info("[MealPlan] AI call start planId={}, userId={}", mealPlan.getId(), userId);
+            skeleton = generateAiSkeletonInChunks(mealPlan.getId(), startDate, DEFAULT_PLAN_DAYS, payload);
+            if (skeleton == null) {
+                log.warn("[MealPlan] AI returned null, fallback to template. planId={}", mealPlan.getId());
+            } else {
+                validateAiSkeleton(skeleton);
+                logAiResponseSummary(skeleton);
+                int dayCount = (skeleton.getDays() == null ? 0 : skeleton.getDays().size());
+                log.info("[MealPlan] AI call success planId={}, days={}", mealPlan.getId(), dayCount);
+                generationSource = "AI";
+            }
+        } catch (BusinessException e) {
+            log.warn("[MealPlan] AI invalid, fallback to template. planId={}, reason={}",
+                    mealPlan.getId(), e.getMessage());
+            skeleton = null;
         } catch (Exception e) {
             log.warn("[MealPlan] AI failed, fallback to template. planId={}, reason={}",
                     mealPlan.getId(), e.getMessage());
+            skeleton = null;
         }
 
         List<MealPlanDay> days = new ArrayList<>();
@@ -190,25 +209,51 @@ public class MealPlanServiceImpl implements MealPlanService {
             days.add(day);
 
             List<MealItem> itemsForDay;
+            List<String> mealTimesForDay = switch (mealsPerDay) {
+                case 1 -> List.of("LUNCH");
+                case 2 -> List.of("BREAKFAST", "DINNER");
+                default -> List.of("BREAKFAST", "LUNCH", "DINNER");
+            };
+            Map<String, Integer> mealTargets = distributeCalories(targetKcalPerDay, mealTimesForDay);
 
             if (skeleton != null) {
-                itemsForDay = buildItemsFromAiWithFixedRules(skeleton, i, day.getId(), mealsPerDay);
+                itemsForDay = buildItemsFromAiWithFixedRules(
+                        skeleton,
+                        i,
+                        day.getId(),
+                        mealsPerDay,
+                        mealTargets
+                );
                 if (itemsForDay.isEmpty()) {
-                    itemsForDay = buildItemsFromTemplate(day.getId(), targetKcalPerDay, mealsPerDay);
-                    generationSource = "TEMPLATE";
+                    log.warn("[MealPlan] AI items empty planId={}, dayIndex={}", mealPlan.getId(), i + 1);
                 }
             } else {
                 itemsForDay = buildItemsFromTemplate(day.getId(), targetKcalPerDay, mealsPerDay);
             }
 
-            int totalCaloriesForDay = 0;
             for (MealItem item : itemsForDay) {
                 mealPlanMapper.insertMealItem(item);
-                totalCaloriesForDay += (item.getCalories() != null ? item.getCalories() : 0);
+            }
+
+            int totalCaloriesForDay = 0;
+            Integer sumFromDb = mealPlanMapper.sumMealItemCaloriesByDayId(day.getId());
+            if (sumFromDb != null) {
+                totalCaloriesForDay = sumFromDb;
             }
 
             day.setTotalCalories(totalCaloriesForDay);
             mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
+
+            if (skeleton != null && skeleton.getDays() != null && skeleton.getDays().size() > i) {
+                AiMonthlySkeletonResponse.AiDaySkeleton aiDay = skeleton.getDays().get(i);
+                if (aiDay != null && aiDay.getTotalCalories() != null) {
+                    int diff = totalCaloriesForDay - aiDay.getTotalCalories();
+                    if (diff != 0) {
+                        log.info("[DAY_CAL_DIFF] dayIndex={}, ai={}, server={}, diff={}",
+                                i + 1, aiDay.getTotalCalories(), totalCaloriesForDay, diff);
+                    }
+                }
+            }
 
             itemsByDayId.put(day.getId(), itemsForDay);
         }
@@ -222,11 +267,59 @@ public class MealPlanServiceImpl implements MealPlanService {
         return resp;
     }
 
+    private AiMonthlySkeletonResponse generateAiSkeletonInChunks(
+            Long planId,
+            LocalDate startDate,
+            int totalDays,
+            Map<String, Object> basePayload
+    ) {
+        List<AiMonthlySkeletonResponse.AiDaySkeleton> merged = new ArrayList<>();
+
+        for (int offset = 0; offset < totalDays; offset += AI_CHUNK_DAYS) {
+            int chunkDays = Math.min(AI_CHUNK_DAYS, totalDays - offset);
+            LocalDate chunkStart = startDate.plusDays(offset);
+
+            Map<String, Object> payload = new HashMap<>(basePayload);
+            payload.put("startDate", chunkStart.format(DF));
+            payload.put("totalDays", chunkDays);
+
+            log.info("[MealPlan] AI chunk start planId={}, chunkStart={}, chunkDays={}",
+                    planId, chunkStart, chunkDays);
+
+            AiMonthlySkeletonResponse chunk = dietAiClient.generateMonthlySkeleton(payload);
+            if (chunk == null || chunk.getDays() == null || chunk.getDays().isEmpty()) {
+                log.warn("[MealPlan] AI chunk empty planId={}, chunkStart={}", planId, chunkStart);
+                return null;
+            }
+
+            List<AiMonthlySkeletonResponse.AiDaySkeleton> days = chunk.getDays();
+            for (int i = 0; i < chunkDays; i++) {
+                AiMonthlySkeletonResponse.AiDaySkeleton day = (i < days.size()) ? days.get(i) : null;
+                if (day == null) {
+                    log.warn("[MealPlan] AI chunk missing day planId={}, chunkStart={}, dayOffset={}",
+                            planId, chunkStart, i);
+                    return null;
+                }
+                merged.add(AiMonthlySkeletonResponse.AiDaySkeleton.builder()
+                        .dayIndex(offset + i + 1)
+                        .planDate(chunkStart.plusDays(i).format(DF))
+                        .meals(day.getMeals())
+                        .totalCalories(day.getTotalCalories())
+                        .build());
+            }
+        }
+
+        return AiMonthlySkeletonResponse.builder()
+                .days(merged)
+                .build();
+    }
+
     private List<MealItem> buildItemsFromAiWithFixedRules(
             AiMonthlySkeletonResponse skeleton,
             int dayOffset,
             Long mealPlanDayId,
-            int mealsPerDay
+            int mealsPerDay,
+            Map<String, Integer> mealTargets
     ) {
         if (skeleton == null || skeleton.getDays() == null || skeleton.getDays().isEmpty()) return List.of();
         if (skeleton.getDays().size() <= dayOffset) return List.of();
@@ -247,25 +340,216 @@ public class MealPlanServiceImpl implements MealPlanService {
             if (mt == null) continue;
             if (!allowedMealTimes.contains(mt)) continue;
 
+            Integer mealTargetCalories = (mealTargets == null ? null : mealTargets.get(mt));
             String menuName = safeTrim(meal.getMenuName());
-            List<String> ings = (meal.getIngredients() == null) ? List.of() : meal.getIngredients();
+            List<AiMonthlySkeletonResponse.AiIngredient> ings =
+                    (meal.getIngredients() == null) ? List.of() : meal.getIngredients();
+            int ingredientCount = ings.size();
 
-            for (String ing : ings) {
-                String ingredient = safeTrim(ing);
+            for (AiMonthlySkeletonResponse.AiIngredient ing : ings) {
+                if (ing == null) continue;
+                String ingredient = safeTrim(ing.getIngredientName());
                 if (ingredient.isEmpty()) continue;
+
+                Integer calories = adjustCalories(ing.getCalories(), ingredient, mealTargetCalories, ingredientCount);
+                Integer grams = adjustGrams(ing.getGrams(), ingredient, calories);
+                String memo = menuName.isEmpty() ? "AI" : menuName;
 
                 result.add(MealItem.builder()
                         .mealPlanDayId(mealPlanDayId)
                         .mealTime(mt)
                         .foodName(ingredient)
-                        .grams(0)
-                        .calories(0)
-                        .memo("AI|menu=" + (menuName.isEmpty() ? "-" : menuName))
+                        .grams(grams)
+                        .calories(calories)
+                        .memo(memo)
                         .build());
             }
         }
 
         return result;
+    }
+
+    private void validateAiSkeleton(AiMonthlySkeletonResponse skeleton) {
+        if (skeleton == null || skeleton.getDays() == null || skeleton.getDays().isEmpty()) {
+            throw new BusinessException("AI skeleton empty");
+        }
+
+        for (AiMonthlySkeletonResponse.AiDaySkeleton day : skeleton.getDays()) {
+            if (day == null || day.getDayIndex() == null || day.getPlanDate() == null || day.getMeals() == null) {
+                throw new BusinessException("AI skeleton missing required day fields");
+            }
+            for (AiMonthlySkeletonResponse.AiMealSkeleton meal : day.getMeals()) {
+                if (meal == null || normalizeMealTime(meal.getMealTime()) == null) {
+                    throw new BusinessException("AI skeleton has invalid mealTime");
+                }
+            }
+        }
+    }
+
+    private void logAiResponseSummary(AiMonthlySkeletonResponse skeleton) {
+        int days = (skeleton.getDays() == null ? 0 : skeleton.getDays().size());
+        int ingredientCount = 0;
+        int caloriesMissing = 0;
+        int gramsMissing = 0;
+
+        if (skeleton.getDays() != null) {
+            for (AiMonthlySkeletonResponse.AiDaySkeleton day : skeleton.getDays()) {
+                if (day == null || day.getMeals() == null) continue;
+                for (AiMonthlySkeletonResponse.AiMealSkeleton meal : day.getMeals()) {
+                    if (meal == null || meal.getIngredients() == null) continue;
+                    for (AiMonthlySkeletonResponse.AiIngredient ing : meal.getIngredients()) {
+                        if (ing == null) continue;
+                        ingredientCount++;
+                        if (ing.getCalories() == null) caloriesMissing++;
+                        if (ing.getGrams() == null) gramsMissing++;
+                    }
+                }
+            }
+        }
+
+        log.info("[AI] response summary days={}, ingredients={}, caloriesMissing={}, gramsMissing={}",
+                days, ingredientCount, caloriesMissing, gramsMissing);
+    }
+
+    private Integer adjustGrams(Integer grams, String ingredientName, Integer calories) {
+        if (grams != null && grams > 0) {
+            int adjusted = clamp(grams, 10, 800);
+            if (adjusted != grams) {
+                log.info("[GRAMS_CLAMP] ingredient={}, {} -> {}", ingredientName, grams, adjusted);
+            }
+            return adjusted;
+        }
+
+        if (calories != null && calories > 0) {
+            double kcalPerGram = kcalPerGramFor(ingredientName);
+            int derived = (int) Math.round(calories / kcalPerGram);
+            int clamped = clamp(derived, 10, 800);
+            log.info("[GRAMS_DERIVE] ingredient={}, cal={}, kpg={} -> {}",
+                    ingredientName, calories, String.format(Locale.US, "%.2f", kcalPerGram), clamped);
+            return clamped;
+        }
+
+        int fallback = 100;
+        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, fallback);
+        return fallback;
+    }
+            return adjusted;
+        }
+
+        if (calories != null && calories > 0) {
+            double kcalPerGram = kcalPerGramFor(ingredientName);
+            int derived = (int) Math.round(calories / kcalPerGram);
+            int clamped = clamp(derived, 10, maxGrams);
+            log.info("[GRAMS_DERIVE] ingredient={}, cal={}, kpg={} -> {}",
+                    ingredientName, calories, String.format(Locale.US, "%.2f", kcalPerGram), clamped);
+            return clamped;
+        }
+
+        int fallback = 100;
+        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, fallback);
+        return fallback;
+    }
+            return adjusted;
+        }
+
+        if (calories != null && calories > 0) {
+            double kcalPerGram = kcalPerGramFor(ingredientName);
+            int derived = (int) Math.round(calories / kcalPerGram);
+            int clamped = clamp(derived, 10, 600);
+            log.info("[GRAMS_DERIVE] ingredient={}, cal={}, kpg={} -> {}",
+                    ingredientName, calories, String.format(Locale.US, "%.2f", kcalPerGram), clamped);
+            return clamped;
+        }
+
+        int fallback = 100;
+        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, fallback);
+        return fallback;
+    }
+            return adjusted;
+        }
+
+        if (calories != null && calories > 0) {
+            double kcalPerGram = kcalPerGramFor(ingredientName);
+            int derived = (int) Math.round(calories / kcalPerGram);
+            int clamped = clamp(derived, 10, 800);
+            log.info("[GRAMS_DERIVE] ingredient={}, cal={}, kpg={} -> {}",
+                    ingredientName, calories, String.format(Locale.US, "%.2f", kcalPerGram), clamped);
+            return clamped;
+        }
+
+        int fallback = 100;
+        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, fallback);
+        return fallback;
+    }
+
+    private Integer adjustCalories(Integer calories, String ingredientName, Integer mealCalories, int ingredientCount) {
+        if (calories == null) {
+            if (mealCalories != null && ingredientCount > 0) {
+                int derived = (int) Math.round(mealCalories / (double) ingredientCount);
+                int clamped = clamp(derived, 0, 2000);
+                log.info("[CAL_DERIVE] ingredient={}, mealCal={}, count={} -> {}",
+                        ingredientName, mealCalories, ingredientCount, clamped);
+                return clamped;
+            }
+            return 0;
+        }
+        int adjusted = clamp(calories, 0, 2000);
+        if (adjusted != calories) {
+            log.info("[CAL_CLAMP] ingredient={}, {} -> {}", ingredientName, calories, adjusted);
+        }
+        return adjusted;
+    }
+
+    private double kcalPerGramFor(String ingredientName) {
+        String n = (ingredientName == null ? "" : ingredientName.trim().toLowerCase());
+
+        if (containsAny(n,
+                "oil", "olive", "olive oil", "butter", "mayo", "cream", "cheese", "nuts",
+                "??", "??", "????", "???", "???", "???",
+                "??", "??", "????", "??",
+                "??", "??", "???", "??", "??")) {
+            return 7.5;
+        }
+        if (containsAny(n,
+                "rice", "noodle", "ramen", "pasta", "bread", "oat", "oatmeal", "potato", "sweet potato",
+                "?", "?", "??", "??", "??", "?", "??", "???", "?", "???", "??", "???")) {
+            return 2.5;
+        }
+        if (containsAny(n,
+                "chicken", "beef", "pork", "fish", "salmon", "tuna", "shrimp", "egg", "tofu",
+                "?", "????", "???", "???", "????", "??", "??", "??", "??", "??", "??", "??")) {
+            return 2.0;
+        }
+        if (containsAny(n,
+                "salad", "lettuce", "spinach", "broccoli", "cabbage", "tomato", "cucumber", "carrot",
+                "apple", "banana", "grape", "orange", "berry",
+                "???", "???", "??", "???", "????", "???", "???", "??", "??",
+                "??", "???", "??", "???", "??")) {
+            return 0.25;
+        }
+        if (containsAny(n,
+                "sauce", "soy sauce", "gochujang", "doenjang", "ketchup",
+                "??", "??", "???", "??", "??")) {
+            return 1.0;
+        }
+        return 1.0;
+    }
+
+private boolean containsAny(String value, String... tokens) {
+        if (value == null) return false;
+        for (String token : tokens) {
+            if (token == null) continue;
+            if (value.contains(token.toLowerCase())) return true;
+        }
+        return false;
+    }
+        return false;
+    }
+
+    private int clamp(int value, int min, int max) {
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
     }
 
     private String normalizeMealTime(String v) {

@@ -1,31 +1,100 @@
 package com.dietcoach.project.client.ai.dto;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonSetter;
 
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class AiMonthlySkeletonResponse {
     private List<AiDaySkeleton> days;
 
-    @Getter @Setter
-    @NoArgsConstructor @AllArgsConstructor
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
     @Builder
     public static class AiDaySkeleton {
         private Integer dayIndex;
         private String planDate; // "yyyy-MM-dd"
         private List<AiMealSkeleton> meals;
+        private Integer totalCalories;
     }
 
-    @Getter @Setter
-    @NoArgsConstructor @AllArgsConstructor
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
     @Builder
     public static class AiMealSkeleton {
         private String mealTime;      // BREAKFAST|LUNCH|DINNER|SNACK
         private String menuName;      // "Oatmeal bowl"
-        private List<String> ingredients; // ["oats","milk","banana"]
-        private Integer calories;     // 참고값(우리는 0 저장 or memo)
+        private List<AiIngredient> ingredients; // [{ingredientName, grams?, calories?}]
+        private Integer calories;     // optional
+
+        @JsonSetter("ingredients")
+        public void setIngredients(List<?> rawIngredients) {
+            if (rawIngredients == null) {
+                this.ingredients = null;
+                return;
+            }
+            List<AiIngredient> mapped = new ArrayList<>();
+            for (Object raw : rawIngredients) {
+                if (raw == null) continue;
+                if (raw instanceof String s) {
+                    mapped.add(AiIngredient.builder().ingredientName(s).build());
+                    continue;
+                }
+                if (raw instanceof Map<?, ?> map) {
+                    Object name = map.get("ingredientName");
+                    if (name == null) name = map.get("name");
+                    Object grams = map.get("grams");
+                    Object calories = map.get("calories");
+                    mapped.add(AiIngredient.builder()
+                            .ingredientName(name == null ? null : name.toString())
+                            .grams(toIntegerSafe(grams))
+                            .calories(toIntegerSafe(calories))
+                            .build());
+                    continue;
+                }
+                mapped.add(AiIngredient.builder().ingredientName(raw.toString()).build());
+            }
+            this.ingredients = mapped;
+        }
+
+        private Integer toIntegerSafe(Object v) {
+            if (v == null) return null;
+            if (v instanceof Integer i) return i;
+            if (v instanceof Number n) return n.intValue();
+            try {
+                return Integer.parseInt(v.toString());
+            } catch (Exception e) {
+                return null;
+            }
+        }
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AiIngredient {
+        private String ingredientName;
+        private Integer grams;
+        private Integer calories;
     }
 }

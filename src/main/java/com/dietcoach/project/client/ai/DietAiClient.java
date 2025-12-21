@@ -30,6 +30,10 @@ public class DietAiClient {
     private String model;
 
     public AiMonthlySkeletonResponse generateMonthlySkeleton(Map<String, Object> payload) {
+        boolean keyPresent = apiKey != null && !apiKey.isBlank();
+        int keyLen = (apiKey == null ? 0 : apiKey.length());
+        log.info("[AI] generateMonthlySkeleton start model={}, apiKeyPresent={}, keyLen={}, keys={}",
+                model, keyPresent, keyLen, payload.keySet());
         // 1회 retry 포함 (총 2회 시도)
         try {
             return callOnce(payload);
@@ -58,8 +62,8 @@ public class DietAiClient {
                   "meals":[
                     {
                       "mealTime":"BREAKFAST",
-                      "menuName":"Oatmeal bowl",
-                      "ingredients":["oats","milk","banana"],
+                      "menuName":"오트밀 볼",
+                      "ingredients":["오트밀","우유","바나나"],
                       "calories":450
                     }
                   ]
@@ -71,6 +75,7 @@ public class DietAiClient {
             - mealTime must be one of BREAKFAST|LUNCH|DINNER|SNACK
             - planDate format yyyy-MM-dd
             - ingredients must be keyword list (no grams, no prices)
+            - menuName and ingredients must be Korean (Hangul). Do NOT use English.
             """;
 
         Map<String, Object> body = Map.of(
@@ -81,11 +86,14 @@ public class DietAiClient {
                 )
         );
 
+        String reqBody = objectMapper.writeValueAsString(body);
+        log.info("[AI] request body size={}", reqBody.length());
+
         String respBody = gmsOpenAiRestClient.post()
                 .uri("/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", "Bearer " + apiKey)
-                .body(body)
+                .body(reqBody)
                 .retrieve()
                 .body(String.class);
 
