@@ -177,7 +177,8 @@
 		WHERE meal_plan_id = #{planId}
 		)
 		GROUP BY mi.food_name
-		ORDER BY daysCount DESC
+		HAVING SUM(mi.grams) > 0
+		ORDER BY totalGram DESC
 	</select>
 	<select id="findIngredientsForPlanInRange"
         resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">
@@ -192,7 +193,8 @@
       AND mpd.plan_date &gt;= #{fromDate}
       AND mpd.plan_date &lt;= #{toDate}
     GROUP BY mi.food_name
-    ORDER BY daysCount DESC
+    HAVING SUM(mi.grams) > 0
+    ORDER BY totalGram DESC
 </select>
 
 	<!-- ========================= Updates ========================== -->

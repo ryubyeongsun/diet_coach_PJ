@@ -11,8 +11,9 @@ import lombok.*;
 public class ShoppingListResponse {
     private Long planId;
     private String range;
-    private LocalDate fromDate;
-    private LocalDate toDate;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private String source; // REAL|MOCK
     private List<ShoppingItem> items;
 
     @Getter @Setter
@@ -21,6 +22,7 @@ public class ShoppingListResponse {
     public static class ShoppingItem {
         private String ingredientName;
         private Long totalGram;
+        private Integer totalCalories;
         private Integer daysCount;
         private ProductCard product;
         private String source; // REAL|MOCK
@@ -30,9 +32,9 @@ public class ShoppingListResponse {
     @NoArgsConstructor @AllArgsConstructor
     @Builder
     public static class ProductCard {
-        private String name;
+        private String productName;
         private Long price;
         private String imageUrl;
-        private String detailUrl;
+        private String productUrl;
     }
 }

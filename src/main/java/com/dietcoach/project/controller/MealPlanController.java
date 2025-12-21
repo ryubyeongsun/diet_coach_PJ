@@ -11,10 +11,12 @@ import com.dietcoach.project.service.MealPlanService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
@@ -94,11 +96,33 @@ public class MealPlanController {
     public ApiResponse<MealPlanDayDetailResponse> getDayDetail(@PathVariable Long dayId) {
         return ApiResponse.success(mealPlanService.getDayDetail(dayId));
     }
-    @GetMapping("/meal-plans/{planId}/shopping")
+    @GetMapping("/meal-plans/{planId}/shopping-list")
     public ApiResponse<ShoppingListResponse> getShopping(
+            @AuthenticationPrincipal Long userId,
             @PathVariable Long planId,
             @RequestParam(defaultValue = "MONTH") String range
     ) {
-        return ApiResponse.success(mealPlanService.getShoppingList(planId, range));
+        String traceId = UUID.randomUUID().toString().replace("-", "");
+        traceId = traceId.substring(0, Math.min(8, traceId.length()));
+        long startMs = System.currentTimeMillis();
+        MDC.put("traceId", traceId);
+        log.info("[SHOPPING_LIST][{}] START planId={} userId={} range={}",
+                traceId, planId, userId, range);
+        try {
+            ShoppingListResponse response = mealPlanService.getShoppingList(planId, range);
+            int itemCount = response.getItems() == null ? 0 : response.getItems().size();
+            log.info("[SHOPPING_LIST][{}] END planId={} ingredients={} items={} source={} startDate={} endDate={} tookMs={}",
+                    traceId,
+                    planId,
+                    itemCount,
+                    itemCount,
+                    response.getSource(),
+                    response.getStartDate(),
+                    response.getEndDate(),
+                    System.currentTimeMillis() - startMs);
+            return ApiResponse.success(response);
+        } finally {
+            MDC.remove("traceId");
+        }
     }
 }

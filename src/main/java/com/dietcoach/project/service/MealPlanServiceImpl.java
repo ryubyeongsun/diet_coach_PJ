@@ -5,12 +5,14 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,17 +51,18 @@ public class MealPlanServiceImpl implements MealPlanService {
     private static final int AI_CHUNK_DAYS = 7;
     private static final DateTimeFormatter DF = DateTimeFormatter.ISO_LOCAL_DATE;
 
-    // ✅ A2 캐시 TTL 1시간
+    // A2 캐시 TTL 1시간
     private static final Duration PRODUCT_CACHE_TTL = Duration.ofHours(1);
+    private static final int SHOPPING_SEARCH_TOP_N = 5;
 
     private final UserMapper userMapper;
     private final MealPlanMapper mealPlanMapper;
     private final WeightRecordMapper weightRecordMapper;
 
-    // ✅ AI Client
+    // AI Client
     private final DietAiClient dietAiClient;
 
-    // ✅ 11번가 대표상품 1개 조회 서비스 (아래 ShoppingService.java 계약 참고)
+    // 11번가 대표상품 1개 조회 서비스
     private final ShoppingService shoppingService;
 
     // =========================
@@ -102,23 +105,23 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     private static final List<FoodPortion> BREAKFAST_TEMPLATE = List.of(
             new FoodPortion(new FoodItem("오트밀", 380), 40),
-            new FoodPortion(new FoodItem("그릭 요거트", 60), 150)
+            new FoodPortion(new FoodItem("그릭요거트", 60), 150)
     );
 
     private static final List<FoodPortion> LUNCH_TEMPLATE = List.of(
-            new FoodPortion(new FoodItem("현미밥", 150), 200),
+            new FoodPortion(new FoodItem("밥", 150), 200),
             new FoodPortion(new FoodItem("닭가슴살", 165), 150),
             new FoodPortion(new FoodItem("샐러드", 40), 80)
     );
 
     private static final List<FoodPortion> DINNER_TEMPLATE = List.of(
-            new FoodPortion(new FoodItem("현미밥", 150), 150),
+            new FoodPortion(new FoodItem("밥", 150), 150),
             new FoodPortion(new FoodItem("연어", 200), 120),
             new FoodPortion(new FoodItem("샐러드", 40), 80)
     );
 
     // =========================
-    // 1) 한 달 식단 생성 (단일 진입점)
+    // 1) 한달 식단 생성 (단일 진입점)
     // =========================
     @Override
     @Transactional
@@ -342,6 +345,7 @@ public class MealPlanServiceImpl implements MealPlanService {
 
             Integer mealTargetCalories = (mealTargets == null ? null : mealTargets.get(mt));
             String menuName = safeTrim(meal.getMenuName());
+
             List<AiMonthlySkeletonResponse.AiIngredient> ings =
                     (meal.getIngredients() == null) ? List.of() : meal.getIngredients();
             int ingredientCount = ings.size();
@@ -351,8 +355,15 @@ public class MealPlanServiceImpl implements MealPlanService {
                 String ingredient = safeTrim(ing.getIngredientName());
                 if (ingredient.isEmpty()) continue;
 
-                Integer calories = adjustCalories(ing.getCalories(), ingredient, mealTargetCalories, ingredientCount);
-                Integer grams = adjustGrams(ing.getGrams(), ingredient, calories);
+                // 1) grams 먼저 계산(또는 파생)
+                Integer grams = adjustGrams(ing.getGrams(), ingredient, ing.getCalories());
+
+                // 2) calories가 없으면 grams*kpg 우선으로 계산 (균등분배는 최후)
+                Integer calories = adjustCalories(ing.getCalories(), ingredient, mealTargetCalories, ingredientCount, grams);
+
+                // 3) calories가 바뀌었을 수 있으니 grams 한 번 더 보정 (폭발 방지 clamp 포함)
+                grams = adjustGrams(ing.getGrams(), ingredient, calories);
+
                 String memo = menuName.isEmpty() ? "AI" : menuName;
 
                 result.add(MealItem.builder()
@@ -411,138 +422,177 @@ public class MealPlanServiceImpl implements MealPlanService {
                 days, ingredientCount, caloriesMissing, gramsMissing);
     }
 
+    // =========================
+    // grams / calories 보정
+    // =========================
+
     private Integer adjustGrams(Integer grams, String ingredientName, Integer calories) {
+        int max = maxGramsFor(ingredientName);
+
+        // 1) AI grams 우선
         if (grams != null && grams > 0) {
-            int adjusted = clamp(grams, 10, 800);
+            int adjusted = clamp(grams, 10, max);
             if (adjusted != grams) {
                 log.info("[GRAMS_CLAMP] ingredient={}, {} -> {}", ingredientName, grams, adjusted);
             }
             return adjusted;
         }
 
+        // 2) grams 없으면 calories/kpg로 파생
         if (calories != null && calories > 0) {
             double kcalPerGram = kcalPerGramFor(ingredientName);
             int derived = (int) Math.round(calories / kcalPerGram);
-            int clamped = clamp(derived, 10, 800);
+            int clamped = clamp(derived, 10, max);
             log.info("[GRAMS_DERIVE] ingredient={}, cal={}, kpg={} -> {}",
                     ingredientName, calories, String.format(Locale.US, "%.2f", kcalPerGram), clamped);
             return clamped;
         }
 
+        // 3) 최종 fallback
         int fallback = 100;
-        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, fallback);
-        return fallback;
-    }
-            return adjusted;
-        }
-
-        if (calories != null && calories > 0) {
-            double kcalPerGram = kcalPerGramFor(ingredientName);
-            int derived = (int) Math.round(calories / kcalPerGram);
-            int clamped = clamp(derived, 10, maxGrams);
-            log.info("[GRAMS_DERIVE] ingredient={}, cal={}, kpg={} -> {}",
-                    ingredientName, calories, String.format(Locale.US, "%.2f", kcalPerGram), clamped);
-            return clamped;
-        }
-
-        int fallback = 100;
-        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, fallback);
-        return fallback;
-    }
-            return adjusted;
-        }
-
-        if (calories != null && calories > 0) {
-            double kcalPerGram = kcalPerGramFor(ingredientName);
-            int derived = (int) Math.round(calories / kcalPerGram);
-            int clamped = clamp(derived, 10, 600);
-            log.info("[GRAMS_DERIVE] ingredient={}, cal={}, kpg={} -> {}",
-                    ingredientName, calories, String.format(Locale.US, "%.2f", kcalPerGram), clamped);
-            return clamped;
-        }
-
-        int fallback = 100;
-        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, fallback);
-        return fallback;
-    }
-            return adjusted;
-        }
-
-        if (calories != null && calories > 0) {
-            double kcalPerGram = kcalPerGramFor(ingredientName);
-            int derived = (int) Math.round(calories / kcalPerGram);
-            int clamped = clamp(derived, 10, 800);
-            log.info("[GRAMS_DERIVE] ingredient={}, cal={}, kpg={} -> {}",
-                    ingredientName, calories, String.format(Locale.US, "%.2f", kcalPerGram), clamped);
-            return clamped;
-        }
-
-        int fallback = 100;
-        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, fallback);
-        return fallback;
-    }
-
-    private Integer adjustCalories(Integer calories, String ingredientName, Integer mealCalories, int ingredientCount) {
-        if (calories == null) {
-            if (mealCalories != null && ingredientCount > 0) {
-                int derived = (int) Math.round(mealCalories / (double) ingredientCount);
-                int clamped = clamp(derived, 0, 2000);
-                log.info("[CAL_DERIVE] ingredient={}, mealCal={}, count={} -> {}",
-                        ingredientName, mealCalories, ingredientCount, clamped);
-                return clamped;
-            }
-            return 0;
-        }
-        int adjusted = clamp(calories, 0, 2000);
-        if (adjusted != calories) {
-            log.info("[CAL_CLAMP] ingredient={}, {} -> {}", ingredientName, calories, adjusted);
-        }
+        int adjusted = clamp(fallback, 10, max);
+        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, adjusted);
         return adjusted;
     }
 
-    private double kcalPerGramFor(String ingredientName) {
-        String n = (ingredientName == null ? "" : ingredientName.trim().toLowerCase());
+    private Integer adjustCalories(Integer calories, String ingredientName, Integer mealCalories, int ingredientCount, Integer grams) {
+        // 1) AI calories 우선
+        if (calories != null) {
+            int adjusted = clamp(calories, 0, 2000);
+            if (adjusted != calories) {
+                log.info("[CAL_CLAMP] ingredient={}, {} -> {}", ingredientName, calories, adjusted);
+            }
+            return adjusted;
+        }
 
-        if (containsAny(n,
-                "oil", "olive", "olive oil", "butter", "mayo", "cream", "cheese", "nuts",
-                "??", "??", "????", "???", "???", "???",
-                "??", "??", "????", "??",
-                "??", "??", "???", "??", "??")) {
-            return 7.5;
+        // 2) grams가 있으면 grams*kpg로 calories 파생 (균등분배보다 우선)
+        if (grams != null && grams > 0) {
+            double kpg = kcalPerGramFor(ingredientName);
+            int derived = (int) Math.round(grams * kpg);
+            int clamped = clamp(derived, 0, 2000);
+            log.info("[CAL_FROM_GRAMS] ingredient={}, grams={}, kpg={} -> {}",
+                    ingredientName, grams, String.format(Locale.US, "%.2f", kpg), clamped);
+            return clamped;
         }
-        if (containsAny(n,
-                "rice", "noodle", "ramen", "pasta", "bread", "oat", "oatmeal", "potato", "sweet potato",
-                "?", "?", "??", "??", "??", "?", "??", "???", "?", "???", "??", "???")) {
-            return 2.5;
+
+        // 3) 최후에만 균등분배
+        if (mealCalories != null && ingredientCount > 0) {
+            int derived = (int) Math.round(mealCalories / (double) ingredientCount);
+            int clamped = clamp(derived, 0, 2000);
+            log.info("[CAL_DERIVE] ingredient={}, mealCal={}, count={} -> {}",
+                    ingredientName, mealCalories, ingredientCount, clamped);
+            return clamped;
         }
+
+        return 0;
+    }
+
+    private int maxGramsFor(String ingredientName) {
+        String n = normalizeName(ingredientName);
+        if (n.isEmpty()) return 600;
+
+        // 지방류(오일/버터/치즈/견과 등) -> 상한 낮게
         if (containsAny(n,
-                "chicken", "beef", "pork", "fish", "salmon", "tuna", "shrimp", "egg", "tofu",
-                "?", "????", "???", "???", "????", "??", "??", "??", "??", "??", "??", "??")) {
-            return 2.0;
+                "oil", "olive", "butter", "mayo", "mayonnaise", "cream", "cheese",
+                "nuts", "almond", "peanut", "walnut", "avocado",
+                "기름", "오일", "올리브유", "참기름", "들기름", "식용유",
+                "버터", "마요", "마요네즈", "크림", "치즈",
+                "견과", "아몬드", "땅콩", "호두", "아보카도"
+        )) {
+            return 80;
         }
+
+        // 소스/양념류
+        if (containsAny(n,
+                "sauce", "soy sauce", "gochujang", "doenjang", "ketchup",
+                "소스", "간장", "고추장", "된장", "케찹"
+        )) {
+            return 120;
+        }
+
+        // 채소/과일류 -> 폭발 방지 상한
         if (containsAny(n,
                 "salad", "lettuce", "spinach", "broccoli", "cabbage", "tomato", "cucumber", "carrot",
                 "apple", "banana", "grape", "orange", "berry",
-                "???", "???", "??", "???", "????", "???", "???", "??", "??",
-                "??", "???", "??", "???", "??")) {
-            return 0.25;
+                "샐러드", "양상추", "상추", "시금치",
+                "브로콜리", "양배추", "토마토", "오이", "당근",
+                "사과", "바나나", "포도", "오렌지", "딸기"
+        )) {
+            return 300;
         }
-        if (containsAny(n,
-                "sauce", "soy sauce", "gochujang", "doenjang", "ketchup",
-                "??", "??", "???", "??", "??")) {
+
+        return 600;
+    }
+
+    private double kcalPerGramFor(String ingredientName) {
+        String normalized = normalizeName(ingredientName);
+        if (normalized.isEmpty()) {
             return 1.0;
         }
+
+        // FAT (오일/치즈/견과 등)
+        if (containsAny(normalized,
+                "oil", "olive", "olive oil", "butter", "mayo", "mayonnaise", "cream", "cheese",
+                "nuts", "almond", "peanut", "walnut", "avocado",
+                "기름", "오일", "올리브유", "참기름", "들기름", "식용유",
+                "버터", "마요", "마요네즈", "크림", "치즈",
+                "견과", "아몬드", "땅콩", "호두", "아보카도"
+        )) {
+            return 7.5;
+        }
+
+        // CARB (밥/면/빵 등)
+        if (containsAny(normalized,
+                "rice", "noodle", "ramen", "pasta", "bread", "oat", "oatmeal", "potato", "sweet potato",
+                "밥", "쌀", "현미", "잡곡", "국수", "면", "라면",
+                "파스타", "빵", "오트밀", "감자", "고구마"
+        )) {
+            return 2.5;
+        }
+
+        // PROTEIN (고기/생선/계란/두부)
+        if (containsAny(normalized,
+                "chicken", "beef", "pork", "fish", "salmon", "tuna", "shrimp", "egg", "tofu",
+                "닭", "닭가슴살", "소고기", "쇠고기", "돼지고기",
+                "생선", "연어", "참치", "새우", "계란", "달걀", "두부"
+        )) {
+            return 2.0;
+        }
+
+        // VEG / FRUIT (채소/과일) : 너무 낮게 두면 grams 폭발 -> 0.45로 상향
+        if (containsAny(normalized,
+                "salad", "lettuce", "spinach", "broccoli", "cabbage", "tomato", "cucumber", "carrot",
+                "apple", "banana", "grape", "orange", "berry",
+                "샐러드", "양상추", "상추", "시금치",
+                "브로콜리", "양배추", "토마토", "오이", "당근",
+                "사과", "바나나", "포도", "오렌지", "딸기"
+        )) {
+            return 0.45;
+        }
+
+        // SAUCE
+        if (containsAny(normalized,
+                "sauce", "soy sauce", "gochujang", "doenjang", "ketchup",
+                "소스", "간장", "고추장", "된장", "케찹"
+        )) {
+            return 1.0;
+        }
+
         return 1.0;
     }
 
-private boolean containsAny(String value, String... tokens) {
+    private String normalizeName(String ingredientName) {
+        if (ingredientName == null) return "";
+        return ingredientName.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean containsAny(String value, String... tokens) {
         if (value == null) return false;
+        String v = value.toLowerCase(Locale.ROOT);
         for (String token : tokens) {
             if (token == null) continue;
-            if (value.contains(token.toLowerCase())) return true;
+            if (v.contains(token.toLowerCase(Locale.ROOT))) return true;
         }
-        return false;
-    }
         return false;
     }
 
@@ -565,6 +615,10 @@ private boolean containsAny(String value, String... tokens) {
     private String safeTrim(String s) {
         return s == null ? "" : s.trim();
     }
+
+    // =========================
+    // TEMPLATE 생성
+    // =========================
 
     private List<MealItem> buildItemsFromTemplate(Long mealPlanDayId, int targetKcalPerDay, int mealsPerDay) {
         List<String> mealTimes = switch (mealsPerDay) {
@@ -646,9 +700,9 @@ private boolean containsAny(String value, String... tokens) {
     }
 
     // =========================
-    // ✅ A2) 장보기 리스트 + 대표상품 매핑(완료)
-    // - DTO: ShoppingListResponse(주인님 제공 버전) 그대로 사용
+    // A2) 장보기 리스트 + 대표상품 매핑(완료)
     // =========================
+
     @Override
     @Transactional(readOnly = true)
     public ShoppingListResponse getShoppingList(Long planId, String range) {
@@ -657,8 +711,27 @@ private boolean containsAny(String value, String... tokens) {
 
         RangeWindow w = resolveRange(plan, range);
 
-        List<MealPlanIngredientResponse> ingredients =
-                mealPlanMapper.findIngredientsForPlanInRange(planId, w.from, w.to);
+        boolean useRange = range != null && !range.isBlank() && !"MONTH".equalsIgnoreCase(range);
+        List<MealPlanIngredientResponse> ingredients = useRange
+                ? mealPlanMapper.findIngredientsForPlanInRange(planId, w.from, w.to)
+                : mealPlanMapper.findIngredientsForPlan(planId);
+
+        String traceId = currentTraceId();
+        log.info("[SHOPPING_LIST][{}] INGREDIENT_SUMMARY top10={}", traceId, buildIngredientSummary(ingredients));
+
+        Map<String, String> keywordByKey = new LinkedHashMap<>();
+        for (MealPlanIngredientResponse ing : ingredients) {
+            String ingredientName = safeTrim(ing.getIngredientName());
+            if (ingredientName.isEmpty()) continue;
+            String key = normalizeCacheKey(ingredientName);
+            if (key.isEmpty()) continue;
+            keywordByKey.putIfAbsent(key, ingredientName);
+        }
+
+        Map<String, ProductLookup> lookupByKey = new HashMap<>();
+        for (Map.Entry<String, String> entry : keywordByKey.entrySet()) {
+            lookupByKey.put(entry.getKey(), getRepresentativeProductCached(entry.getValue()));
+        }
 
         List<ShoppingListResponse.ShoppingItem> items = new ArrayList<>();
 
@@ -666,22 +739,33 @@ private boolean containsAny(String value, String... tokens) {
             String ingredientName = safeTrim(ing.getIngredientName());
             if (ingredientName.isEmpty()) continue;
 
-            ProductLookup lookup = getRepresentativeProductCached(ingredientName);
+            Long totalGram = toLongSafe(ing.getTotalGram());
+            if (totalGram == null || totalGram <= 0) continue;
+
+            Integer totalCalories = toIntSafe(ing.getTotalCalories());
+
+            String key = normalizeCacheKey(ingredientName);
+            ProductLookup lookup = lookupByKey.getOrDefault(key, getRepresentativeProductCached(ingredientName));
 
             items.add(ShoppingListResponse.ShoppingItem.builder()
                     .ingredientName(ingredientName)
-                    .totalGram(toLongSafe(ing.getTotalGram()))
+                    .totalGram(totalGram)
+                    .totalCalories(totalCalories)
                     .daysCount(ing.getDaysCount())
                     .product(lookup.product)
                     .source(lookup.source)
                     .build());
         }
 
+        String overallSource = items.stream().anyMatch(i -> "REAL".equals(i.getSource())) ? "REAL" : "MOCK";
+        String normalizedRange = (range == null || range.isBlank()) ? "MONTH" : range.trim().toUpperCase();
+
         return ShoppingListResponse.builder()
                 .planId(planId)
-                .range((range == null ? "MONTH" : range.toUpperCase()))
-                .fromDate(w.from)
-                .toDate(w.to)
+                .range(normalizedRange)
+                .startDate(w.from)
+                .endDate(w.to)
+                .source(overallSource)
                 .items(items)
                 .build();
     }
@@ -696,30 +780,91 @@ private boolean containsAny(String value, String... tokens) {
     }
 
     private ProductLookup getRepresentativeProductCached(String ingredientName) {
-        String key = ingredientName.toLowerCase();
+        String traceId = currentTraceId();
+        String key = normalizeCacheKey(ingredientName);
+        if (key.isEmpty()) {
+            return new ProductLookup(null, "MOCK");
+        }
 
         CachedProduct cached = productCache.get(key);
         if (cached != null && !cached.isExpired()) {
-            return new ProductLookup(cached.product, cached.source);
+            log.info("[SHOPPING_LIST][{}] CACHE_HIT ingredient={}", traceId, ingredientName);
+            return new ProductLookup(cached.product, normalizeSource(cached.source));
         }
+        log.info("[SHOPPING_LIST][{}] CACHE_MISS ingredient={}", traceId, ingredientName);
 
         ShoppingListResponse.ProductCard product = null;
-        String source = "NONE";
+        String source = "MOCK";
 
         try {
+            log.info("[SHOPPING_LIST][{}] SEARCH_REQ ingredient={} keyword=\"{}\" limit={}",
+                    traceId, ingredientName, ingredientName, SHOPPING_SEARCH_TOP_N);
             ShoppingService.SearchOneResult r = shoppingService.searchOne(ingredientName);
-            if (r != null && r.product() != null) {
+            if (r != null) {
                 product = r.product();
-                source = (r.source() == null ? "REAL" : r.source());
+                source = normalizeSource(r.source());
             }
         } catch (Exception e) {
-            log.warn("[Shopping] 대표상품 매핑 실패 ingredient={}, reason={}", ingredientName, e.getMessage());
+            log.warn("[SHOPPING_LIST][{}] SEARCH_FAIL ingredient={} reason={}", traceId, ingredientName, e.getMessage());
         }
 
         long expireAt = System.currentTimeMillis() + PRODUCT_CACHE_TTL.toMillis();
         productCache.put(key, new CachedProduct(product, source, expireAt));
 
         return new ProductLookup(product, source);
+    }
+
+    private String normalizeCacheKey(String ingredientName) {
+        if (ingredientName == null) return "";
+        String key = ingredientName.trim().toLowerCase(Locale.ROOT);
+        return key.replaceAll("\\s+", " ");
+    }
+
+    private String normalizeSource(String source) {
+        return "REAL".equalsIgnoreCase(source) ? "REAL" : "MOCK";
+    }
+
+    private String currentTraceId() {
+        String traceId = MDC.get("traceId");
+        return (traceId == null || traceId.isBlank()) ? "no-trace" : traceId;
+    }
+
+    private String buildIngredientSummary(List<MealPlanIngredientResponse> ingredients) {
+        if (ingredients == null || ingredients.isEmpty()) {
+            return "[]";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+
+        int limit = Math.min(10, ingredients.size());
+        for (int i = 0; i < limit; i++) {
+            MealPlanIngredientResponse ing = ingredients.get(i);
+            if (ing == null) continue;
+            if (sb.length() > 1) sb.append(", ");
+            String name = safeTrim(ing.getIngredientName());
+            Long grams = toLongSafe(ing.getTotalGram());
+            Integer count = ing.getDaysCount();
+            sb.append("{name=").append(name)
+                    .append(", gram=").append(grams == null ? 0 : grams)
+                    .append(", count=").append(count == null ? 0 : count)
+                    .append("}");
+        }
+
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private Integer toIntSafe(Object v) {
+        if (v == null) return null;
+        if (v instanceof Integer i) return i;
+        if (v instanceof Long l) return l.intValue();
+        if (v instanceof Number n) return n.intValue();
+        try {
+            return Integer.parseInt(v.toString());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private Long toLongSafe(Object v) {
@@ -746,14 +891,15 @@ private boolean containsAny(String value, String... tokens) {
 
         return switch (r) {
             case "TODAY" -> new RangeWindow(today, today);
-            case "WEEK" -> new RangeWindow(today, today.plusDays(6)); // 고정 룰
+            case "WEEK" -> new RangeWindow(today, today.plusDays(6));
             default -> new RangeWindow(plan.getStartDate(), plan.getEndDate());
         };
     }
 
     // =========================
-    // 이하 기존 메서드들 (주인님 기존 구현 유지)
+    // 이하 기존 조회 메서드들
     // =========================
+
     @Override
     @Transactional(readOnly = true)
     public MealPlanOverviewResponse getMealPlan(Long planId) {
@@ -778,7 +924,7 @@ private boolean containsAny(String value, String... tokens) {
     @Transactional(readOnly = true)
     public MealPlanOverviewResponse getLatestMealPlanForUser(Long userId) {
         MealPlan latestPlan = mealPlanMapper.findLatestMealPlanByUserId(userId);
-        if (latestPlan == null) throw new BusinessException("해당 유저의 최근 식단 플랜이 없습니다. userId=" + userId);
+        if (latestPlan == null) throw new BusinessException("해당 사용자의 최근 식단 플랜이 없습니다. userId=" + userId);
         return getMealPlan(latestPlan.getId());
     }
 
@@ -789,7 +935,7 @@ private boolean containsAny(String value, String... tokens) {
         if (plan == null) throw new BusinessException("존재하지 않는 식단 플랜입니다. id=" + planId);
 
         List<MealPlanIngredientResponse> list = mealPlanMapper.findIngredientsForPlan(planId);
-        if (list == null || list.isEmpty()) throw new BusinessException("해당 플랜에 재료 정보가 없습니다. id=" + planId);
+        if (list == null || list.isEmpty()) throw new BusinessException("해당 플랜의 재료 정보가 없습니다. id=" + planId);
         return list;
     }
 
@@ -797,10 +943,10 @@ private boolean containsAny(String value, String... tokens) {
     @Transactional(readOnly = true)
     public DashboardSummaryResponse getDashboardSummary(Long userId) {
         MealPlan latestPlan = mealPlanMapper.findLatestMealPlanByUserId(userId);
-        if (latestPlan == null) throw new BusinessException("해당 유저의 최근 식단 플랜이 없습니다. userId=" + userId);
+        if (latestPlan == null) throw new BusinessException("해당 사용자의 최근 식단 플랜이 없습니다. userId=" + userId);
 
         List<MealPlanDay> days = mealPlanMapper.findMealPlanDaysByPlanId(latestPlan.getId());
-        if (days == null || days.isEmpty()) throw new BusinessException("해당 플랜에 포함된 날짜가 없습니다. planId=" + latestPlan.getId());
+        if (days == null || days.isEmpty()) throw new BusinessException("해당 플랜의 날짜가 없습니다. planId=" + latestPlan.getId());
 
         int totalCalories = days.stream().mapToInt(MealPlanDay::getTotalCalories).sum();
         int averageCalories = (int) Math.round(totalCalories / (double) days.size());
