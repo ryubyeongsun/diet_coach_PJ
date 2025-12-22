@@ -31,3 +31,15 @@ export async function fetchPlanIngredients(planId) {
   const res = await http.get(`/meal-plans/${planId}/ingredients`);
   return res.data.data ?? res.data;
 }
+
+// 하루 식단 재생성 (A4)
+export async function regenerateDay(dayId) {
+  const res = await http.post(`/meal-plans/days/${dayId}/regenerate`, {}, { timeout: 180000 });
+  return res.data.data ?? res.data;
+}
+
+// 특정 끼니 교체 (A4)
+export async function replaceMeal(dayId, mealTime) {
+  const res = await http.post(`/meal-plans/days/${dayId}/meals/${mealTime}/replace`, {}, { timeout: 180000 });
+  return res.data.data ?? res.data;
+}

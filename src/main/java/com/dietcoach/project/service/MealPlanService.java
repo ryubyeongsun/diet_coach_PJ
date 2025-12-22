@@ -1,26 +1,20 @@
 package com.dietcoach.project.service;
 
-import com.dietcoach.project.dto.meal.DashboardSummaryResponse;
-import com.dietcoach.project.dto.meal.MealPlanCreateRequest;
-import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
-import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
-import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
-import com.dietcoach.project.dto.meal.ShoppingListResponse;
+import com.dietcoach.project.dto.meal.*;
 
 import java.util.List;
 
 public interface MealPlanService {
-
-    // ✅ A1 입력 확장 버전(이것만 사용)
     MealPlanOverviewResponse createMonthlyPlan(Long userId, MealPlanCreateRequest request);
-
     MealPlanOverviewResponse getMealPlan(Long planId);
-
     MealPlanOverviewResponse getLatestMealPlanForUser(Long userId);
-
     List<MealPlanIngredientResponse> getIngredientsForPlan(Long planId);
-
     DashboardSummaryResponse getDashboardSummary(Long userId);
-    ShoppingListResponse getShoppingList(Long planId, String range);
     MealPlanDayDetailResponse getDayDetail(Long dayId);
+    ShoppingListResponse getShoppingList(Long planId, String range);
+
+    // A4: 하루 재생성
+    MealPlanDayDetailResponse regenerateDay(Long dayId);
+    // A4: 끼니 교체
+    MealPlanDayDetailResponse replaceMeal(Long dayId, String mealTime);
 }

@@ -125,4 +125,25 @@ public class MealPlanController {
             MDC.remove("traceId");
         }
     }
+
+    /**
+     * 하루 식단 재생성 (A4)
+     * POST /api/meal-plans/days/{dayId}/regenerate
+     */
+    @PostMapping("/meal-plans/days/{dayId}/regenerate")
+    public ApiResponse<MealPlanDayDetailResponse> regenerateDay(@PathVariable Long dayId) {
+        return ApiResponse.success(mealPlanService.regenerateDay(dayId));
+    }
+
+    /**
+     * 특정 끼니 교체 (A4)
+     * POST /api/meal-plans/days/{dayId}/meals/{mealTime}/replace
+     */
+    @PostMapping("/meal-plans/days/{dayId}/meals/{mealTime}/replace")
+    public ApiResponse<MealPlanDayDetailResponse> replaceMeal(
+            @PathVariable Long dayId,
+            @PathVariable String mealTime
+    ) {
+        return ApiResponse.success(mealPlanService.replaceMeal(dayId, mealTime));
+    }
 }
