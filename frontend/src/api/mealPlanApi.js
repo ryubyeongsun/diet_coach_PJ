@@ -1,5 +1,5 @@
 // src/api/mealPlanApi.js
-import http from './http';
+import http from "./http";
 
 // 최신 식단 플랜 조회
 export async function fetchLatestMealPlan(userId) {

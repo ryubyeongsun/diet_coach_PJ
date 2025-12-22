@@ -2,10 +2,7 @@
   <button
     :type="type"
     class="nn-button"
-    :class="[
-      `nn-button--${variant}`,
-      { 'nn-button--block': block },
-    ]"
+    :class="[`nn-button--${variant}`, { 'nn-button--block': block }]"
     @click="emit('click', $event)"
   >
     <slot />
@@ -13,16 +10,16 @@
 </template>
 
 <script setup>
-const emit = defineEmits(['click']);
+const emit = defineEmits(["click"]);
 
 const props = defineProps({
   type: {
     type: String,
-    default: 'button',
+    default: "button",
   },
   variant: {
     type: String,
-    default: 'primary', // primary, secondary 정도만
+    default: "primary", // primary, secondary 정도만
   },
   block: {
     type: Boolean,

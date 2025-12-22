@@ -1,4 +1,4 @@
-import http from './http';
+import http from "./http";
 
 /**
  * 사용자의 프로필 정보를 업데이트합니다.
@@ -7,7 +7,7 @@ import http from './http';
  * @returns {Promise<object>} - 업데이트된 프로필 정보
  */
 export function updateUserProfile(userId, profileData) {
-    return http.put(`/users/${userId}/profile`, profileData);
+  return http.put(`/users/${userId}/profile`, profileData);
 }
 
 /**
@@ -16,5 +16,5 @@ export function updateUserProfile(userId, profileData) {
  * @returns {Promise<object>} - 사용자 프로필 정보
  */
 export function fetchUserProfile(userId) {
-    return http.get(`/users/${userId}`);
+  return http.get(`/users/${userId}`);
 }

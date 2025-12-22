@@ -1,8 +1,6 @@
 <template>
   <div class="detail">
-    <h3 class="detail__title">
-      {{ day.dateLabel }} 식단 상세
-    </h3>
+    <h3 class="detail__title">{{ day.dateLabel }} 식단 상세</h3>
     <ul class="detail__list">
       <li v-for="meal in day.meals" :key="meal.time" class="detail__item">
         <div class="detail__time">{{ meal.time }}</div>

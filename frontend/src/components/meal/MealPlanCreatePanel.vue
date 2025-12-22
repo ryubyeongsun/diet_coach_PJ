@@ -21,7 +21,11 @@
 
       <div class="form-group">
         <label for="mealsPerDay">일일 끼니 수</label>
-        <select id="mealsPerDay" v-model.number="form.mealsPerDay" class="select-input">
+        <select
+          id="mealsPerDay"
+          v-model.number="form.mealsPerDay"
+          class="select-input"
+        >
           <option value="1">1끼</option>
           <option value="2">2끼</option>
           <option value="3">3끼</option>
@@ -58,10 +62,10 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue';
-import NnInput from '../common/NnInput.vue';
-import NnButton from '../common/NnButton.vue';
-import NnCard from '../common/NnCard.vue';
+import { ref, watch, computed } from "vue";
+import NnInput from "../common/NnInput.vue";
+import NnButton from "../common/NnButton.vue";
+import NnCard from "../common/NnCard.vue";
 
 const props = defineProps({
   user: {
@@ -78,20 +82,20 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['create-plan']);
+const emit = defineEmits(["create-plan"]);
 
 const isProfileCompleted = ref(false);
 
 const form = ref({
   monthlyBudget: null,
   mealsPerDay: 3,
-  preferences: '',
-  allergies: '',
+  preferences: "",
+  allergies: "",
 });
 
 const buttonText = computed(() => {
-  if (props.isLoading) return '처리 중...';
-  return props.hasPlan ? '식단 다시 생성하기' : '식단 생성하기';
+  if (props.isLoading) return "처리 중...";
+  return props.hasPlan ? "식단 다시 생성하기" : "식단 생성하기";
 });
 
 watch(
@@ -99,19 +103,22 @@ watch(
   (newUser) => {
     isProfileCompleted.value = newUser?.isProfileCompleted ?? true;
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 function formatStringToArray(str) {
   if (!str) return [];
-  return str.split(',').map(item => item.trim()).filter(item => item);
+  return str
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item);
 }
 
 function handleSubmit() {
   if (props.isLoading) return;
 
   if (props.hasPlan) {
-    if (!confirm('기존 식단이 삭제되고 새로 생성됩니다. 계속하시겠습니까?')) {
+    if (!confirm("기존 식단이 삭제되고 새로 생성됩니다. 계속하시겠습니까?")) {
       return;
     }
   }
@@ -123,7 +130,7 @@ function handleSubmit() {
     allergies: formatStringToArray(form.value.allergies),
   };
 
-  emit('create-plan', payload);
+  emit("create-plan", payload);
 }
 </script>
 

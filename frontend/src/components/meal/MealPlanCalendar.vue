@@ -18,10 +18,10 @@
           {{ formatDate(day.date) }}
         </p>
         <p class="calendar__kcal">
-          {{ day.totalCalories != null ? day.totalCalories : '-' }} kcal
+          {{ day.totalCalories != null ? day.totalCalories : "-" }} kcal
         </p>
         <p class="calendar__memo">
-          {{ day.memo || '상세 식단은 추후 추가 예정입니다.' }}
+          {{ day.memo || "상세 식단은 추후 추가 예정입니다." }}
         </p>
       </button>
     </div>
@@ -36,21 +36,21 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['click-day']);
+const emit = defineEmits(["click-day"]);
 
-const weekday = ['일', '월', '화', '수', '목', '금', '토'];
+const weekday = ["일", "월", "화", "수", "목", "금", "토"];
 
 function formatDate(isoString) {
-  if (!isoString) return '';
+  if (!isoString) return "";
   const d = new Date(isoString);
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   const w = weekday[d.getDay()];
   return `${m}/${day}(${w})`;
 }
 
 function onClickDay(day) {
-  emit('click-day', day);
+  emit("click-day", day);
 }
 </script>
 
@@ -82,7 +82,9 @@ function onClickDay(day) {
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.03);
   text-align: left;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
 .calendar__item:hover {

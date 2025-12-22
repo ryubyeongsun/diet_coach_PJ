@@ -1,15 +1,18 @@
 <script setup>
-import { RouterView, useRouter, useRoute } from 'vue-router';
-import { ref, computed, watch } from 'vue';
-import { getCurrentUser, clearAuth } from './utils/auth';
-import { globalState } from './utils/globalState';
+import { RouterView, useRouter, useRoute } from "vue-router";
+import { ref, computed, watch } from "vue";
+import { getCurrentUser, clearAuth } from "./utils/auth";
+import { globalState, setWeightModalOpen } from "./utils/globalState";
+import WeightRecordModal from "./components/common/WeightRecordModal.vue";
 
 const router = useRouter();
 const route = useRoute();
 
 const currentUser = ref(getCurrentUser());
 
-const isAuthPage = computed(() => route.path === '/login' || route.path === '/signup');
+const isAuthPage = computed(
+  () => route.path === "/login" || route.path === "/signup",
+);
 
 const cartItemCount = computed(() => {
   return globalState.cart.reduce((total, item) => total + item.quantity, 0);
@@ -19,7 +22,7 @@ watch(
   () => route.path,
   () => {
     currentUser.value = getCurrentUser();
-  }
+  },
 );
 
 const go = (path) => {
@@ -29,12 +32,27 @@ const go = (path) => {
 const handleLogout = () => {
   clearAuth();
   currentUser.value = null;
-  router.push('/login');
+  router.push("/login");
+};
+
+// 모달 저장 후 데이터 갱신을 위한 핸들러
+// 페이지를 새로고침하여 대시보드 및 관련 데이터를 업데이트합니다.
+const handleWeightSaved = () => {
+  setWeightModalOpen(false);
+  // 현재 라우트가 대시보드나 체중 페이지일 경우에만 새로고침
+  if (route.path.startsWith('/dashboard') || route.path.startsWith('/weights') || route.path === '/') {
+    window.location.reload();
+  }
 };
 </script>
 
 <template>
   <!-- 전역 UI -->
+  <WeightRecordModal
+    :is-open="globalState.isWeightModalOpen"
+    @close="setWeightModalOpen(false)"
+    @saved="handleWeightSaved"
+  />
   <div class="global-loader" v-if="globalState.isLoading">
     <div class="spinner"></div>
   </div>
@@ -45,17 +63,25 @@ const handleLogout = () => {
   <div v-if="!isAuthPage" class="layout">
     <!-- 상단 헤더 -->
     <header class="layout__header">
-      <div class="layout__logo" @click="go('/')">
-        🥑 <span>남남코치</span>
-      </div>
+      <div class="layout__logo" @click="go('/')">🥑 <span>남남코치</span></div>
       <div class="layout__header-right">
         <div v-if="currentUser" class="user-info">
-          <span class="cart-status" @click="go('/cart')">🛒 ({{ cartItemCount }})</span>
+          <button class="layout__chip cta-btn" @click="setWeightModalOpen(true)">+ 오늘 체중 기록</button>
+          <button class="cta-btn cta-btn--primary" @click="go('/meal-plans')">+ 식단 생성</button>
+          <span class="divider"></span>
+          <span class="cart-status" @click="go('/cart')"
+            >🛒 ({{ cartItemCount }})</span
+          >
           <span>{{ currentUser.name }}님</span>
-          <button @click="handleLogout" class="layout__chip layout__chip--secondary">로그아웃</button>
+          <button
+            @click="handleLogout"
+            class="layout__chip layout__chip--secondary"
+          >
+            로그아웃
+          </button>
         </div>
         <div v-else>
-           <button class="layout__chip" @click="go('/login')">로그인</button>
+          <button class="layout__chip" @click="go('/login')">로그인</button>
         </div>
       </div>
     </header>
@@ -68,21 +94,39 @@ const handleLogout = () => {
 
           <button
             class="sidebar-nav__item"
-            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/meal-plans') || route.path === '/' }"
+            :class="{
+              'sidebar-nav__item--active':
+                route.path === '/' || route.path.startsWith('/dashboard'),
+            }"
+            @click="go('/dashboard')"
+          >
+            📊 대시보드
+          </button>
+          <button
+            class="sidebar-nav__item"
+            :class="{
+              'sidebar-nav__item--active': route.path.startsWith('/meal-plans'),
+            }"
             @click="go('/meal-plans')"
           >
             🍱 식단 관리
           </button>
           <button
             class="sidebar-nav__item"
-            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/shopping') || route.path.startsWith('/cart') }"
+            :class="{
+              'sidebar-nav__item--active':
+                route.path.startsWith('/shopping') ||
+                route.path.startsWith('/cart'),
+            }"
             @click="go('/shopping')"
           >
             🛒 재료 쇼핑
           </button>
           <button
             class="sidebar-nav__item"
-            :class="{ 'sidebar-nav__item--active': route.path.startsWith('/weights') }"
+            :class="{
+              'sidebar-nav__item--active': route.path.startsWith('/weights'),
+            }"
             @click="go('/weights')"
           >
             ⚖️ 체중 기록
@@ -137,8 +181,12 @@ const handleLogout = () => {
   animation: spin 1s ease infinite;
 }
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .global-error {
@@ -203,7 +251,36 @@ const handleLogout = () => {
 
 .layout__header-right {
   display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.cta-btn {
+  font-weight: 600;
+  font-size: 13px;
+  background-color: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 999px; /* Moved from layout__chip */
+  padding: 6px 12px; /* Moved from layout__chip */
+  cursor: pointer; /* Moved from layout__chip */
+  transition: all 0.2s ease-in-out;
+  white-space: nowrap;
+}
+.cta-btn:hover {
+  filter: brightness(0.95);
+}
+
+.cta-btn--primary {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+.divider {
+  height: 20px;
+  width: 1px;
+  background-color: #e5e7eb;
+  margin: 0 8px;
 }
 
 .layout__chip {

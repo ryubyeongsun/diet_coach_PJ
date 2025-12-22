@@ -43,7 +43,7 @@ http.interceptors.request.use(
   (error) => {
     endLoading();
     return Promise.reject(error);
-  }
+  },
 );
 																																													
 // Response interceptor
@@ -95,7 +95,7 @@ http.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default http;

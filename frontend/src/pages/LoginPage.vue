@@ -3,12 +3,7 @@
     <NnCard class="login-card">
       <h2>로그인</h2>
       <form @submit.prevent="handleLogin">
-        <NnInput
-          v-model="email"
-          type="email"
-          placeholder="이메일"
-          required
-        />
+        <NnInput v-model="email" type="email" placeholder="이메일" required />
         <NnInput
           v-model="password"
           type="password"
@@ -17,7 +12,7 @@
         />
         <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
         <NnButton type="submit" :disabled="isLoading">
-          {{ isLoading ? '로그인 중...' : '로그인하기' }}
+          {{ isLoading ? "로그인 중..." : "로그인하기" }}
         </NnButton>
       </form>
       <div class="signup-link">
@@ -29,25 +24,25 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { login, fetchMe } from '@/api/authApi.js';
-import { saveAuth } from '@/utils/auth.js';
-import NnCard from '@/components/common/NnCard.vue';
-import NnInput from '@/components/common/NnInput.vue';
-import NnButton from '@/components/common/NnButton.vue';
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import { login, fetchMe } from "@/api/authApi.js";
+import { saveAuth } from "@/utils/auth.js";
+import NnCard from "@/components/common/NnCard.vue";
+import NnInput from "@/components/common/NnInput.vue";
+import NnButton from "@/components/common/NnButton.vue";
 
 const router = useRouter();
 
-const email = ref('');
-const password = ref('');
-const errorMessage = ref('');
+const email = ref("");
+const password = ref("");
+const errorMessage = ref("");
 const isLoading = ref(false);
 
 async function handleLogin() {
   if (isLoading.value) return;
   isLoading.value = true;
-  errorMessage.value = '';
+  errorMessage.value = "";
 
   try {
     const loginResponse = await login({
@@ -58,8 +53,8 @@ async function handleLogin() {
     if (loginResponse.data && loginResponse.data.accessToken) {
       const token = loginResponse.data.accessToken;
       // 1. 토큰만 우선 저장 (다음 API 호출을 위해)
-      saveAuth(token, null); 
-      
+      saveAuth(token, null);
+
       // 2. 사용자 정보 가져오기
       const meResponse = await fetchMe();
       const user = meResponse.data;
@@ -67,13 +62,14 @@ async function handleLogin() {
       // 3. 토큰과 사용자 정보 함께 저장
       saveAuth(token, user);
 
-      await router.push('/meal-plans');
+      await router.push("/meal-plans");
     } else {
-      errorMessage.value = loginResponse.message || '이메일 또는 비밀번호를 확인해 주세요.';
+      errorMessage.value =
+        loginResponse.message || "이메일 또는 비밀번호를 확인해 주세요.";
     }
   } catch (error) {
-    console.error('Login failed:', error);
-    errorMessage.value = '이메일 또는 비밀번호를 확인해 주세요.';
+    console.error("Login failed:", error);
+    errorMessage.value = "이메일 또는 비밀번호를 확인해 주세요.";
   } finally {
     isLoading.value = false;
   }

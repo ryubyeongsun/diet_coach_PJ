@@ -3,7 +3,8 @@
     <header class="page__header">
       <h1>장보기 리스트</h1>
       <p v-if="shoppingData">
-        <strong>{{ shoppingData.fromDate }} ~ {{ shoppingData.toDate }}</strong> 기간의 필요 재료입니다.
+        <strong>{{ shoppingData.fromDate }} ~ {{ shoppingData.toDate }}</strong>
+        기간의 필요 재료입니다.
       </p>
       <p v-else>식단 플랜에 따른 재료 목록을 확인하고 구매해 보세요.</p>
     </header>
@@ -38,7 +39,10 @@
       <div v-else-if="error" class="page__error">
         <p>{{ error }}</p>
       </div>
-      <div v-else-if="shoppingData && shoppingData.items.length > 0" class="item-list">
+      <div
+        v-else-if="shoppingData && shoppingData.items.length > 0"
+        class="item-list"
+      >
         <ShoppingItemCard
           v-for="(item, index) in shoppingData.items"
           :key="index"
@@ -51,45 +55,50 @@
     </div>
 
     <div v-else class="page__error">
-      <p>유효한 식단 정보가 없습니다. 식단 관리 페이지로 돌아가서 다시 시도해주세요.</p>
+      <p>
+        유효한 식단 정보가 없습니다. 식단 관리 페이지로 돌아가서 다시
+        시도해주세요.
+      </p>
       <NnButton @click="goBack">돌아가기</NnButton>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { fetchShoppingList } from '../api/shoppingApi.js';
-import ShoppingItemCard from '../components/shopping/ShoppingItemCard.vue';
-import NnButton from '../components/common/NnButton.vue';
+import { ref, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { fetchShoppingList } from "../api/shoppingApi.js";
+import ShoppingItemCard from "../components/shopping/ShoppingItemCard.vue";
+import NnButton from "../components/common/NnButton.vue";
 
 const route = useRoute();
 const router = useRouter();
 
 const planId = ref(null);
 const isValidPlanId = ref(false);
-const range = ref('MONTH'); // 기본값 MONTH
+const range = ref("MONTH"); // 기본값 MONTH
 const shoppingData = ref(null);
 const isLoading = ref(false);
-const error = ref('');
+const error = ref("");
 
 async function loadShoppingList() {
   if (!isValidPlanId.value) return;
 
   isLoading.value = true;
-  error.value = '';
+  error.value = "";
   // shoppingData.value = null; // 이전 데이터 clear
 
   try {
     const response = await fetchShoppingList(planId.value, range.value);
     shoppingData.value = response;
   } catch (err) {
-    console.error('Error fetching shopping list:', err);
+    console.error("Error fetching shopping list:", err);
     if (err.response?.status === 401) {
-      router.push('/login');
+      router.push("/login");
+    } else if (err.response?.status === 404) {
+      error.value = "장보기 기능은 아직 준비 중입니다. 잠시만 기다려 주세요.";
     } else {
-      error.value = '장보기 정보를 불러올 수 없습니다. 다시 시도해주세요.';
+      error.value = "장보기 정보를 불러올 수 없습니다. 다시 시도해주세요.";
     }
     shoppingData.value = null;
   } finally {
@@ -102,7 +111,7 @@ function setRange(newRange) {
 }
 
 function goBack() {
-  router.push('/meal-plan');
+  router.push("/meal-plans");
 }
 
 watch(range, () => {
@@ -167,7 +176,9 @@ onMounted(() => {
   background-color: #ffffff;
   color: #374151;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
   font-size: 14px;
   font-weight: 500;
 }

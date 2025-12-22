@@ -2,18 +2,18 @@
 const props = defineProps({
   modelValue: {
     type: String,
-    default: '',
+    default: "",
   },
   placeholder: {
     type: String,
-    default: '',
+    default: "",
   },
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(["update:modelValue"]);
 
 const onInput = (event) => {
-  emit('update:modelValue', event.target.value);
+  emit("update:modelValue", event.target.value);
 };
 </script>
 
@@ -35,7 +35,9 @@ const onInput = (event) => {
   font-size: 13px;
   outline: none;
   background: #ffffff;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .nn-input:focus {
