@@ -1,4 +1,5 @@
 <template>
+  <LoadingOverlay v-if="isLoading" />
   <div v-if="!isProfileCompleted" class="panel-disabled">
     <p>
       식단 생성을 위해
@@ -66,6 +67,7 @@ import { ref, watch, computed } from "vue";
 import NnInput from "../common/NnInput.vue";
 import NnButton from "../common/NnButton.vue";
 import NnCard from "../common/NnCard.vue";
+import LoadingOverlay from "../common/LoadingOverlay.vue";
 
 const props = defineProps({
   user: {

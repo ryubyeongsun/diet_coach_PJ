@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import LandingPage from "../pages/LandingPage.vue";
 import DashboardPage from "../pages/DashboardPage.vue";
 import MealPlanPage from "../pages/MealPlanPage.vue";
 import ShoppingPage from "../pages/ShoppingPage.vue";
@@ -10,6 +11,11 @@ import CartPage from "../pages/CartPage.vue";
 import { getCurrentUser, getToken, clearAuth } from "../utils/auth"; // getToken, clearAuth 추가 임포트
 
 const routes = [
+  {
+    path: "/",
+    name: "Landing",
+    component: LandingPage,
+  },
   {
     path: "/login",
     name: "Login",
@@ -33,14 +39,8 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: "/",
-    name: "Dashboard",
-    component: DashboardPage,
-    meta: { requiresAuth: true, requiresProfile: true },
-  },
-  {
     path: "/dashboard",
-    name: "DashboardRedirect",
+    name: "Dashboard",
     component: DashboardPage,
     meta: { requiresAuth: true, requiresProfile: true },
   },
