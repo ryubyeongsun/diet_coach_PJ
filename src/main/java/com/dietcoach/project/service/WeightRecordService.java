@@ -1,5 +1,6 @@
 package com.dietcoach.project.service;
 
+import com.dietcoach.project.dto.weight.BodyStatusResponse;
 import com.dietcoach.project.dto.weight.WeightRecordResponse;
 import com.dietcoach.project.dto.weight.WeightRecordUpsertRequest;
 
@@ -13,4 +14,8 @@ public interface WeightRecordService {
     List<WeightRecordResponse> getWeightRecords(Long userId, LocalDate from, LocalDate to);
 
     void deleteWeightRecord(Long userId, Long recordId);
+
+    void deleteWeightRecord(Long userId, LocalDate recordDate);
+
+    BodyStatusResponse getBodyStatus(Long userId);
 }

@@ -932,7 +932,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     @Transactional(readOnly = true)
     public MealPlanOverviewResponse getLatestMealPlanForUser(Long userId) {
         MealPlan latestPlan = mealPlanMapper.findLatestMealPlanByUserId(userId);
-        if (latestPlan == null) throw new BusinessException("해당 사용자의 최근 식단 플랜이 없습니다. userId=" + userId);
+        if (latestPlan == null) throw new BusinessException("해당 사용자의 최근 식단 플랜이 없습니다.");
         return getMealPlan(latestPlan.getId());
     }
 
@@ -951,7 +951,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     @Transactional(readOnly = true)
     public DashboardSummaryResponse getDashboardSummary(Long userId) {
         MealPlan latestPlan = mealPlanMapper.findLatestMealPlanByUserId(userId);
-        if (latestPlan == null) throw new BusinessException("해당 사용자의 최근 식단 플랜이 없습니다. userId=" + userId);
+        if (latestPlan == null) throw new BusinessException("해당 사용자의 최근 식단 플랜이 없습니다.");
 
         List<MealPlanDay> days = mealPlanMapper.findMealPlanDaysByPlanId(latestPlan.getId());
         if (days == null || days.isEmpty()) throw new BusinessException("해당 플랜의 날짜가 없습니다. planId=" + latestPlan.getId());

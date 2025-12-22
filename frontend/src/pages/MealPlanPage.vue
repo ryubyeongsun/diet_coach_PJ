@@ -4,10 +4,6 @@
       <div>
         <h1>한 달 식단 플랜</h1>
         <p>TDEE와 예산을 기반으로 자동 생성될 식단의 레이아웃입니다.</p>
-
-        <p v-if="currentUser" class="page__user">
-          현재 사용자 ID: {{ currentUser.id }}
-        </p>
       </div>
       <div class="page__actions">
         <NnButton v-if="overview" variant="outline" @click="onClickGoShopping">
@@ -158,7 +154,7 @@ async function loadLatest() {
     if (
       err.response &&
       err.response.data &&
-      err.response.data.message === "해당 유저의 최근 식단 플랜이 없습니다."
+      err.response.data.message === "해당 사용자의 최근 식단 플랜이 없습니다."
     ) {
       overview.value = null;
     } else {

@@ -89,7 +89,7 @@ router.beforeEach((to, from, next) => {
   }
 
   // 로그인/회원가입 페이지에 접속했는데 이미 토큰이 있는 경우 -> 대시보드 페이지로
-  if ((to.path === "/login" || to.path === "/signup") && token) {
+  if ((to.path === "/login" || to.path === "/signup" || to.path === "/") && token) {
     return next({ path: "/dashboard" });
   }
 

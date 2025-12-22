@@ -62,4 +62,9 @@
         WHERE id = #{id}
     </delete>
 
+    <delete id="deleteByUserIdAndDate">
+        DELETE FROM weight_records
+        WHERE user_id = #{userId} AND record_date = #{recordDate}
+    </delete>
+
 </mapper>

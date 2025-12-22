@@ -87,7 +87,11 @@ http.interceptors.response.use(
         const msg =
           (data && (data.message || data.error || data.msg)) ||
           "요청 처리 중 오류가 발생했습니다.";
-        alert(msg);
+
+        // 특정 에러 메시지는 alert 띄우지 않음 (페이지에서 별도 처리)
+        if (msg !== "해당 사용자의 최근 식단 플랜이 없습니다.") {
+          alert(msg);
+        }
       }
     } else {
       // 네트워크 에러 등 response가 없는 경우
