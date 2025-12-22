@@ -29,7 +29,9 @@
               <li v-for="item in items" :key="item.id" class="item">
                 <div class="item__info">
                   <span class="item__name">{{ item.foodName }}</span>
-                  <span v-if="item.memo" class="item__memo">{{ item.memo }}</span>
+                  <span v-if="item.memo" class="item__memo">{{
+                    item.memo
+                  }}</span>
                 </div>
                 <span class="item__kcal">
                   <span v-if="item.grams != null">{{ item.grams }}g · </span>
@@ -49,9 +51,9 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue';
-import { fetchDayDetail } from '../../api/mealPlanApi';
-import NnButton from '../common/NnButton.vue';
+import { ref, watch, computed } from "vue";
+import { fetchDayDetail } from "../../api/mealPlanApi";
+import NnButton from "../common/NnButton.vue";
 
 const props = defineProps({
   modelValue: {
@@ -64,23 +66,23 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(["update:modelValue"]);
 
 const isLoading = ref(false);
-const errorMessage = ref('');
+const errorMessage = ref("");
 const detail = ref(null);
 
 const MEAL_TIME_MAP = {
-  BREAKFAST: '아침',
-  LUNCH: '점심',
-  DINNER: '저녁',
-  SNACK: '간식',
+  BREAKFAST: "아침",
+  LUNCH: "점심",
+  DINNER: "저녁",
+  SNACK: "간식",
 };
 
 const groupedItems = computed(() => {
   if (!detail.value || !detail.value.items) return null;
   return detail.value.items.reduce((acc, item) => {
-    const groupName = MEAL_TIME_MAP[item.mealTime] || '기타';
+    const groupName = MEAL_TIME_MAP[item.mealTime] || "기타";
     if (!acc[groupName]) {
       acc[groupName] = [];
     }
@@ -94,30 +96,30 @@ watch(
   async (newDayId) => {
     if (newDayId && props.modelValue) {
       isLoading.value = true;
-      errorMessage.value = '';
+      errorMessage.value = "";
       detail.value = null;
       try {
         detail.value = await fetchDayDetail(newDayId);
       } catch (err) {
         console.error(err);
         errorMessage.value =
-          '상세 식단 정보를 불러오는 중 오류가 발생했습니다.';
+          "상세 식단 정보를 불러오는 중 오류가 발생했습니다.";
       } finally {
         isLoading.value = false;
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 function closeModal() {
-  emit('update:modelValue', false);
+  emit("update:modelValue", false);
 }
 
 function formatDate(isoString) {
-  if (!isoString) return '';
+  if (!isoString) return "";
   const d = new Date(isoString);
-  const weekday = ['일', '월', '화', '수', '목', '금', '토'];
+  const weekday = ["일", "월", "화", "수", "목", "금", "토"];
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${weekday[d.getDay()]})`;
 }
 </script>
@@ -141,7 +143,8 @@ function formatDate(isoString) {
   max-width: 480px;
   background-color: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1),
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 0.1),
     0 8px 10px -6px rgb(0 0 0 / 0.1);
   display: flex;
   flex-direction: column;

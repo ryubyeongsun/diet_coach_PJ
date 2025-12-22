@@ -1,9 +1,9 @@
 // src/api/shoppingApi.js
-import http from './http';
+import http from "./http";
 
 // 검색 API: /api/shopping/search?keyword=...
 export async function searchProducts(keyword) {
-  const res = await http.get('/shopping/search', {
+  const res = await http.get("/shopping/search", {
     params: { keyword },
   });
   return res.data; // ShoppingProduct 리스트
@@ -11,7 +11,7 @@ export async function searchProducts(keyword) {
 
 // 추천 API: /api/shopping/recommendations?ingredient=..&neededGram=..
 export async function getRecommendations(ingredient, neededGram) {
-  const res = await http.get('/shopping/recommendations', {
+  const res = await http.get("/shopping/recommendations", {
     params: { ingredient, neededGram },
   });
   return res.data; // 추천 상품 리스트

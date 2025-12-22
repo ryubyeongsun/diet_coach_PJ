@@ -1,5 +1,5 @@
-const TOKEN_KEY = 'nncoach_token';
-const USER_KEY = 'nncoach_user';
+const TOKEN_KEY = "nncoach_token";
+const USER_KEY = "nncoach_user";
 
 export function saveAuth(token, user) {
   localStorage.setItem(TOKEN_KEY, token);

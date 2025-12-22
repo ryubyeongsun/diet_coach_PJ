@@ -1,10 +1,15 @@
-import { reactive } from 'vue';
+import { reactive } from "vue";
 
 export const globalState = reactive({
   isLoading: false,
   error: null,
   cart: [],
+  isWeightModalOpen: false,
 });
+
+export function setWeightModalOpen(isOpen) {
+  globalState.isWeightModalOpen = isOpen;
+}
 
 export function setLoading(status) {
   globalState.isLoading = status;
@@ -20,7 +25,7 @@ export function setError(message) {
 
 export function addToCart(product) {
   const existingItem = globalState.cart.find(
-    (item) => item.productCode === product.externalId
+    (item) => item.productCode === product.externalId,
   );
 
   if (existingItem) {

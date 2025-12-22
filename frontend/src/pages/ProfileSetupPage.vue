@@ -10,24 +10,47 @@
         <div class="form-group">
           <label>성별</label>
           <div class="radio-group">
-            <label><input type="radio" v-model="form.gender" value="MALE"> 남성</label>
-            <label><input type="radio" v-model="form.gender" value="FEMALE"> 여성</label>
+            <label
+              ><input type="radio" v-model="form.gender" value="MALE" />
+              남성</label
+            >
+            <label
+              ><input type="radio" v-model="form.gender" value="FEMALE" />
+              여성</label
+            >
           </div>
         </div>
 
         <div class="form-group">
           <label for="birthDate">생년월일</label>
-          <NnInput type="date" id="birthDate" v-model="form.birthDate" required />
+          <NnInput
+            type="date"
+            id="birthDate"
+            v-model="form.birthDate"
+            required
+          />
         </div>
 
         <div class="form-group">
           <label for="height">키 (cm)</label>
-          <NnInput type="number" id="height" v-model.number="form.height" placeholder="예: 175" required />
+          <NnInput
+            type="number"
+            id="height"
+            v-model.number="form.height"
+            placeholder="예: 175"
+            required
+          />
         </div>
 
         <div class="form-group">
           <label for="weight">현재 체중 (kg)</label>
-          <NnInput type="number" id="weight" v-model.number="form.weight" placeholder="예: 70" required />
+          <NnInput
+            type="number"
+            id="weight"
+            v-model.number="form.weight"
+            placeholder="예: 70"
+            required
+          />
         </div>
 
         <div class="form-group">
@@ -55,7 +78,7 @@
         <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
         <NnButton type="submit" block :disabled="isLoading">
-          {{ isLoading ? '저장 중...' : '저장하고 시작하기' }}
+          {{ isLoading ? "저장 중..." : "저장하고 시작하기" }}
         </NnButton>
       </form>
     </NnCard>
@@ -63,53 +86,56 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import NnCard from '../components/common/NnCard.vue';
-import NnInput from '../components/common/NnInput.vue';
-import NnButton from '../components/common/NnButton.vue';
-import { getCurrentUser, updateCurrentUser } from '@/utils/auth.js';
-import { updateUserProfile } from '../api/usersApi';
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import NnCard from "../components/common/NnCard.vue";
+import NnInput from "../components/common/NnInput.vue";
+import NnButton from "../components/common/NnButton.vue";
+import { getCurrentUser, updateCurrentUser } from "@/utils/auth.js";
+import { updateUserProfile } from "../api/usersApi";
 
 const router = useRouter();
 const currentUser = ref(null);
 const form = ref({
-  gender: 'MALE',
-  birthDate: '',
+  gender: "MALE",
+  birthDate: "",
   height: null,
   weight: null,
-  activityLevel: 'SEDENTARY',
-  goalType: 'MAINTAIN',
+  activityLevel: "SEDENTARY",
+  goalType: "MAINTAIN",
 });
 const isLoading = ref(false);
-const errorMessage = ref('');
+const errorMessage = ref("");
 
 onMounted(() => {
   currentUser.value = getCurrentUser();
   if (!currentUser.value) {
-    router.push('/login');
+    router.push("/login");
   }
 });
 
 async function handleSubmit() {
   if (!currentUser.value) {
-    errorMessage.value = '사용자 정보가 없습니다. 다시 로그인해주세요.';
+    errorMessage.value = "사용자 정보가 없습니다. 다시 로그인해주세요.";
     return;
   }
 
   isLoading.value = true;
-  errorMessage.value = '';
+  errorMessage.value = "";
 
   try {
-    const updatedProfile = await updateUserProfile(currentUser.value.id, form.value);
+    const updatedProfile = await updateUserProfile(
+      currentUser.value.id,
+      form.value,
+    );
     // 로컬 스토리지의 유저 정보도 업데이트
     updateCurrentUser(updatedProfile.data);
-    
+
     // PRD 요구사항: 완료 시 /meal-plan으로 이동 (전체 리로드)
-    window.location.href = '/meal-plans';
+    window.location.href = "/meal-plans";
   } catch (err) {
     console.error(err);
-    errorMessage.value = '프로필 업데이트 중 오류가 발생했습니다.';
+    errorMessage.value = "프로필 업데이트 중 오류가 발생했습니다.";
   } finally {
     isLoading.value = false;
   }
@@ -163,4 +189,3 @@ async function handleSubmit() {
   text-align: center;
 }
 </style>
-

@@ -1,5 +1,5 @@
 <script setup>
-import NnButton from '../common/NnButton.vue';
+import NnButton from "../common/NnButton.vue";
 
 const props = defineProps({
   product: {
@@ -8,7 +8,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['add-to-cart']);
+const emit = defineEmits(["add-to-cart"]);
 </script>
 
 <template>
@@ -33,9 +33,13 @@ const emit = defineEmits(['add-to-cart']);
           {{ product.mallName }}
         </p>
         <p class="product-card__gram-info">
-          <span v-if="product.gramPerUnit">약 {{ product.gramPerUnit.toLocaleString() }}g</span>
+          <span v-if="product.gramPerUnit"
+            >약 {{ product.gramPerUnit.toLocaleString() }}g</span
+          >
           <span v-if="product.gramPerUnit && product.pricePer100g"> · </span>
-          <span v-if="product.pricePer100g">100g당 {{ product.pricePer100g.toLocaleString() }}원</span>
+          <span v-if="product.pricePer100g"
+            >100g당 {{ product.pricePer100g.toLocaleString() }}원</span
+          >
         </p>
       </div>
 

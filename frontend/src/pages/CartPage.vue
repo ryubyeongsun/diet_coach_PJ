@@ -13,16 +13,25 @@
 
       <div v-else>
         <ul class="cart-list">
-          <li v-for="item in cartItems" :key="item.productCode" class="cart-item">
-            <img :src="item.imageUrl" :alt="item.name" class="cart-item__thumb" v-if="item.imageUrl" />
+          <li
+            v-for="item in cartItems"
+            :key="item.productCode"
+            class="cart-item"
+          >
+            <img
+              :src="item.imageUrl"
+              :alt="item.name"
+              class="cart-item__thumb"
+              v-if="item.imageUrl"
+            />
             <div v-else class="cart-item__thumb-placeholder">🛒</div>
             <div class="cart-item__info">
               <span class="cart-item__name">{{ item.name }}</span>
-              <span class="cart-item__price">{{ item.price?.toLocaleString() }}원</span>
+              <span class="cart-item__price"
+                >{{ item.price?.toLocaleString() }}원</span
+              >
             </div>
-            <div class="cart-item__quantity">
-              수량: {{ item.quantity }}
-            </div>
+            <div class="cart-item__quantity">수량: {{ item.quantity }}</div>
             <div class="cart-item__subtotal">
               {{ (item.price * item.quantity).toLocaleString() }}원
             </div>
@@ -39,15 +48,18 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { globalState } from '../utils/globalState';
-import NnCard from '../components/common/NnCard.vue';
-import NnButton from '../components/common/NnButton.vue';
+import { computed } from "vue";
+import { globalState } from "../utils/globalState";
+import NnCard from "../components/common/NnCard.vue";
+import NnButton from "../components/common/NnButton.vue";
 
 const cartItems = computed(() => globalState.cart);
 
 const totalAmount = computed(() => {
-  return cartItems.value.reduce((total, item) => total + item.price * item.quantity, 0);
+  return cartItems.value.reduce(
+    (total, item) => total + item.price * item.quantity,
+    0,
+  );
 });
 </script>
 

@@ -1,5 +1,5 @@
 // src/api/mealPlanApi.js
-import http from './http';
+import http from "./http";
 
 // 최신 식단 플랜 조회
 export async function fetchLatestMealPlan(userId) {
@@ -15,7 +15,7 @@ export async function fetchMealPlan(planId) {
 
 // 30일 식단 생성 (PRD 기반)
 export async function createMealPlan(payload) {
-  const res = await http.post('/meal-plans', payload);
+  const res = await http.post("/meal-plans", payload);
   return res.data.data ?? res.data;
 }
 

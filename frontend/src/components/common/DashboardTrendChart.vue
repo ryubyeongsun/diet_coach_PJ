@@ -3,7 +3,7 @@
     <h3>섭취 칼로리 vs 목표</h3>
     <canvas ref="calChart"></canvas>
 
-    <h3 style="margin-top:24px;">체중 변화</h3>
+    <h3 style="margin-top: 24px">체중 변화</h3>
     <canvas ref="weightChart"></canvas>
   </div>
   <div v-else class="insufficient-data-notice">
@@ -39,10 +39,10 @@ onMounted(async () => {
     return;
   }
 
-  const labels = dayTrends.map(d => d.date);
-  const totalCalories = dayTrends.map(d => d.totalCalories ?? null);
-  const targetCalories = dayTrends.map(d => d.targetCalories ?? null);
-  const weights = dayTrends.map(d => d.weight ?? null);
+  const labels = dayTrends.map((d) => d.date);
+  const totalCalories = dayTrends.map((d) => d.totalCalories ?? null);
+  const targetCalories = dayTrends.map((d) => d.targetCalories ?? null);
+  const weights = dayTrends.map((d) => d.weight ?? null);
 
   calInstance = new Chart(calChart.value, {
     type: "line",
@@ -50,27 +50,25 @@ onMounted(async () => {
       labels,
       datasets: [
         { label: "섭취 칼로리", data: totalCalories },
-        { label: "목표 칼로리", data: targetCalories }
-      ]
+        { label: "목표 칼로리", data: targetCalories },
+      ],
     },
     options: {
       responsive: true,
-      spanGaps: true
-    }
+      spanGaps: true,
+    },
   });
 
   weightInstance = new Chart(weightChart.value, {
     type: "line",
     data: {
       labels,
-      datasets: [
-        { label: "체중(kg)", data: weights }
-      ]
+      datasets: [{ label: "체중(kg)", data: weights }],
     },
     options: {
       responsive: true,
-      spanGaps: true
-    }
+      spanGaps: true,
+    },
   });
 });
 
