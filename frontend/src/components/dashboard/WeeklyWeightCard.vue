@@ -1,7 +1,7 @@
 <template>
   <div class="card summary-card">
     <h3>주간 체중 변화</h3>
-    <div v-if="trend?.days">
+    <div v-if="trend?.dayTrends">
       <p :class="weightChangeClass">
         {{ weightChangeText }}
         <span class="unit" v-if="weightChange !== 0">kg</span>
@@ -28,8 +28,8 @@ const props = defineProps({
 });
 
 const weightDataPoints = computed(() => {
-  if (!props.trend?.days) return [];
-  return props.trend.days
+  if (!props.trend?.dayTrends) return [];
+  return props.trend.dayTrends
     .map(d => ({ date: d.date, weight: d.weight }))
     .filter(d => d.weight !== null)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
