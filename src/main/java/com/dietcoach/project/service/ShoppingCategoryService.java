@@ -27,7 +27,8 @@ public class ShoppingCategoryService {
         "틀", "몰드", "에그팬", "주방",
         "니트", "원피스", "셔츠", "바지", "팬츠", "의류", "티셔츠", // 의류 추가
         "커피머신", "제조기", "믹서기", // 가전 추가
-        "계란틀", "요리틀", "모양틀", "에그몰드", "GF" // 특정 노이즈 상품 추가
+        "계란틀", "요리틀", "모양틀", "에그몰드", "GF", // 특정 노이즈 상품 추가
+        "뒤집개", "뒤지개", "실리콘", "국자" // 조리도구 추가
     );
 
     public ShoppingCategoryService() {
@@ -40,8 +41,8 @@ public class ShoppingCategoryService {
         
         // 2. ✅ 혁신: 재료 키워드별 타겟 카테고리 매핑 (Targeting Map)
         // 축산
-        KEYWORD_TO_CAT_MAP.put("계란", "1129543");
-        KEYWORD_TO_CAT_MAP.put("달걀", "1129543");
+        KEYWORD_TO_CAT_MAP.put("계란", "1129835"); // 일반달걀 (Depth 3)
+        KEYWORD_TO_CAT_MAP.put("달걀", "1129835"); // 일반달걀 (Depth 3)
         KEYWORD_TO_CAT_MAP.put("닭가슴살", "1009255");
         KEYWORD_TO_CAT_MAP.put("돼지", "1001482");
         KEYWORD_TO_CAT_MAP.put("소고기", "1001480");

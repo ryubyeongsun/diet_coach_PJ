@@ -118,14 +118,12 @@ public class ElevenstShoppingClient implements ShoppingClient {
                     .queryParam("pageSize", size)
                     .queryParam("pageNum", page);
             
-            // ✅ 카테고리 번호가 있으면 파라미터 추가
-            if (dispCtgrNo != null && !dispCtgrNo.isBlank()) {
-                builder.queryParam("targetSearchPrd", "KWD_CAT_MATCH"); // 카테고리 매칭 모드 활성 (옵션)
-                builder.queryParam("dispCtgrNo", dispCtgrNo);
-            }
-    
-            URI uri = builder.build().encode(StandardCharsets.UTF_8).toUri();
-            log.debug("[11st] Request URI: {}", uri);
+                    // ✅ 카테고리 번호가 있으면 파라미터 추가
+                    if (dispCtgrNo != null && !dispCtgrNo.isBlank()) {
+                        builder.queryParam("dispCtgrNo", dispCtgrNo);
+                    }
+            
+                    URI uri = builder.build().encode(StandardCharsets.UTF_8).toUri();            log.debug("[11st] Request URI: {}", uri);
     
             String response = restTemplate.getForObject(uri, String.class);
             if (response == null || response.isBlank()) return List.of();

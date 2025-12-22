@@ -429,7 +429,8 @@ public class ShoppingServiceImpl implements ShoppingService {
             "\uCF00\uC774\uC2A4", "\uAC70\uCE58\uB300", "\uBCF4\uD638", "\uD544\uB984",
             "\uD2C0", "\uBA30\uB4DC", "\uD2B8\uB808\uC774", "\uD32C", "\uC11D\uC1e0", "\uCE7C", "\uAC00\uC704", // 틀, 몰드, 트레이, 팬, 석쇠, 칼, 가위
             "\uCEE4\uD53C\uBA38\uC2E0", "\uC8FC\uC804\uC790", "\uD3EC\uD2B8", "\uBBF9\uC11C\uAE30", // 커피머신, 주전자, 포트, 믹서기
-            "\uACC4\uB780\uD2C0", "\uC694\uB9AC\uD2C0", "\uBAA8\uC591\uD2C0", "\uC5D0\uADF8\uBA30\uB4DC", "GF" // 계란틀, 요리틀, 모양틀, 에그몰드, GF
+            "\uACC4\uB780\uD2C0", "\uC694\uB9AC\uD2C0", "\uBAA8\uC591\uD2C0", "\uC5D0\uADF8\uBA30\uB4DC", "GF", // 계란틀, 요리틀, 모양틀, 에그몰드, GF
+            "\uB414\uC9D1\uAC1C", "\uB414\uC9C0\uAC1C", "\uAD6D\uC790", "\uC2E4\uB9AC\uCF58", "\uC218\uC800", "\uD3EC\uD06C", "\uC813\uAC00\uB77D" // 뒤집개, 뒤지개, 국자, 실리콘, 수저, 포크, 젓가락
     );
     private static final List<String> PET_TOKENS = List.of(
             "dog", "cat", "pet", "feed", "snack",
@@ -456,7 +457,8 @@ public class ShoppingServiceImpl implements ShoppingService {
     private static final List<String> SNACK_TOKENS = List.of(
             "chip", "snack", "cracker", "biscuit", "popcorn",
             "\uCE69", "\uACFC\uC790", "\uC2A4\uB0C9", "\uBF55\uD280\uAE30", "\uD06C\uB798\uCEE4",
-            "\uBE44\uC2A4\uD0B7", "\uAC15\uC815", "\uD31D\uCF58", "\uD280\uBC25", "\uAC74\uBE75"
+            "\uBE44\uC2A4\uD0B7", "\uAC15\uC815", "\uD31D\uCF58", "\uD280\uBC25", "\uAC74\uBE75",
+            "\uC5D0\uADF8\uB864" // 에그롤 추가
     );
     private static final List<String> TOMATO_TOKENS = List.of("tomato", "\uD1A0\uB9C8\uD1A0");
     private static final List<String> TOMATO_SAUCE_TOKENS = List.of(

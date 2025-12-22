@@ -15,7 +15,8 @@ export async function fetchMealPlan(planId) {
 
 // 30일 식단 생성 (PRD 기반)
 export async function createMealPlan(payload) {
-  const res = await http.post('/meal-plans', payload, { timeout: 120000 });
+  // AI 생성 시간이 길어질 수 있으므로 타임아웃을 3분(180000ms)으로 연장
+  const res = await http.post('/meal-plans', payload, { timeout: 180000 });
   return res.data.data ?? res.data;
 }
 
