@@ -53,6 +53,10 @@ CREATE TABLE meal_plans (
     end_date DATE NOT NULL,
     total_days INT NOT NULL,
     target_calories_per_day INT NOT NULL,
+    monthly_budget BIGINT NULL,
+    meals_per_day INT NULL,
+    preferences TEXT NULL,
+    allergies TEXT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_meal_plans_user
@@ -116,8 +120,4 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   INDEX idx_refresh_user_id (user_id),
   INDEX idx_refresh_expires_at (expires_at)
 );
-ALTER TABLE meal_plans
-  ADD COLUMN monthly_budget BIGINT NULL AFTER target_calories_per_day,
-  ADD COLUMN meals_per_day INT NULL AFTER monthly_budget,
-  ADD COLUMN preferences TEXT NULL AFTER meals_per_day,
-  ADD COLUMN allergies TEXT NULL AFTER preferences;
+
