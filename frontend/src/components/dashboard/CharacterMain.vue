@@ -54,9 +54,9 @@ const achievementRate = computed(() => {
 });
 
 const weightChangeLast7Days = computed(() => {
-  if (!props.trend?.days || props.trend.days.length < 2) return 0;
+  if (!props.trend?.dayTrends || props.trend.dayTrends.length < 2) return 0;
   
-  const weightDays = props.trend.days.filter(d => d.weight !== null).sort((a, b) => new Date(a.date) - new Date(b.date));
+  const weightDays = props.trend.dayTrends.filter(d => d.weight !== null).sort((a, b) => new Date(a.date) - new Date(b.date));
   if (weightDays.length < 2) return 0;
 
   const recentDays = weightDays.slice(-7);

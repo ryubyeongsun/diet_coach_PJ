@@ -64,6 +64,7 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     // 11번가 대표상품 1개 조회 서비스
     private final ShoppingService shoppingService;
+    private final ShoppingCategoryService categoryService;
 
     // =========================
     // A2 캐시: ingredientName(lower) -> CachedProduct
@@ -788,8 +789,15 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         CachedProduct cached = productCache.get(key);
         if (cached != null && !cached.isExpired()) {
-            log.info("[SHOPPING_LIST][{}] CACHE_HIT ingredient={}", traceId, ingredientName);
-            return new ProductLookup(cached.product, normalizeSource(cached.source));
+            // ✅ 캐시된 상품도 재검증 (Banned Keyword 체크)
+            // cached.product가 null이면 (이전에 검색 결과 없음으로 캐싱됨) 검증 패스
+            if (cached.product == null || categoryService.isValidProductTitle(cached.product.getProductName())) {
+                log.info("[SHOPPING_LIST][{}] CACHE_HIT ingredient={}", traceId, ingredientName);
+                return new ProductLookup(cached.product, normalizeSource(cached.source));
+            } else {
+                log.info("[SHOPPING_LIST][{}] CACHE_INVALIDATED ingredient={} reason=BANNED_KEYWORD product=\"{}\"", 
+                        traceId, ingredientName, cached.product.getProductName());
+            }
         }
         log.info("[SHOPPING_LIST][{}] CACHE_MISS ingredient={}", traceId, ingredientName);
 

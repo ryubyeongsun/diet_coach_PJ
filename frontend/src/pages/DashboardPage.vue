@@ -56,7 +56,7 @@ const latestWeight = computed(() => {
   if (summaryData.value?.latestWeight) {
     return summaryData.value.latestWeight;
   }
-  const sortedDays = trendData.value?.days
+  const sortedDays = trendData.value?.dayTrends
     ?.filter((d) => d.weight)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
   return sortedDays?.[0]?.weight || currentUser.value?.weight;

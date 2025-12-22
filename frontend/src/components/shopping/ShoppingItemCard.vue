@@ -16,7 +16,7 @@
         <p class="product-price">{{ item.product.price.toLocaleString() }}원</p>
       </div>
       <a
-        :href="item.product.detailUrl"
+        :href="item.product.productUrl"
         target="_blank"
         rel="noopener noreferrer"
         class="buy-button"

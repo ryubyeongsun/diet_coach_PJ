@@ -68,6 +68,8 @@
 import { ref, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fetchShoppingList } from "../api/shoppingApi.js";
+import { fetchLatestMealPlan } from "../api/mealPlanApi.js";
+import { getCurrentUser } from "../utils/auth";
 import ShoppingItemCard from "../components/shopping/ShoppingItemCard.vue";
 import NnButton from "../components/common/NnButton.vue";
 
@@ -119,14 +121,35 @@ watch(range, () => {
   loadShoppingList();
 });
 
-onMounted(() => {
+onMounted(async () => {
   const id = route.query.planId;
   if (id && !isNaN(id)) {
     planId.value = Number(id);
     isValidPlanId.value = true;
     loadShoppingList(); // planId가 유효하면 데이터 로드 시작
   } else {
-    isValidPlanId.value = false;
+    // planId가 쿼리로 넘어오지 않은 경우, 사용자 최신 플랜 조회 시도
+    const user = getCurrentUser();
+    if (user && user.id) {
+      try {
+        isLoading.value = true;
+        const latestPlan = await fetchLatestMealPlan(user.id);
+        if (latestPlan && latestPlan.mealPlanId) {
+          planId.value = latestPlan.mealPlanId;
+          isValidPlanId.value = true;
+          loadShoppingList();
+        } else {
+          isValidPlanId.value = false;
+        }
+      } catch (e) {
+        console.error("Failed to fetch latest meal plan", e);
+        isValidPlanId.value = false;
+      } finally {
+        isLoading.value = false;
+      }
+    } else {
+      isValidPlanId.value = false;
+    }
   }
 });
 </script>

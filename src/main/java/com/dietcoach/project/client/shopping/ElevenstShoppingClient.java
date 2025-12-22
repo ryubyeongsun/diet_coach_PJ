@@ -75,132 +75,133 @@ public class ElevenstShoppingClient implements ShoppingClient {
         log.info("Initialized {} mock shopping products", mockProducts.size());
     }
 
-    @Override
-    public ShoppingClientResult searchProducts(String keyword, int page, int size) {
-        String traceId = currentTraceId();
-        try {
-            long startMs = System.currentTimeMillis();
-            List<ShoppingProduct> real = callRealApi(keyword, page, size);
-            if (real != null && !real.isEmpty()) {
-                log.info("[SHOPPING_CLIENT][{}] REAL keyword=\"{}\" responseCount={} tookMs={}",
-                        traceId, keyword, real.size(), System.currentTimeMillis() - startMs);
-                return ShoppingClientResult.builder()
-                        .products(real)
-                        .source("REAL")
-                        .build();
-            }
-            log.warn("[SHOPPING_CLIENT][{}] REAL keyword=\"{}\" responseCount=0 tookMs={}",
-                    traceId, keyword, System.currentTimeMillis() - startMs);
-        } catch (Exception e) {
-            log.warn("[SHOPPING_CLIENT][{}] REAL_FAIL keyword=\"{}\" ex={} fallback={}",
-                    traceId, keyword, e.getClass().getSimpleName(), useMockWhenError);
-            if (!useMockWhenError) throw e;
+        @Override
+        public ShoppingClientResult searchProducts(String keyword, int page, int size) {
+            return searchProducts(keyword, page, size, null);
         }
-
-        List<ShoppingProduct> mock = searchFromMock(keyword, page, size);
-        log.info("[SHOPPING_CLIENT][{}] MOCK keyword=\"{}\" responseCount={}",
-                traceId, keyword, mock.size());
-        return ShoppingClientResult.builder()
-                .products(mock)
-                .source("MOCK")
-                .build();
-    }
-
-    private List<ShoppingProduct> callRealApi(String keyword, int page, int size) {
-        URI uri = UriComponentsBuilder
-                .fromHttpUrl(baseUrl)
-                .queryParam("key", apiKey)
-                .queryParam("apiCode", "ProductSearch")
-                .queryParam("keyword", keyword)
-                .queryParam("pageSize", size)
-                .queryParam("pageNum", page)
-                .build()
-                .encode(StandardCharsets.UTF_8)
-                .toUri();
-
-        String response = restTemplate.getForObject(uri, String.class);
-
-        if (response == null || response.isBlank()) {
-            return List.of();
-        }
-
-        try {
-            return parseProductsFromXml(response);
-        } catch (Exception e) {
-            log.error("[11st] Failed to parse XML response", e);
-            return List.of();
-        }
-    }
-
-    private List<ShoppingProduct> searchFromMock(String keyword, int page, int size) {
-        List<ShoppingProduct> filtered = mockProducts.stream()
-                .filter(p -> p.getTitle() != null && p.getTitle().contains(keyword))
-                .collect(Collectors.toList());
-
-        int fromIndex = Math.max(0, (page - 1) * size);
-        int toIndex = Math.min(filtered.size(), fromIndex + size);
-
-        if (fromIndex >= filtered.size()) return List.of();
-        return filtered.subList(fromIndex, toIndex);
-    }
-
-    private List<ShoppingProduct> parseProductsFromXml(String xml) throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        factory.setExpandEntityReferences(false);
-
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        InputSource is = new InputSource(new StringReader(xml));
-        Document doc = builder.parse(is);
-        doc.getDocumentElement().normalize();
-
-        NodeList productNodes = doc.getElementsByTagName("Product");
-        List<ShoppingProduct> result = new ArrayList<>();
-
-        for (int i = 0; i < productNodes.getLength(); i++) {
-            Node node = productNodes.item(i);
-            if (node.getNodeType() != Node.ELEMENT_NODE) continue;
-
-            Element e = (Element) node;
-
-            String productCode = getTagValue(e, "ProductCode");
-            String productName = getTagValue(e, "ProductName");
-            String productPriceStr = getTagValue(e, "ProductPrice");
-            String salePriceStr = getTagValue(e, "SalePrice");
-            String imageUrl = getTagValue(e, "ProductImage");
-            String detailPageUrl = getTagValue(e, "DetailPageUrl");
-            String sellerNick = getTagValue(e, "SellerNick");
-
-            int price = 0;
+    
+        /**
+         * ✅ 카테고리 타겟팅 검색 지원
+         */
+        public ShoppingClientResult searchProducts(String keyword, int page, int size, String dispCtgrNo) {
+            String traceId = currentTraceId();
             try {
-                if (salePriceStr != null && !salePriceStr.isBlank()) {
-                    price = Integer.parseInt(salePriceStr.trim());
-                } else if (productPriceStr != null && !productPriceStr.isBlank()) {
-                    price = Integer.parseInt(productPriceStr.trim());
+                long startMs = System.currentTimeMillis();
+                List<ShoppingProduct> real = callRealApi(keyword, page, size, dispCtgrNo);
+                if (real != null && !real.isEmpty()) {
+                    log.info("[SHOPPING_CLIENT][{}] REAL keyword=\"{}\" cat={} responseCount={} tookMs={}",
+                            traceId, keyword, dispCtgrNo, real.size(), System.currentTimeMillis() - startMs);
+                    return ShoppingClientResult.builder()
+                            .products(real)
+                            .source("REAL")
+                            .build();
                 }
-            } catch (NumberFormatException ex) {
-                log.warn("[11st] Cannot parse price: salePrice={}, productPrice={}", salePriceStr, productPriceStr);
+            } catch (Exception e) {
+                log.warn("[SHOPPING_CLIENT][{}] REAL_FAIL keyword=\"{}\" ex={} fallback={}",
+                        traceId, keyword, e.getClass().getSimpleName(), useMockWhenError);
+                if (!useMockWhenError) throw e;
             }
-
-            ShoppingProduct product = ShoppingProduct.builder()
-                    .externalId(productCode)
-                    .title(productName)
-                    .price(price)
-                    .gramPerUnit(null)
-                    .imageUrl(imageUrl)
-                    .productUrl(detailPageUrl)
-                    .mallName((sellerNick != null && !sellerNick.isBlank()) ? sellerNick : "11st")
+    
+            List<ShoppingProduct> mock = searchFromMock(keyword, page, size);
+            return ShoppingClientResult.builder()
+                    .products(mock)
+                    .source("MOCK")
                     .build();
-
-            result.add(product);
         }
-
-        log.info("[SHOPPING_CLIENT][{}] REAL_PARSED responseCount={}", currentTraceId(), result.size());
-        return result;
-    }
-
+    
+        private List<ShoppingProduct> callRealApi(String keyword, int page, int size, String dispCtgrNo) {
+            UriComponentsBuilder builder = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl)
+                    .queryParam("key", apiKey)
+                    .queryParam("apiCode", "ProductSearch")
+                    .queryParam("keyword", keyword)
+                    .queryParam("pageSize", size)
+                    .queryParam("pageNum", page);
+            
+            // ✅ 카테고리 번호가 있으면 파라미터 추가
+            if (dispCtgrNo != null && !dispCtgrNo.isBlank()) {
+                builder.queryParam("targetSearchPrd", "KWD_CAT_MATCH"); // 카테고리 매칭 모드 활성 (옵션)
+                builder.queryParam("dispCtgrNo", dispCtgrNo);
+            }
+    
+            URI uri = builder.build().encode(StandardCharsets.UTF_8).toUri();
+            log.debug("[11st] Request URI: {}", uri);
+    
+            String response = restTemplate.getForObject(uri, String.class);
+            if (response == null || response.isBlank()) return List.of();
+    
+            try {
+                return parseProductsFromXml(response);
+            } catch (Exception e) {
+                log.error("[11st] Failed to parse XML response", e);
+                return List.of();
+            }
+        }
+    
+        private List<ShoppingProduct> searchFromMock(String keyword, int page, int size) {
+            List<ShoppingProduct> filtered = mockProducts.stream()
+                    .filter(p -> p.getTitle() != null && p.getTitle().contains(keyword))
+                    .collect(Collectors.toList());
+    
+            int fromIndex = Math.max(0, (page - 1) * size);
+            int toIndex = Math.min(filtered.size(), fromIndex + size);
+    
+            if (fromIndex >= filtered.size()) return List.of();
+            return filtered.subList(fromIndex, toIndex);
+        }
+    
+        private List<ShoppingProduct> parseProductsFromXml(String xml) throws Exception {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            InputSource is = new InputSource(new StringReader(xml));
+            Document doc = builder.parse(is);
+            doc.getDocumentElement().normalize();
+    
+            NodeList productNodes = doc.getElementsByTagName("Product");
+            List<ShoppingProduct> result = new ArrayList<>();
+    
+            for (int i = 0; i < productNodes.getLength(); i++) {
+                Node node = productNodes.item(i);
+                if (node.getNodeType() != Node.ELEMENT_NODE) continue;
+    
+                Element e = (Element) node;
+    
+                String productCode = getTagValue(e, "ProductCode");
+                String productName = getTagValue(e, "ProductName");
+                String salePriceStr = getTagValue(e, "SalePrice");
+                if (salePriceStr == null) salePriceStr = getTagValue(e, "ProductPrice");
+                String imageUrl = getTagValue(e, "ProductImage");
+                if (imageUrl == null) imageUrl = getTagValue(e, "ProductImage300");
+                String detailPageUrl = getTagValue(e, "DetailPageUrl");
+                String sellerNick = getTagValue(e, "SellerNick");
+    
+                // ✅ 카테고리 정보 파싱 (멀티 태그 지원)
+                String dispNo = getTagValue(e, "CategoryCode");
+                if (dispNo == null) dispNo = getTagValue(e, "DispatchDispNo");
+                if (dispNo == null) dispNo = getTagValue(e, "DispNo");
+    
+                String dispNm = getTagValue(e, "CategoryName");
+                if (dispNm == null) dispNm = getTagValue(e, "DispatchDispNm");
+                if (dispNm == null) dispNm = getTagValue(e, "DispNm");
+    
+                int price = 0;
+                try {
+                    if (salePriceStr != null) price = Integer.parseInt(salePriceStr.trim());
+                } catch (Exception ex) {}
+    
+                result.add(ShoppingProduct.builder()
+                        .externalId(productCode)
+                        .title(productName)
+                        .price(price)
+                        .imageUrl(imageUrl)
+                        .productUrl(detailPageUrl)
+                        .mallName((sellerNick != null) ? sellerNick : "11st")
+                        .categoryCode(dispNo)
+                        .categoryName(dispNm)
+                        .build());
+            }
+            return result;
+        }
     private String getTagValue(Element parent, String tagName) {
         NodeList list = parent.getElementsByTagName(tagName);
         if (list.getLength() == 0) return null;
