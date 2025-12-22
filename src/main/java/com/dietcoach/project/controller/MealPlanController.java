@@ -6,17 +6,22 @@ import com.dietcoach.project.dto.meal.MealPlanCreateRequest;
 import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
 import com.dietcoach.project.dto.meal.MealPlanIngredientResponse;
 import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
+import com.dietcoach.project.dto.meal.ShoppingListResponse;
 import com.dietcoach.project.service.MealPlanService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
+@Slf4j
 public class MealPlanController {
 
     private final MealPlanService mealPlanService;
@@ -33,6 +38,7 @@ public class MealPlanController {
             @AuthenticationPrincipal Long userId,
             @RequestBody MealPlanCreateRequest request
     ) {
+        log.info("[MealPlan] POST /api/meal-plans serviceClass={}", mealPlanService.getClass().getName());
         MealPlanOverviewResponse response = mealPlanService.createMonthlyPlan(userId, request);
         return ApiResponse.success("meal plan created", response);
     }
@@ -89,5 +95,34 @@ public class MealPlanController {
     @GetMapping("/meal-plans/days/{dayId}")
     public ApiResponse<MealPlanDayDetailResponse> getDayDetail(@PathVariable Long dayId) {
         return ApiResponse.success(mealPlanService.getDayDetail(dayId));
+    }
+    @GetMapping("/meal-plans/{planId}/shopping-list")
+    public ApiResponse<ShoppingListResponse> getShopping(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long planId,
+            @RequestParam(defaultValue = "MONTH") String range
+    ) {
+        String traceId = UUID.randomUUID().toString().replace("-", "");
+        traceId = traceId.substring(0, Math.min(8, traceId.length()));
+        long startMs = System.currentTimeMillis();
+        MDC.put("traceId", traceId);
+        log.info("[SHOPPING_LIST][{}] START planId={} userId={} range={}",
+                traceId, planId, userId, range);
+        try {
+            ShoppingListResponse response = mealPlanService.getShoppingList(planId, range);
+            int itemCount = response.getItems() == null ? 0 : response.getItems().size();
+            log.info("[SHOPPING_LIST][{}] END planId={} ingredients={} items={} source={} startDate={} endDate={} tookMs={}",
+                    traceId,
+                    planId,
+                    itemCount,
+                    itemCount,
+                    response.getSource(),
+                    response.getStartDate(),
+                    response.getEndDate(),
+                    System.currentTimeMillis() - startMs);
+            return ApiResponse.success(response);
+        } finally {
+            MDC.remove("traceId");
+        }
     }
 }

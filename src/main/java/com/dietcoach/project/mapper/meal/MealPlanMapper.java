@@ -1,5 +1,6 @@
 package com.dietcoach.project.mapper.meal;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.apache.ibatis.annotations.Mapper;
@@ -23,7 +24,12 @@ public interface MealPlanMapper {
     MealPlanDay findMealPlanDayById(@Param("dayId") Long dayId);
     MealPlan findLatestMealPlanByUserId(@Param("userId") Long userId);
     List<MealPlanIngredientResponse> findIngredientsForPlan(@Param("planId") Long planId);
+    Integer sumMealItemCaloriesByDayId(@Param("mealPlanDayId") Long mealPlanDayId);
     int updateMealPlanDayTotalCalories(@Param("dayId") Long dayId,
             @Param("totalCalories") Integer totalCalories);
-    
+    List<MealPlanIngredientResponse> findIngredientsForPlanInRange(
+    	    @Param("planId") Long planId,
+    	    @Param("fromDate") LocalDate fromDate,
+    	    @Param("toDate") LocalDate toDate
+    	);
 }

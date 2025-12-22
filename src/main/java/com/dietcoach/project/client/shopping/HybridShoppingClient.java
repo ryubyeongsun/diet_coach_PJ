@@ -2,6 +2,7 @@ package com.dietcoach.project.client.shopping;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
@@ -27,16 +28,27 @@ public class HybridShoppingClient implements ShoppingClient {
                 return real; // source=REAL
             }
 
-            log.warn("[HybridShoppingClient] Empty result from REAL API, fallback to MOCK");
+            log.warn("[SHOPPING_CLIENT][{}] REAL_EMPTY keyword=\"{}\" fallback=MOCK", currentTraceId(), keyword);
             return mockShoppingClient.searchProducts(keyword, page, size);
 
         } catch (Exception e) {
-            log.error("[HybridShoppingClient] REAL API failed", e);
+            log.error(
+                    "[SHOPPING_CLIENT][{}] REAL_FAIL keyword=\"{}\" ex={} fallback={}",
+                    currentTraceId(),
+                    keyword,
+                    e.getClass().getSimpleName(),
+                    useMockWhenError ? "MOCK" : "NONE",
+                    e
+            );
 
             if (!useMockWhenError) throw e;
 
-            log.warn("[HybridShoppingClient] Using MOCK fallback");
             return mockShoppingClient.searchProducts(keyword, page, size);
         }
+    }
+
+    private String currentTraceId() {
+        String traceId = MDC.get("traceId");
+        return traceId == null ? "no-trace" : traceId;
     }
 }
