@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dietcoach.project.mapper.meal.MealIntakeMapper">
+
+    <resultMap id="MealIntakeResultMap" type="com.dietcoach.project.domain.meal.MealIntake">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="mealPlanDayId" column="meal_plan_day_id"/>
+        <result property="mealTime" column="meal_time"/>
+        <result property="isConsumed" column="is_consumed"/>
+        <result property="consumedAt" column="consumed_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="upsert" parameterType="com.dietcoach.project.domain.meal.MealIntake" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meal_intakes (
+            user_id,
+            meal_plan_day_id,
+            meal_time,
+            is_consumed,
+            consumed_at,
+            created_at,
+            updated_at
+        ) VALUES (
+            #{userId},
+            #{mealPlanDayId},
+            #{mealTime},
+            #{isConsumed},
+            #{consumedAt},
+            NOW(),
+            NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+            is_consumed = VALUES(is_consumed),
+            consumed_at = VALUES(consumed_at),
+            updated_at = NOW()
+    </insert>
+
+    <select id="findByDayId" resultMap="MealIntakeResultMap">
+        SELECT *
+        FROM meal_intakes
+        WHERE user_id = #{userId}
+          AND meal_plan_day_id = #{mealPlanDayId}
+    </select>
+
+    <delete id="deleteByDayId">
+        DELETE FROM meal_intakes
+        WHERE user_id = #{userId}
+          AND meal_plan_day_id = #{mealPlanDayId}
+    </delete>
+
+    <delete id="deleteByDayIdAndMealTime">
+        DELETE FROM meal_intakes
+        WHERE user_id = #{userId}
+          AND meal_plan_day_id = #{mealPlanDayId}
+          AND meal_time = #{mealTime}
+    </delete>
+
+    <select id="findConsumedByDayId" resultMap="MealIntakeResultMap">
+        SELECT *
+        FROM meal_intakes
+        WHERE user_id = #{userId}
+          AND meal_plan_day_id = #{mealPlanDayId}
+          AND is_consumed = 1
+    </select>
+
+</mapper>

@@ -5,6 +5,7 @@ use yumyum;
 USE yumyum;
 
 -- Drop tables in reverse order of creation to avoid foreign key constraints
+DROP TABLE IF EXISTS meal_intakes;
 DROP TABLE IF EXISTS refresh_tokens;
 DROP TABLE IF EXISTS shopping_cart_items;
 DROP TABLE IF EXISTS meal_items;
@@ -91,6 +92,21 @@ CREATE TABLE meal_items (
         FOREIGN KEY (meal_plan_day_id) REFERENCES meal_plan_days(id)
 );
 
+-- Create meal_intakes table
+CREATE TABLE meal_intakes (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  meal_plan_day_id BIGINT NOT NULL,
+  meal_time VARCHAR(20) NOT NULL,
+  is_consumed TINYINT(1) NOT NULL DEFAULT 0,
+  consumed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_intake (user_id, meal_plan_day_id, meal_time),
+  CONSTRAINT fk_intake_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_intake_day FOREIGN KEY (meal_plan_day_id) REFERENCES meal_plan_days(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Create shopping_cart_items table
 CREATE TABLE shopping_cart_items (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -120,4 +136,3 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   INDEX idx_refresh_user_id (user_id),
   INDEX idx_refresh_expires_at (expires_at)
 );
-
