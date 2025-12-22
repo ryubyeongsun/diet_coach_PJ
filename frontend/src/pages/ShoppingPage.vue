@@ -1,75 +1,75 @@
 <template>
   <div class="page">
     <header class="page__header">
-      <h1>장보기 리스트</h1>
-      <p v-if="shoppingData">
-        <strong>{{ shoppingData.fromDate }} ~ {{ shoppingData.toDate }}</strong>
-        기간의 필요 재료입니다.
-      </p>
-      <p v-else>식단 플랜에 따른 재료 목록을 확인하고 구매해 보세요.</p>
-    </header>
-
-    <div v-if="isValidPlanId">
-      <div class="controls">
+      <div class="header-top">
+        <h1>장보기 리스트</h1>
         <div class="period-selector">
-          <button
-            @click="setRange('TODAY')"
-            :class="{ active: range === 'TODAY' }"
-          >
-            오늘
-          </button>
-          <button
-            @click="setRange('WEEK')"
-            :class="{ active: range === 'WEEK' }"
-          >
-            이번 주
-          </button>
-          <button
-            @click="setRange('MONTH')"
-            :class="{ active: range === 'MONTH' }"
-          >
-            이번 달
-          </button>
+          <button @click="setRange('TODAY')" :class="{ active: range === 'TODAY' }">오늘</button>
+          <button @click="setRange('WEEK')" :class="{ active: range === 'WEEK' }">이번 주</button>
+          <button @click="setRange('MONTH')" :class="{ active: range === 'MONTH' }">이번 달</button>
         </div>
       </div>
+      <p v-if="shoppingData && shoppingData.fromDate && shoppingData.toDate" class="date-range">
+        {{ shoppingData.fromDate }} ~ {{ shoppingData.toDate }}
+      </p>
+    </header>
 
+    <div v-if="isValidPlanId" class="content">
       <div v-if="isLoading" class="page__status">
-        <p>장보기 목록을 불러오는 중입니다...</p>
+        <div class="spinner"></div>
+        <p>재료 정보를 분석하고 있어요...</p>
       </div>
+      
       <div v-else-if="error" class="page__error">
         <p>{{ error }}</p>
       </div>
-      <div
-        v-else-if="shoppingData && shoppingData.items.length > 0"
-        class="item-list"
-      >
-        <ShoppingItemCard
-          v-for="(item, index) in shoppingData.items"
-          :key="index"
-          :item="item"
-        />
+
+      <div v-else-if="shoppingData && shoppingData.items.length > 0">
+        <!-- 요약 및 일괄 작업 카드 -->
+        <div class="summary-bar">
+          <div class="summary-info">
+            <span class="label">총 예상 비용</span>
+            <span class="value">{{ totalPrice.toLocaleString() }}원</span>
+          </div>
+          <div class="summary-actions">
+            <button class="bulk-btn" @click="addSelectedToCart" :disabled="checkedItems.size === 0">
+              선택 담기 ({{ checkedItems.size }})
+            </button>
+          </div>
+        </div>
+
+        <!-- 그리드 리스트 -->
+        <div class="item-grid">
+          <ShoppingItemCard
+            v-for="(item, index) in shoppingData.items"
+            :key="index"
+            :item="item"
+            :is-checked="checkedItems.has(index)"
+            @toggle="toggleCheck(index)"
+            @add-to-cart="handleAddSingle"
+          />
+        </div>
       </div>
+
       <div v-else class="page__status">
-        <p>표시할 재료가 없습니다.</p>
+        <p>구매할 재료가 없습니다.</p>
       </div>
     </div>
 
     <div v-else class="page__error">
-      <p>
-        유효한 식단 정보가 없습니다. 식단 관리 페이지로 돌아가서 다시
-        시도해주세요.
-      </p>
-      <NnButton @click="goBack">돌아가기</NnButton>
+      <p>식단 플랜이 없습니다.</p>
+      <NnButton @click="goBack">식단 생성하러 가기</NnButton>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fetchShoppingList } from "../api/shoppingApi.js";
 import { fetchLatestMealPlan } from "../api/mealPlanApi.js";
 import { getCurrentUser } from "../utils/auth";
+import { addToCart } from "../utils/globalState"; // Import global cart action
 import ShoppingItemCard from "../components/shopping/ShoppingItemCard.vue";
 import NnButton from "../components/common/NnButton.vue";
 
@@ -78,17 +78,64 @@ const router = useRouter();
 
 const planId = ref(null);
 const isValidPlanId = ref(false);
-const range = ref("MONTH"); // 기본값 MONTH
+const range = ref("WEEK");
 const shoppingData = ref(null);
 const isLoading = ref(false);
 const error = ref("");
+
+const checkedItems = ref(new Set());
+
+const totalPrice = computed(() => {
+  if (!shoppingData.value) return 0;
+  return shoppingData.value.items.reduce((sum, item) => {
+    if (item.product && item.product.price) {
+      return sum + item.product.price;
+    }
+    return sum;
+  }, 0);
+});
+
+function toggleCheck(index) {
+  if (checkedItems.value.has(index)) {
+    checkedItems.value.delete(index);
+  } else {
+    checkedItems.value.add(index);
+  }
+}
+
+// 개별 담기
+function handleAddSingle(product) {
+  addToCart(product);
+}
+
+// 일괄 담기
+function addSelectedToCart() {
+  if (checkedItems.value.size === 0) return;
+  
+  let addedCount = 0;
+  checkedItems.value.forEach((index) => {
+    const item = shoppingData.value.items[index];
+    if (item && item.product) {
+      // addToCart는 내부적으로 중복 체크 등을 수행함 (globalState 확인)
+      // 하지만 alert가 매번 뜨면 귀찮으므로, globalState의 addToCart를 수정하거나
+      // 여기서는 직접 push하고 한 번만 알림을 띄우는 게 나음.
+      // 일단 기존 addToCart 재사용 (알림이 여러번 뜰 수 있음 - UX 개선 포인트)
+      // 개선: globalState에 addMultipleToCart가 없으므로 반복 호출
+      addToCart(item.product); 
+      addedCount++;
+    }
+  });
+  
+  // 선택 해제
+  checkedItems.value.clear();
+}
 
 async function loadShoppingList() {
   if (!isValidPlanId.value) return;
 
   isLoading.value = true;
   error.value = "";
-  // shoppingData.value = null; // 이전 데이터 clear
+  checkedItems.value.clear();
 
   try {
     const response = await fetchShoppingList(planId.value, range.value);
@@ -98,9 +145,9 @@ async function loadShoppingList() {
     if (err.response?.status === 401) {
       router.push("/login");
     } else if (err.response?.status === 404) {
-      error.value = "장보기 기능은 아직 준비 중입니다. 잠시만 기다려 주세요.";
+      error.value = "아직 식단이 생성되지 않았습니다.";
     } else {
-      error.value = "장보기 정보를 불러올 수 없습니다. 다시 시도해주세요.";
+      error.value = "장보기 정보를 불러올 수 없습니다.";
     }
     shoppingData.value = null;
   } finally {
@@ -117,7 +164,6 @@ function goBack() {
 }
 
 watch(range, () => {
-  // range가 변경되면 데이터를 다시 불러옵니다.
   loadShoppingList();
 });
 
@@ -126,9 +172,8 @@ onMounted(async () => {
   if (id && !isNaN(id)) {
     planId.value = Number(id);
     isValidPlanId.value = true;
-    loadShoppingList(); // planId가 유효하면 데이터 로드 시작
+    loadShoppingList();
   } else {
-    // planId가 쿼리로 넘어오지 않은 경우, 사용자 최신 플랜 조회 시도
     const user = getCurrentUser();
     if (user && user.id) {
       try {
@@ -142,7 +187,6 @@ onMounted(async () => {
           isValidPlanId.value = false;
         }
       } catch (e) {
-        console.error("Failed to fetch latest meal plan", e);
         isValidPlanId.value = false;
       } finally {
         isLoading.value = false;
@@ -156,87 +200,177 @@ onMounted(async () => {
 
 <style scoped>
 .page {
-  max-width: 900px;
+  max-width: 1000px; /* 넓은 그리드를 위해 폭 확장 */
   margin: 0 auto;
-  padding: 20px 16px;
+  padding: 24px 16px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .page__header {
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.page__header h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.page__header p {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.controls {
-  margin-bottom: 20px;
-}
-
-.period-selector {
-  display: inline-flex;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #d1d5db;
-}
-
-.period-selector button {
-  padding: 10px 20px;
-  border: none;
-  background-color: #ffffff;
-  color: #374151;
-  cursor: pointer;
-  transition:
-    background-color 0.2s,
-    color 0.2s;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.period-selector button:not(:last-child) {
-  border-right: 1px solid #d1d5db;
-}
-
-.period-selector button.active {
-  background-color: #3b82f6;
-  color: #ffffff;
-}
-
-.period-selector button:hover:not(.active) {
-  background-color: #f3f4f6;
-}
-
-.item-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.page__status,
-.page__error {
-  padding: 40px 16px;
-  text-align: center;
-  font-size: 14px;
-  color: #6b7280;
-  background-color: #f9fafb;
-  border-radius: 8px;
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
+.page__header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.date-range {
+  font-size: 14px;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  padding: 6px 12px;
+  border-radius: 6px;
+  align-self: flex-start;
+}
+
+.period-selector {
+  display: flex;
+  background-color: #f3f4f6;
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.period-selector button {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.period-selector button.active {
+  background-color: #fff;
+  color: #047857;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* 요약 바 (Sticky) */
+.summary-bar {
+  position: sticky;
+  top: 10px; /* 헤더 아래 고정 */
+  z-index: 100;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  margin-bottom: 8px;
+}
+
+.summary-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summary-info .label {
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.summary-info .value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #047857;
+}
+
+.bulk-btn {
+  padding: 10px 20px;
+  background-color: #111827;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bulk-btn:disabled {
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.bulk-btn:not(:disabled):hover {
+  background-color: #374151;
+}
+
+/* 그리드 레이아웃 */
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.page__status,
 .page__error {
-  color: #dc2626;
-  background-color: #fef2f2;
+  padding: 60px 20px;
+  text-align: center;
+  color: #6b7280;
+  background-color: #f9fafb;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #047857;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+  .header-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .period-selector {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .period-selector button {
+    flex: 1;
+  }
+  .summary-bar {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .summary-info {
+    justify-content: space-between;
+  }
 }
 </style>
