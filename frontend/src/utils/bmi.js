@@ -26,17 +26,20 @@ export function getBmiCategory(bmi) {
 }
 
 /**
- * Maps BMI category to a character level.
- * @param {string} category - The BMI category name.
+ * Maps BMI category to a character level (1-5).
+ * Matches PRD:
+ * LV1: 매우 마름 (< 17.0)
+ * LV2: 마름 (17.0 ~ 18.4)
+ * LV3: 정상 (18.5 ~ 22.9)
+ * LV4: 통통 (23.0 ~ 24.9)
+ * LV5: 비만 (25.0 ~)
+ * @param {number} bmi - The BMI value.
  * @returns {number} Character level (1-5).
  */
-export function getCharacterLevel(category) {
-  switch (category) {
-    case '저체중': return 1;
-    case '정상': return 3;
-    case '과체중': return 2;
-    case '비만': return 4;
-    case '고도비만': return 5;
-    default: return 3;
-  }
+export function getCharacterLevel(bmi) {
+  if (bmi < 17.0) return 1;
+  if (bmi < 18.5) return 2;
+  if (bmi < 23.0) return 3;
+  if (bmi < 25.0) return 4;
+  return 5;
 }

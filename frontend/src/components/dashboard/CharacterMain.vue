@@ -2,8 +2,10 @@
   <div class="card main-character-card">
     <div v-if="latestWeight > 0" class="character-content">
       <div class="character-visual">
-        <!-- 3D 캐릭터 Placeholder -->
-        <div class="character-avatar" :class="`level-${level}`"></div>
+        <!-- 3D Character Component -->
+        <div class="character-canvas-wrapper">
+          <Character3D :level="level" />
+        </div>
         <div class="character-level">LV.{{ level }}</div>
       </div>
       <div class="character-feedback">
@@ -23,6 +25,7 @@
 import { computed } from 'vue';
 import { getCurrentUser } from '../../utils/auth';
 import { calculateBmi, getBmiCategory, getCharacterLevel } from '../../utils/bmi';
+import Character3D from './Character3D.vue';
 
 const props = defineProps({
   summary: Object,
@@ -43,7 +46,7 @@ const level = computed(() => {
     return props.summary.characterLevel;
   }
   if (bmi.value > 0) {
-    return getCharacterLevel(category.value);
+    return getCharacterLevel(bmi.value);
   }
   return 3; // Default level
 });
@@ -91,11 +94,11 @@ const statusText = computed(() => {
   text-align: center;
   padding: 40px 20px;
   min-height: 400px;
-  background: linear-gradient(145deg, #e0ffe0, #c0e0ff); /* Brighter gradient */
-  border-radius: 12px;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  background: transparent; /* Changed to transparent */
+  /* border-radius: 12px; Removed */
+  /* box-shadow: 0 8px 25px rgba(0,0,0,0.1); Removed */
   position: relative;
-  overflow: hidden;
+  /* overflow: hidden; Removed to let elements breathe */
 }
 .character-content {
   display: flex;
@@ -103,39 +106,33 @@ const statusText = computed(() => {
   align-items: center;
   position: relative;
   z-index: 2;
+  width: 100%;
 }
 .character-visual {
   position: relative;
-  margin-bottom: 30px; /* More space for character */
-}
-.character-avatar {
-  width: 150px; /* Large size for the avatar */
-  height: 150px;
-  border-radius: 50%;
-  background-color: #a0d9b4; /* Default green */
+  margin-bottom: 40px; /* Increased margin for separation */
+  width: 100%;
   display: flex;
-  align-items: center;
   justify-content: center;
-  font-size: 80px; /* Large emoji */
-  transition: all 0.3s ease;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
-.character-avatar.level-1 { background-color: #87CEEB; /* Light Blue */ }
-.character-avatar.level-2 { background-color: #FFD700; /* Gold */ }
-.character-avatar.level-3 { background-color: #90EE90; /* Light Green */ }
-.character-avatar.level-4 { background-color: #FFA07A; /* Light Salmon */ }
-.character-avatar.level-5 { background-color: #FF6347; /* Tomato */ }
+.character-canvas-wrapper {
+  width: 360px; /* Increased size for prominence */
+  height: 360px;
+  position: relative;
+  /* Removed border and box-shadow for a cleaner look */
+}
+/* Removed old avatar styles */
 
 .character-level {
   position: absolute;
-  bottom: -15px; /* Adjust position */
+  bottom: -20px; /* Lowered position */
   left: 50%;
   transform: translateX(-50%);
-  background-color: #22c55e; /* Green color */
+  background-color: #22c55e;
   color: white;
   border-radius: 999px;
-  padding: 8px 20px;
-  font-size: 18px;
+  padding: 8px 24px; /* Slightly wider padding */
+  font-size: 20px; /* Increased font size */
   font-weight: 700;
   box-shadow: 0 4px 10px rgba(0,0,0,0.2);
   white-space: nowrap;
