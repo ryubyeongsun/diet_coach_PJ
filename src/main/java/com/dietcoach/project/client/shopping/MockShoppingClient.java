@@ -2,6 +2,7 @@ package com.dietcoach.project.client.shopping;
 
 import com.dietcoach.project.domain.ShoppingProduct;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -12,12 +13,10 @@ public class MockShoppingClient implements ShoppingClient {
 
     @Override
     public ShoppingClientResult searchProducts(String keyword, int page, int size) {
-        log.warn("[MockShoppingClient] returning MOCK products. keyword={}", keyword);
-
         List<ShoppingProduct> products = List.of(
                 ShoppingProduct.builder()
                         .externalId("MOCK-001")
-                        .title(keyword + " 샘플 상품 1")
+                        .title(keyword + " mock product 1")
                         .price(9900)
                         .gramPerUnit(null)
                         .imageUrl(null)
@@ -26,7 +25,7 @@ public class MockShoppingClient implements ShoppingClient {
                         .build(),
                 ShoppingProduct.builder()
                         .externalId("MOCK-002")
-                        .title(keyword + " 샘플 상품 2")
+                        .title(keyword + " mock product 2")
                         .price(12900)
                         .gramPerUnit(null)
                         .imageUrl(null)
@@ -35,9 +34,21 @@ public class MockShoppingClient implements ShoppingClient {
                         .build()
         );
 
+        log.warn(
+                "[SHOPPING_CLIENT][{}] MOCK keyword=\"{}\" responseCount={}",
+                currentTraceId(),
+                keyword,
+                products.size()
+        );
+
         return ShoppingClientResult.builder()
                 .products(products)
                 .source("MOCK")
                 .build();
+    }
+
+    private String currentTraceId() {
+        String traceId = MDC.get("traceId");
+        return traceId == null ? "no-trace" : traceId;
     }
 }

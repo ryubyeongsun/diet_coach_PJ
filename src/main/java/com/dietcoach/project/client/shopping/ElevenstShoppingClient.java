@@ -4,6 +4,7 @@ import com.dietcoach.project.domain.ShoppingProduct;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -76,23 +77,31 @@ public class ElevenstShoppingClient implements ShoppingClient {
 
     @Override
     public ShoppingClientResult searchProducts(String keyword, int page, int size) {
+        String traceId = currentTraceId();
         try {
+            long startMs = System.currentTimeMillis();
             List<ShoppingProduct> real = callRealApi(keyword, page, size);
             if (real != null && !real.isEmpty()) {
+                log.info("[SHOPPING_CLIENT][{}] REAL keyword=\"{}\" responseCount={} tookMs={}",
+                        traceId, keyword, real.size(), System.currentTimeMillis() - startMs);
                 return ShoppingClientResult.builder()
                         .products(real)
                         .source("REAL")
                         .build();
             }
-            log.warn("[11st] Empty result from REAL API. keyword={}, page={}, size={}", keyword, page, size);
+            log.warn("[SHOPPING_CLIENT][{}] REAL keyword=\"{}\" responseCount=0 tookMs={}",
+                    traceId, keyword, System.currentTimeMillis() - startMs);
         } catch (Exception e) {
-            log.error("[11st] REAL API failed. keyword={}, page={}, size={}", keyword, page, size, e);
+            log.warn("[SHOPPING_CLIENT][{}] REAL_FAIL keyword=\"{}\" ex={} fallback={}",
+                    traceId, keyword, e.getClass().getSimpleName(), useMockWhenError);
             if (!useMockWhenError) throw e;
         }
 
-        log.warn("[11st] Using MOCK fallback. keyword={}, page={}, size={}", keyword, page, size);
+        List<ShoppingProduct> mock = searchFromMock(keyword, page, size);
+        log.info("[SHOPPING_CLIENT][{}] MOCK keyword=\"{}\" responseCount={}",
+                traceId, keyword, mock.size());
         return ShoppingClientResult.builder()
-                .products(searchFromMock(keyword, page, size))
+                .products(mock)
                 .source("MOCK")
                 .build();
     }
@@ -108,8 +117,6 @@ public class ElevenstShoppingClient implements ShoppingClient {
                 .build()
                 .encode(StandardCharsets.UTF_8)
                 .toUri();
-
-        log.info("[11st] Calling API: {}", uri);
 
         String response = restTemplate.getForObject(uri, String.class);
 
@@ -190,7 +197,7 @@ public class ElevenstShoppingClient implements ShoppingClient {
             result.add(product);
         }
 
-        log.info("[11st] Parsed {} products from XML", result.size());
+        log.info("[SHOPPING_CLIENT][{}] REAL_PARSED responseCount={}", currentTraceId(), result.size());
         return result;
     }
 
@@ -201,5 +208,10 @@ public class ElevenstShoppingClient implements ShoppingClient {
         if (node == null) return null;
         Node child = node.getFirstChild();
         return (child != null) ? child.getNodeValue() : null;
+    }
+
+    private String currentTraceId() {
+        String traceId = MDC.get("traceId");
+        return (traceId == null || traceId.isBlank()) ? "no-trace" : traceId;
     }
 }

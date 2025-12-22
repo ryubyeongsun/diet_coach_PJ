@@ -15,7 +15,7 @@ export async function fetchMealPlan(planId) {
 
 // 30일 식단 생성 (PRD 기반)
 export async function createMealPlan(payload) {
-  const res = await http.post('/meal-plans', payload);
+  const res = await http.post('/meal-plans', payload, { timeout: 120000 });
   return res.data.data ?? res.data;
 }
 

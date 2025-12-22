@@ -3,184 +3,207 @@
   PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
   "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.dietcoach.project.mapper.meal.MealPlanMapper">
+<mapper
+	namespace="com.dietcoach.project.mapper.meal.MealPlanMapper">
 
-  <!-- =========================
-       ResultMaps
-  ========================== -->
+	<!-- ========================= ResultMaps ========================== -->
 
-   <resultMap id="MealPlanResultMap" type="com.dietcoach.project.domain.meal.MealPlan">
-    <id     property="id"                 column="id"/>
-    <result property="userId"             column="user_id"/>
+	<resultMap id="MealPlanResultMap"
+		type="com.dietcoach.project.domain.meal.MealPlan">
+		<id property="id" column="id" />
+		<result property="userId" column="user_id" />
 
-    <result property="startDate"          column="start_date" jdbcType="DATE"/>
-    <result property="endDate"            column="end_date"   jdbcType="DATE"/>
+		<result property="startDate" column="start_date"
+			jdbcType="DATE" />
+		<result property="endDate" column="end_date" jdbcType="DATE" />
 
-    <result property="totalDays"          column="total_days"/>
-    <result property="targetCaloriesPerDay" column="target_calories_per_day"/>
+		<result property="totalDays" column="total_days" />
+		<result property="targetCaloriesPerDay"
+			column="target_calories_per_day" />
 
-    <result property="monthlyBudget"      column="monthly_budget"/>
-    <result property="mealsPerDay"        column="meals_per_day"/>
-    <result property="preferences"        column="preferences"/>
-    <result property="allergies"          column="allergies"/>
+		<result property="monthlyBudget" column="monthly_budget" />
+		<result property="mealsPerDay" column="meals_per_day" />
+		<result property="preferences" column="preferences" />
+		<result property="allergies" column="allergies" />
 
-    <result property="createdAt"          column="created_at"/>
-    <result property="updatedAt"          column="updated_at"/>
-  </resultMap>
+		<result property="createdAt" column="created_at" />
+		<result property="updatedAt" column="updated_at" />
+	</resultMap>
 
-  <resultMap id="MealPlanDayMap" type="com.dietcoach.project.domain.meal.MealPlanDay">
-    <id property="id" column="id"/>
-    <result property="mealPlanId" column="meal_plan_id"/>
-    <result property="planDate" column="plan_date"/>
-    <result property="dayIndex" column="day_index"/>
-    <result property="totalCalories" column="total_calories"/>
-    <result property="createdAt" column="created_at"/>
-    <result property="updatedAt" column="updated_at"/>
-  </resultMap>
+	<resultMap id="MealPlanDayMap"
+		type="com.dietcoach.project.domain.meal.MealPlanDay">
+		<id property="id" column="id" />
+		<result property="mealPlanId" column="meal_plan_id" />
+		<result property="planDate" column="plan_date" />
+		<result property="dayIndex" column="day_index" />
+		<result property="totalCalories" column="total_calories" />
+		<result property="createdAt" column="created_at" />
+		<result property="updatedAt" column="updated_at" />
+	</resultMap>
 
-  <resultMap id="MealItemMap" type="com.dietcoach.project.domain.meal.MealItem">
-    <id property="id" column="id"/>
-    <result property="mealPlanDayId" column="meal_plan_day_id"/>
-    <result property="mealTime" column="meal_time"/>
-    <result property="foodName" column="food_name"/>
-    <result property="calories" column="calories"/>
-    <result property="grams" column="grams"/>
-    <result property="memo" column="memo"/>
-    <result property="createdAt" column="created_at"/>
-    <result property="updatedAt" column="updated_at"/>
-  </resultMap>
+	<resultMap id="MealItemMap"
+		type="com.dietcoach.project.domain.meal.MealItem">
+		<id property="id" column="id" />
+		<result property="mealPlanDayId" column="meal_plan_day_id" />
+		<result property="mealTime" column="meal_time" />
+		<result property="foodName" column="food_name" />
+		<result property="calories" column="calories" />
+		<result property="grams" column="grams" />
+		<result property="memo" column="memo" />
+		<result property="createdAt" column="created_at" />
+		<result property="updatedAt" column="updated_at" />
+	</resultMap>
 
-  <!-- =========================
-       Inserts
-  ========================== -->
+	<!-- ========================= Inserts ========================== -->
 
-  <!-- MealPlan -->
-   <insert id="insertMealPlan"
-          parameterType="com.dietcoach.project.domain.meal.MealPlan"
-          useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO meal_plans
-    (
-      user_id, start_date, end_date, total_days, target_calories_per_day,
-      monthly_budget, meals_per_day, preferences, allergies,
-      created_at, updated_at
-    )
-    VALUES
-    (
-      #{userId}, #{startDate}, #{endDate}, #{totalDays}, #{targetCaloriesPerDay},
-      #{monthlyBudget}, #{mealsPerDay}, #{preferences}, #{allergies},
-      NOW(), NOW()
-    )
-  </insert>
+	<!-- MealPlan -->
+	<insert id="insertMealPlan"
+		parameterType="com.dietcoach.project.domain.meal.MealPlan"
+		useGeneratedKeys="true" keyProperty="id">
+		INSERT INTO meal_plans
+		(
+		user_id, start_date, end_date, total_days, target_calories_per_day,
+		monthly_budget, meals_per_day, preferences, allergies,
+		created_at, updated_at
+		)
+		VALUES
+		(
+		#{userId}, #{startDate}, #{endDate}, #{totalDays}, #{targetCaloriesPerDay},
+		#{monthlyBudget}, #{mealsPerDay}, #{preferences}, #{allergies},
+		NOW(), NOW()
+		)
+	</insert>
 
-  <!-- MealPlanDay -->
-  <insert id="insertMealPlanDay"
-          parameterType="com.dietcoach.project.domain.meal.MealPlanDay"
-          useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO meal_plan_days
-    (
-      meal_plan_id, plan_date, day_index, total_calories,
-      created_at, updated_at
-    )
-    VALUES
-    (
-      #{mealPlanId}, #{planDate}, #{dayIndex}, #{totalCalories},
-      NOW(), NOW()
-    )
-  </insert>
+	<!-- MealPlanDay -->
+	<insert id="insertMealPlanDay"
+		parameterType="com.dietcoach.project.domain.meal.MealPlanDay"
+		useGeneratedKeys="true" keyProperty="id">
+		INSERT INTO meal_plan_days
+		(
+		meal_plan_id, plan_date, day_index, total_calories,
+		created_at, updated_at
+		)
+		VALUES
+		(
+		#{mealPlanId}, #{planDate}, #{dayIndex}, #{totalCalories},
+		NOW(), NOW()
+		)
+	</insert>
 
-  <!-- MealItem -->
-  <insert id="insertMealItem"
-          parameterType="com.dietcoach.project.domain.meal.MealItem"
-          useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO meal_items
-    (
-      meal_plan_day_id, meal_time, food_name, calories, grams, memo,
-      created_at, updated_at
-    )
-    VALUES
-    (
-      #{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{grams}, #{memo},
-      NOW(), NOW()
-    )
-  </insert>
+	<!-- MealItem -->
+	<insert id="insertMealItem"
+		parameterType="com.dietcoach.project.domain.meal.MealItem"
+		useGeneratedKeys="true" keyProperty="id">
+		INSERT INTO meal_items
+		(
+		meal_plan_day_id, meal_time, food_name, calories, grams, memo,
+		created_at, updated_at
+		)
+		VALUES
+		(
+		#{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{grams}, #{memo},
+		NOW(), NOW()
+		)
+	</insert>
 
-  <!-- =========================
-       Selects
-  ========================== -->
+	<!-- ========================= Selects ========================== -->
 
-    <select id="findMealPlanById" resultMap="MealPlanResultMap">
+	<select id="findMealPlanById" resultMap="MealPlanResultMap">
+		SELECT
+		id, user_id, start_date, end_date, total_days, target_calories_per_day,
+		monthly_budget, meals_per_day, preferences, allergies,
+		created_at, updated_at
+		FROM meal_plans
+		WHERE id = #{id}
+	</select>
+
+	<select id="findLatestMealPlanByUserId"
+		resultMap="MealPlanResultMap">
+		SELECT
+		id, user_id, start_date, end_date, total_days, target_calories_per_day,
+		monthly_budget, meals_per_day, preferences, allergies,
+		created_at, updated_at
+		FROM meal_plans
+		WHERE user_id = #{userId}
+		ORDER BY start_date DESC, id DESC
+		LIMIT 1
+	</select>
+
+	<select id="findMealPlanDaysByPlanId" resultMap="MealPlanDayMap">
+		SELECT
+		id, meal_plan_id, plan_date, day_index, total_calories,
+		created_at, updated_at
+		FROM meal_plan_days
+		WHERE meal_plan_id = #{mealPlanId}
+		ORDER BY day_index ASC
+	</select>
+
+	<select id="findMealPlanDayById" parameterType="long"
+		resultMap="MealPlanDayMap">
+		SELECT
+		id, meal_plan_id, plan_date, day_index, total_calories,
+		created_at, updated_at
+		FROM meal_plan_days
+		WHERE id = #{dayId}
+	</select>
+
+	<select id="findMealItemsByDayId" resultMap="MealItemMap">
+		SELECT
+		id, meal_plan_day_id, meal_time, food_name, calories, grams, memo,
+		created_at, updated_at
+		FROM meal_items
+		WHERE meal_plan_day_id = #{mealPlanDayId}
+		ORDER BY meal_time
+	</select>
+
+	<select id="sumMealItemCaloriesByDayId" resultType="int">
+		SELECT COALESCE(SUM(calories), 0)
+		FROM meal_items
+		WHERE meal_plan_day_id = #{mealPlanDayId}
+	</select>
+
+	<!-- 재료 집계 -->
+	<select id="findIngredientsForPlan"
+		resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">
+		SELECT
+		mi.food_name AS ingredientName,
+		SUM(mi.grams) AS totalGram,
+		SUM(mi.calories) AS totalCalories,
+		COUNT(DISTINCT mi.meal_plan_day_id) AS daysCount
+		FROM meal_items mi
+		WHERE mi.meal_plan_day_id IN (
+		SELECT id
+		FROM meal_plan_days
+		WHERE meal_plan_id = #{planId}
+		)
+		GROUP BY mi.food_name
+		HAVING SUM(mi.grams) > 0
+		ORDER BY totalGram DESC
+	</select>
+	<select id="findIngredientsForPlanInRange"
+        resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">
     SELECT
-      id, user_id, start_date, end_date, total_days, target_calories_per_day,
-      monthly_budget, meals_per_day, preferences, allergies,
-      created_at, updated_at
-    FROM meal_plans
-    WHERE id = #{id}
-  </select>
-
-  <select id="findLatestMealPlanByUserId" resultMap="MealPlanResultMap">
-    SELECT
-      id, user_id, start_date, end_date, total_days, target_calories_per_day,
-      monthly_budget, meals_per_day, preferences, allergies,
-      created_at, updated_at
-    FROM meal_plans
-    WHERE user_id = #{userId}
-    ORDER BY start_date DESC, id DESC
-    LIMIT 1
-  </select>
-
-  <select id="findMealPlanDaysByPlanId" resultMap="MealPlanDayMap">
-    SELECT
-      id, meal_plan_id, plan_date, day_index, total_calories,
-      created_at, updated_at
-    FROM meal_plan_days
-    WHERE meal_plan_id = #{mealPlanId}
-    ORDER BY day_index ASC
-  </select>
-
-  <select id="findMealPlanDayById" parameterType="long" resultMap="MealPlanDayMap">
-    SELECT
-      id, meal_plan_id, plan_date, day_index, total_calories,
-      created_at, updated_at
-    FROM meal_plan_days
-    WHERE id = #{dayId}
-  </select>
-
-  <select id="findMealItemsByDayId" resultMap="MealItemMap">
-    SELECT
-      id, meal_plan_day_id, meal_time, food_name, calories, grams, memo,
-      created_at, updated_at
-    FROM meal_items
-    WHERE meal_plan_day_id = #{mealPlanDayId}
-    ORDER BY meal_time
-  </select>
-
-  <!-- 재료 집계 -->
-  <select id="findIngredientsForPlan"
-          resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">
-    SELECT
-      mi.food_name AS ingredientName,
-      SUM(mi.grams) AS totalGram,
-      SUM(mi.calories) AS totalCalories,
-      COUNT(DISTINCT mi.meal_plan_day_id) AS daysCount
+        mi.food_name AS ingredientName,
+        SUM(mi.grams) AS totalGram,
+        SUM(mi.calories) AS totalCalories,
+        COUNT(DISTINCT mpd.id) AS daysCount
     FROM meal_items mi
-    WHERE mi.meal_plan_day_id IN (
-      SELECT id
-      FROM meal_plan_days
-      WHERE meal_plan_id = #{planId}
-    )
+    JOIN meal_plan_days mpd ON mpd.id = mi.meal_plan_day_id
+    WHERE mpd.meal_plan_id = #{planId}
+      AND mpd.plan_date &gt;= #{fromDate}
+      AND mpd.plan_date &lt;= #{toDate}
     GROUP BY mi.food_name
-    ORDER BY daysCount DESC
-  </select>
+    HAVING SUM(mi.grams) > 0
+    ORDER BY totalGram DESC
+</select>
 
-  <!-- =========================
-       Updates
-  ========================== -->
+	<!-- ========================= Updates ========================== -->
 
-  <update id="updateMealPlanDayTotalCalories">
-    UPDATE meal_plan_days
-    SET total_calories = #{totalCalories},
-        updated_at = NOW()
-    WHERE id = #{dayId}
-  </update>
+	<update id="updateMealPlanDayTotalCalories">
+		UPDATE meal_plan_days
+		SET total_calories = #{totalCalories},
+		updated_at = NOW()
+		WHERE id = #{dayId}
+	</update>
 
 </mapper>
