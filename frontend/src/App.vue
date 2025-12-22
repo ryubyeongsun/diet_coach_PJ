@@ -10,8 +10,12 @@ const route = useRoute();
 
 const currentUser = ref(getCurrentUser());
 
-const isAuthPage = computed(
-  () => route.path === "/login" || route.path === "/signup",
+const isStandalonePage = computed(
+  () =>
+    route.path === "/" ||
+    route.path === "/login" ||
+    route.path === "/signup" ||
+    route.path === "/profile/setup",
 );
 
 const cartItemCount = computed(() => {
@@ -60,7 +64,7 @@ const handleWeightSaved = () => {
     {{ globalState.error }}
   </div>
 
-  <div v-if="!isAuthPage" class="layout">
+  <div v-if="!isStandalonePage" class="layout">
     <!-- 상단 헤더 -->
     <header class="layout__header">
       <div class="layout__logo" @click="go('/')">🥑 <span>남남코치</span></div>
