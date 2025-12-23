@@ -9,7 +9,7 @@ public interface ShoppingService {
     ShoppingProductsResponse search(String keyword, int page, int size);
 
     // ✅ A2 추가: 재료명(keyword)로 대표상품 1개만 뽑기
-    SearchOneResult searchOne(String keyword);
+    SearchOneResult searchOne(String keyword, int allocatedBudget);
 
     // ✅ MealPlanServiceImpl에서 그대로 사용
     record SearchOneResult(ShoppingListResponse.ProductCard product, String source) {}
