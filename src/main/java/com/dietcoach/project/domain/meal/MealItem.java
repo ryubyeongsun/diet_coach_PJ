@@ -17,6 +17,10 @@ public class MealItem {
     private String mealTime;  // "BREAKFAST", "LUNCH", "DINNER", "SNACK"
     private String foodName;
     private Integer calories;
+    private Integer carbs;
+    private Integer protein;
+    private Integer fat;
+    private Boolean isHighProtein;
     private String memo;
     private Integer grams;
     private LocalDateTime createdAt;

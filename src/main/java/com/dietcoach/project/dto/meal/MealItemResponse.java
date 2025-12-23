@@ -18,6 +18,10 @@ public class MealItemResponse {
     private String mealTime;   // BREAKFAST / LUNCH / DINNER / SNACK 등
     private String foodName;
     private Integer calories;
+    private Integer carbs;
+    private Integer protein;
+    private Integer fat;
+    private Boolean isHighProtein;
     private Integer grams; 
     private String memo;
     
