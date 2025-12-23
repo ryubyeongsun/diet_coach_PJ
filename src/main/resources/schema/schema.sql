@@ -1,7 +1,5 @@
+drop database yumyum;
 create database yumyum;
-use yumyum;
-
--- Use the 'yumyum' database
 USE yumyum;
 
 -- Drop tables in reverse order of creation to avoid foreign key constraints
@@ -29,6 +27,7 @@ CREATE TABLE users (
     bmr              DOUBLE       NULL,
     tdee             DOUBLE       NULL,
     target_calories  DOUBLE       NULL,
+    target_weight    DOUBLE       NULL,
     created_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -136,3 +135,5 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   INDEX idx_refresh_user_id (user_id),
   INDEX idx_refresh_expires_at (expires_at)
 );
+
+select *from users;
