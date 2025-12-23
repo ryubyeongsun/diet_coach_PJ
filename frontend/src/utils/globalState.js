@@ -1,41 +1,40 @@
 import { reactive, watch } from "vue";
 
 const CART_STORAGE_KEY = "nncoach_cart";
-const PURCHASED_STORAGE_KEY = "nncoach_purchased"; // New key for confirmed history
+const PURCHASED_ID_STORAGE_KEY = "nncoach_purchased_ids";
+const PURCHASED_ITEMS_STORAGE_KEY = "nncoach_purchased_items";
 
-// Load initial cart from localStorage
+// Load initial data
 const savedCart = localStorage.getItem(CART_STORAGE_KEY);
 const initialCart = savedCart ? JSON.parse(savedCart) : [];
 
-// Load initial purchased items
-const savedPurchased = localStorage.getItem(PURCHASED_STORAGE_KEY);
-const initialPurchased = savedPurchased ? JSON.parse(savedPurchased) : [];
+const savedPurchasedIds = localStorage.getItem(PURCHASED_ID_STORAGE_KEY);
+const initialPurchasedIds = savedPurchasedIds ? JSON.parse(savedPurchasedIds) : [];
+
+const savedPurchasedItems = localStorage.getItem(PURCHASED_ITEMS_STORAGE_KEY);
+const initialPurchasedItems = savedPurchasedItems ? JSON.parse(savedPurchasedItems) : [];
 
 export const globalState = reactive({
   isLoading: false,
   error: null,
   cart: initialCart,
-  confirmed: new Set(initialPurchased), // Track confirmed items
+  confirmed: new Set(initialPurchasedIds), 
+  purchasedItems: initialPurchasedItems, // Full objects for ledger
   isWeightModalOpen: false,
 });
 
-// Sync cart to localStorage
-watch(
-  () => globalState.cart,
-  (newCart) => {
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
-  },
-  { deep: true }
-);
+// Sync watchers
+watch(() => globalState.cart, (newVal) => {
+  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newVal));
+}, { deep: true });
 
-// Sync confirmed to localStorage (Convert Set to Array for JSON)
-watch(
-  () => globalState.confirmed,
-  (newConfirmed) => {
-    localStorage.setItem(PURCHASED_STORAGE_KEY, JSON.stringify([...newConfirmed]));
-  },
-  { deep: true }
-);
+watch(() => globalState.confirmed, (newVal) => {
+  localStorage.setItem(PURCHASED_ID_STORAGE_KEY, JSON.stringify([...newVal]));
+}, { deep: true });
+
+watch(() => globalState.purchasedItems, (newVal) => {
+  localStorage.setItem(PURCHASED_ITEMS_STORAGE_KEY, JSON.stringify(newVal));
+}, { deep: true });
 
 export function setWeightModalOpen(isOpen) {
   globalState.isWeightModalOpen = isOpen;

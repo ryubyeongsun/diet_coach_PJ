@@ -37,15 +37,16 @@
           </div>
 
           <!-- 리스트 -->
-          <div class="item-list">
+          <TransitionGroup name="list" tag="div" class="item-list">
             <ShoppingItemCard
-              v-for="(item, index) in shoppingData.items"
+              v-for="item in sortedShoppingItems"
               :key="getItemKey(item)"
               :item="item"
               :is-checked="isItemInCart(item)"
+              :is-purchased="globalState.confirmed.has(getItemKey(item))"
               @toggle="toggleCheck(item)"
             />
-          </div>
+          </TransitionGroup>
         </div>
 
         <!-- 오른쪽: 영수증 사이드바 -->
@@ -60,9 +61,9 @@
               <div v-if="globalState.cart.length === 0" class="empty-receipt">
                 목록에서 재료를 선택하여<br>예산 계획을 세워보세요.
               </div>
-              <ul v-else class="selected-items">
+              <TransitionGroup v-else name="list" tag="ul" class="selected-items">
                 <li 
-                  v-for="item in selectedItemsList" 
+                  v-for="item in sortedSelectedItems" 
                   :key="item.productCode"
                   :class="{ 'is-purchased': purchasedIndices.has(item.productCode) }"
                 >
@@ -88,7 +89,7 @@
                     <span v-else class="name">{{ item.name }}</span>
                   </div>
                 </li>
-              </ul>
+              </TransitionGroup>
             </div>
 
             <div class="receipt-footer">
@@ -178,20 +179,43 @@ const totalPrice = computed(() => {
   }, 0);
 });
 
-// Selected items list (from Global Cart)
-const selectedItemsList = computed(() => {
-  return globalState.cart.map(item => ({
-    productCode: item.productCode,
-    ingredientName: item.ingredientName || item.name,
-    name: item.name,
-    price: item.price,
-    productUrl: item.productUrl
-  }));
+// 정렬된 장보기 리스트 (체크된 항목 상단, 구매 완료 항목 최하단)
+const sortedShoppingItems = computed(() => {
+  if (!shoppingData.value || !shoppingData.value.items) return [];
+  return [...shoppingData.value.items].sort((a, b) => {
+    const aKey = getItemKey(a);
+    const bKey = getItemKey(b);
+    const aPurchased = globalState.confirmed.has(aKey);
+    const bPurchased = globalState.confirmed.has(bKey);
+    
+    // 1. 구매 완료된 항목은 무조건 뒤로
+    if (aPurchased !== bPurchased) return aPurchased ? 1 : -1;
+    
+    // 2. 장바구니에 담긴(체크된) 항목은 위로
+    const aInCart = isItemInCart(a);
+    const bInCart = isItemInCart(b);
+    if (aInCart !== bInCart) return aInCart ? -1 : 1;
+    
+    return 0;
+  });
 });
 
-// Total price of Selected items
+// Selected items list (from Global Cart)
 const selectedTotalPrice = computed(() => {
   return globalState.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+});
+
+// 정렬된 영수증 리스트 (장바구니 항목 중 아직 확정되지 않은 것)
+const sortedSelectedItems = computed(() => {
+  return globalState.cart
+    .filter(item => !globalState.confirmed.has(item.productCode))
+    .map(item => ({
+      productCode: item.productCode,
+      ingredientName: item.ingredientName || item.name,
+      name: item.name,
+      price: item.price,
+      productUrl: item.productUrl
+    }));
 });
 
 // 리스트에서 체크/해제 시 장바구니 동기화
@@ -237,9 +261,28 @@ function goToLedgerPage() {
 
 // 구매 확정 알림 및 이동
 function confirmPurchase() {
-  if (globalState.cart.length === 0) return;
-  alert(`${globalState.cart.length}개의 상품이 지출 예정 목록에 담겼습니다.\n식단 가계부로 이동합니다.`);
-  router.push('/cart');
+  if (purchasedIndices.value.size === 0) {
+    alert("구매를 확정할 항목을 선택해주세요.");
+    return;
+  }
+
+  // 체크된 항목들을 confirmed 세트에 추가 및 상세 정보 저장
+  purchasedIndices.value.forEach(code => {
+    const itemInCart = globalState.cart.find(item => item.productCode === code);
+    if (itemInCart) {
+      // 가계부 기록을 위해 전체 객체 저장
+      globalState.purchasedItems.push({
+        ...itemInCart,
+        purchasedAt: new Date().toISOString()
+      });
+    }
+    
+    globalState.confirmed.add(code);
+    removeFromCart(code); // 장바구니에서도 제거
+  });
+
+  alert(`${purchasedIndices.value.size}개의 상품 구매가 확정되었습니다.`);
+  purchasedIndices.value.clear(); // 영수증 체크 초기화
 }
 
 async function loadShoppingList() {
@@ -650,6 +693,22 @@ onMounted(async () => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* --- List Transition --- */
+.list-move {
+  transition: transform 0.5s ease;
+}
+
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.5s ease;
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 @media (max-width: 900px) {
