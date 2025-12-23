@@ -48,7 +48,6 @@ const error = ref('');
 const inputRef = ref(null); // for autofocus
 
 const todayDate = format(new Date(), 'yyyy-MM-dd');
-const currentUser = getCurrentUser();
 
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
@@ -68,6 +67,8 @@ const close = () => {
 };
 
 async function handleSave() {
+  const currentUser = getCurrentUser();
+
   if (!weight.value || weight.value <= 0) {
     error.value = '올바른 체중을 입력해주세요.';
     return;
