@@ -1,75 +1,142 @@
 <template>
   <div class="page">
     <header class="page__header">
-      <h1>장보기 리스트</h1>
-      <p v-if="shoppingData">
-        <strong>{{ shoppingData.fromDate }} ~ {{ shoppingData.toDate }}</strong>
-        기간의 필요 재료입니다.
-      </p>
-      <p v-else>식단 플랜에 따른 재료 목록을 확인하고 구매해 보세요.</p>
-    </header>
-
-    <div v-if="isValidPlanId">
-      <div class="controls">
+      <div class="header-top">
+        <h1>장보기 리스트</h1>
         <div class="period-selector">
-          <button
-            @click="setRange('TODAY')"
-            :class="{ active: range === 'TODAY' }"
-          >
-            오늘
-          </button>
-          <button
-            @click="setRange('WEEK')"
-            :class="{ active: range === 'WEEK' }"
-          >
-            이번 주
-          </button>
-          <button
-            @click="setRange('MONTH')"
-            :class="{ active: range === 'MONTH' }"
-          >
-            이번 달
-          </button>
+          <button @click="setRange('TODAY')" :class="{ active: range === 'TODAY' }">오늘</button>
+          <button @click="setRange('WEEK')" :class="{ active: range === 'WEEK' }">이번 주</button>
+          <button @click="setRange('MONTH')" :class="{ active: range === 'MONTH' }">이번 달</button>
         </div>
       </div>
+      <p v-if="shoppingData && shoppingData.fromDate && shoppingData.toDate" class="date-range">
+        {{ shoppingData.fromDate }} ~ {{ shoppingData.toDate }}
+      </p>
+    </header>
 
+    <div v-if="isValidPlanId" class="content">
       <div v-if="isLoading" class="page__status">
-        <p>장보기 목록을 불러오는 중입니다...</p>
+        <div class="spinner"></div>
+        <p>재료 정보를 분석하고 있어요...</p>
       </div>
+      
       <div v-else-if="error" class="page__error">
         <p>{{ error }}</p>
       </div>
-      <div
-        v-else-if="shoppingData && shoppingData.items.length > 0"
-        class="item-list"
-      >
-        <ShoppingItemCard
-          v-for="(item, index) in shoppingData.items"
-          :key="index"
-          :item="item"
-        />
+
+      <div v-else-if="shoppingData && shoppingData.items.length > 0" class="shopping-layout">
+        
+        <!-- 왼쪽: 메인 리스트 영역 -->
+        <div class="shopping-main">
+          <!-- 요약 카드 -->
+          <div class="summary-bar">
+            <div class="summary-info">
+              <span class="label">총 예상 비용 (전체)</span>
+              <span class="value">{{ totalPrice.toLocaleString() }}원</span>
+            </div>
+          </div>
+
+          <!-- 리스트 -->
+          <div class="item-list">
+            <ShoppingItemCard
+              v-for="(item, index) in shoppingData.items"
+              :key="getItemKey(item)"
+              :item="item"
+              :is-checked="isItemInCart(item)"
+              @toggle="toggleCheck(item)"
+            />
+          </div>
+        </div>
+
+        <!-- 오른쪽: 영수증 사이드바 -->
+        <div class="shopping-sidebar">
+          <div class="receipt-card">
+            <div class="receipt-header">
+              <h3>장바구니 영수증</h3>
+              <span class="count">{{ globalState.cart.length }}</span>
+            </div>
+            
+            <div class="receipt-body">
+              <div v-if="globalState.cart.length === 0" class="empty-receipt">
+                목록에서 재료를 선택하여<br>예산 계획을 세워보세요.
+              </div>
+              <ul v-else class="selected-items">
+                <li 
+                  v-for="item in selectedItemsList" 
+                  :key="item.productCode"
+                  :class="{ 'is-purchased': purchasedIndices.has(item.productCode) }"
+                >
+                  <input 
+                    type="checkbox" 
+                    class="receipt-check"
+                    :checked="purchasedIndices.has(item.productCode)"
+                    @change="togglePurchased(item.productCode)"
+                  />
+                  <div class="item-details">
+                    <div class="ingredient-row">
+                      <span class="ingredient-name">{{ item.ingredientName }}</span>
+                      <span class="price">{{ item.price.toLocaleString() }}원</span>
+                    </div>
+                    <a 
+                      v-if="item.productUrl" 
+                      :href="item.productUrl" 
+                      target="_blank" 
+                      class="name-link"
+                    >
+                      {{ item.name }} 🔗
+                    </a>
+                    <span v-else class="name">{{ item.name }}</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="receipt-footer">
+              <div class="total-row">
+                <span>예상 합계</span>
+                <span class="total-price">{{ selectedTotalPrice.toLocaleString() }}원</span>
+              </div>
+              
+              <div class="footer-buttons">
+                <button 
+                  class="bulk-add-btn" 
+                  @click="confirmPurchase" 
+                  :disabled="globalState.cart.length === 0"
+                >
+                  ✅ 구매 확정
+                </button>
+                <button class="go-cart-btn" @click="goToLedgerPage">
+                  💰 식단 가계부 확인
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
+
       <div v-else class="page__status">
-        <p>표시할 재료가 없습니다.</p>
+        <p>구매할 재료가 없습니다.</p>
+        <button v-if="range !== 'MONTH'" class="retry-btn" @click="setRange('MONTH')">
+          전체 기간으로 보기
+        </button>
       </div>
     </div>
 
     <div v-else class="page__error">
-      <p>
-        유효한 식단 정보가 없습니다. 식단 관리 페이지로 돌아가서 다시
-        시도해주세요.
-      </p>
-      <NnButton @click="goBack">돌아가기</NnButton>
+      <p>식단 플랜이 없습니다.</p>
+      <NnButton @click="goBack">식단 생성하러 가기</NnButton>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fetchShoppingList } from "../api/shoppingApi.js";
 import { fetchLatestMealPlan } from "../api/mealPlanApi.js";
 import { getCurrentUser } from "../utils/auth";
+import { globalState, addToCart, removeFromCart } from "../utils/globalState";
 import ShoppingItemCard from "../components/shopping/ShoppingItemCard.vue";
 import NnButton from "../components/common/NnButton.vue";
 
@@ -78,17 +145,108 @@ const router = useRouter();
 
 const planId = ref(null);
 const isValidPlanId = ref(false);
-const range = ref("MONTH"); // 기본값 MONTH
+const range = ref("MONTH");
 const shoppingData = ref(null);
 const isLoading = ref(false);
 const error = ref("");
+
+// 영수증 내 체크 표시 (취소선용)
+const purchasedIndices = ref(new Set());
+
+// Helper to get a unique key for an item (Product ID > Ingredient Name)
+const getItemKey = (item) => {
+  if (item.product && item.product.externalId) {
+    return item.product.externalId;
+  }
+  return 'ing_' + item.ingredientName;
+};
+
+// Sync check with global cart
+const isItemInCart = (item) => {
+  const key = getItemKey(item);
+  return globalState.cart.some(c => c.productCode === key);
+};
+
+// Total price of ALL items in the list
+const totalPrice = computed(() => {
+  if (!shoppingData.value) return 0;
+  return shoppingData.value.items.reduce((sum, item) => {
+    if (item.product && item.product.price) {
+      return sum + item.product.price;
+    }
+    return sum;
+  }, 0);
+});
+
+// Selected items list (from Global Cart)
+const selectedItemsList = computed(() => {
+  return globalState.cart.map(item => ({
+    productCode: item.productCode,
+    ingredientName: item.ingredientName || item.name,
+    name: item.name,
+    price: item.price,
+    productUrl: item.productUrl
+  }));
+});
+
+// Total price of Selected items
+const selectedTotalPrice = computed(() => {
+  return globalState.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+});
+
+// 리스트에서 체크/해제 시 장바구니 동기화
+function toggleCheck(item) {
+  const key = getItemKey(item);
+  
+  if (isItemInCart(item)) {
+    removeFromCart(key);
+  } else {
+    // Construct product object for cart
+    const productToAdd = item.product ? {
+      externalId: item.product.externalId || key,
+      name: item.product.productName,
+      ingredientName: item.ingredientName, // Important: Pass ingredient name
+      price: item.product.price,
+      imageUrl: item.product.imageUrl,
+      productUrl: item.product.productUrl
+    } : {
+      externalId: key,
+      name: item.ingredientName, // Product name fallback
+      ingredientName: item.ingredientName, // Ingredient name
+      price: 0, 
+      imageUrl: '', 
+      productUrl: ''
+    };
+    
+    addToCart(productToAdd);
+  }
+}
+
+// 영수증 내 취소선 토글
+function togglePurchased(productCode) {
+  if (purchasedIndices.value.has(productCode)) {
+    purchasedIndices.value.delete(productCode);
+  } else {
+    purchasedIndices.value.add(productCode);
+  }
+}
+
+function goToLedgerPage() {
+  router.push('/cart'); // /cart is the Ledger page
+}
+
+// 구매 확정 알림 및 이동
+function confirmPurchase() {
+  if (globalState.cart.length === 0) return;
+  alert(`${globalState.cart.length}개의 상품이 지출 예정 목록에 담겼습니다.\n식단 가계부로 이동합니다.`);
+  router.push('/cart');
+}
 
 async function loadShoppingList() {
   if (!isValidPlanId.value) return;
 
   isLoading.value = true;
   error.value = "";
-  // shoppingData.value = null; // 이전 데이터 clear
 
   try {
     const response = await fetchShoppingList(planId.value, range.value);
@@ -98,9 +256,9 @@ async function loadShoppingList() {
     if (err.response?.status === 401) {
       router.push("/login");
     } else if (err.response?.status === 404) {
-      error.value = "장보기 기능은 아직 준비 중입니다. 잠시만 기다려 주세요.";
+      error.value = "아직 식단이 생성되지 않았습니다.";
     } else {
-      error.value = "장보기 정보를 불러올 수 없습니다. 다시 시도해주세요.";
+      error.value = "장보기 정보를 불러올 수 없습니다.";
     }
     shoppingData.value = null;
   } finally {
@@ -117,7 +275,6 @@ function goBack() {
 }
 
 watch(range, () => {
-  // range가 변경되면 데이터를 다시 불러옵니다.
   loadShoppingList();
 });
 
@@ -126,9 +283,8 @@ onMounted(async () => {
   if (id && !isNaN(id)) {
     planId.value = Number(id);
     isValidPlanId.value = true;
-    loadShoppingList(); // planId가 유효하면 데이터 로드 시작
+    loadShoppingList();
   } else {
-    // planId가 쿼리로 넘어오지 않은 경우, 사용자 최신 플랜 조회 시도
     const user = getCurrentUser();
     if (user && user.id) {
       try {
@@ -142,7 +298,6 @@ onMounted(async () => {
           isValidPlanId.value = false;
         }
       } catch (e) {
-        console.error("Failed to fetch latest meal plan", e);
         isValidPlanId.value = false;
       } finally {
         isLoading.value = false;
@@ -156,87 +311,357 @@ onMounted(async () => {
 
 <style scoped>
 .page {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 20px 16px;
+  padding: 24px 16px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .page__header {
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .page__header h1 {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
   color: #111827;
 }
 
-.page__header p {
-  margin: 4px 0 0;
-  font-size: 13px;
+.date-range {
+  font-size: 14px;
   color: #6b7280;
-}
-
-.controls {
-  margin-bottom: 20px;
+  background-color: #f3f4f6;
+  padding: 6px 12px;
+  border-radius: 6px;
+  align-self: flex-start;
 }
 
 .period-selector {
-  display: inline-flex;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #d1d5db;
+  display: flex;
+  background-color: #f3f4f6;
+  padding: 4px;
+  border-radius: 12px;
 }
 
 .period-selector button {
-  padding: 10px 20px;
+  padding: 8px 16px;
   border: none;
-  background-color: #ffffff;
-  color: #374151;
+  background: transparent;
+  color: #6b7280;
   cursor: pointer;
-  transition:
-    background-color 0.2s,
-    color 0.2s;
+  border-radius: 8px;
   font-size: 14px;
-  font-weight: 500;
-}
-
-.period-selector button:not(:last-child) {
-  border-right: 1px solid #d1d5db;
+  font-weight: 600;
+  transition: all 0.2s;
 }
 
 .period-selector button.active {
-  background-color: #3b82f6;
-  color: #ffffff;
+  background-color: #fff;
+  color: #047857;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-.period-selector button:hover:not(.active) {
-  background-color: #f3f4f6;
+/* --- Layout --- */
+.shopping-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
 }
 
+.shopping-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.shopping-sidebar {
+  width: 320px;
+  position: sticky;
+  top: 24px;
+  flex-shrink: 0;
+}
+
+/* --- Main Area --- */
+.summary-bar {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.summary-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summary-info .label {
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.summary-info .value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #047857;
+}
+
+/* Item List */
 .item-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.page__status,
-.page__error {
-  padding: 40px 16px;
-  text-align: center;
-  font-size: 14px;
-  color: #6b7280;
-  background-color: #f9fafb;
-  border-radius: 8px;
+/* --- Sidebar Receipt --- */
+.receipt-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
 }
 
+.receipt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 2px dashed #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.receipt-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.receipt-header .count {
+  background-color: #ecfdf5;
+  color: #047857;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.receipt-body {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+  margin-bottom: 16px;
+}
+
+.empty-receipt {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 40px 0;
+  line-height: 1.5;
+}
+
+.selected-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.selected-items li {
+  display: flex;
+  align-items: flex-start;
+  font-size: 13px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+  gap: 8px;
+}
+
+.selected-items li:last-child {
+  border-bottom: none;
+}
+
+.receipt-check {
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.item-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ingredient-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ingredient-name {
+  font-weight: 700;
+  color: #111827;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  padding-right: 8px;
+}
+
+.selected-items li .price {
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.name-link {
+  color: #059669;
+  font-size: 12px;
+  text-decoration: none;
+  display: block;
+}
+
+.name-link:hover {
+  text-decoration: underline;
+}
+
+/* Strikethrough style for purchased items */
+.selected-items li.is-purchased .item-details {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.receipt-footer {
+  border-top: 2px solid #e5e7eb;
+  padding-top: 16px;
+}
+
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.total-row span:first-child {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.total-price {
+  font-size: 22px;
+  font-weight: 800;
+  color: #059669;
+}
+
+.footer-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.bulk-add-btn {
+  flex: 2;
+  padding: 14px;
+  background-color: #111827;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.go-cart-btn {
+  flex: 1;
+  padding: 14px;
+  background-color: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.go-cart-btn:hover {
+  background-color: #f9fafb;
+}
+
+.bulk-add-btn:hover:not(:disabled) {
+  background-color: #374151;
+  transform: translateY(-2px);
+}
+
+.bulk-add-btn:disabled {
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.page__status,
 .page__error {
-  color: #dc2626;
-  background-color: #fef2f2;
+  padding: 60px 20px;
+  text-align: center;
+  color: #6b7280;
+  background-color: #f9fafb;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #047857;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 900px) {
+  .shopping-layout {
+    flex-direction: column;
+  }
+  .shopping-sidebar {
+    width: 100%;
+    position: static;
+  }
+  .receipt-body {
+    max-height: 200px;
+  }
 }
 </style>

@@ -1,6 +1,7 @@
 drop database yumyum;
 create database yumyum;
-USE yumyum;
+use yumyum;
+
 
 -- Drop tables in reverse order of creation to avoid foreign key constraints
 DROP TABLE IF EXISTS meal_intakes;

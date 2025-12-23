@@ -7,6 +7,7 @@ import WeightPage from "../pages/WeightPage.vue";
 import LoginPage from "../pages/LoginPage.vue";
 import SignupPage from "../pages/SignupPage.vue";
 import ProfileSetupPage from "../pages/ProfileSetupPage.vue";
+import ProfileEditPage from "../pages/ProfileEditPage.vue";
 import CartPage from "../pages/CartPage.vue";
 import { getCurrentUser, getToken, clearAuth } from "../utils/auth"; // getToken, clearAuth 추가 임포트
 
@@ -15,6 +16,13 @@ const routes = [
     path: "/",
     name: "Landing",
     component: LandingPage,
+    beforeEnter: (to, from, next) => {
+        if (getToken()) {
+            next('/dashboard');
+        } else {
+            next();
+        }
+    }
   },
   {
     path: "/login",
@@ -30,6 +38,12 @@ const routes = [
     path: "/profile/setup",
     name: "ProfileSetup",
     component: ProfileSetupPage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/profile/edit",
+    name: "ProfileEdit",
+    component: ProfileEditPage,
     meta: { requiresAuth: true },
   },
   {

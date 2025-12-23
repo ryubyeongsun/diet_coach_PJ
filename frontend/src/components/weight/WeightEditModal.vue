@@ -16,7 +16,6 @@ const editableWeight = ref(null);
 const isSaving = ref(false);
 const error = ref('');
 const inputRef = ref(null);
-const currentUser = getCurrentUser();
 
 const isEditMode = computed(() => !!props.record);
 
@@ -38,6 +37,7 @@ const close = () => {
 };
 
 async function handleSave() {
+  const currentUser = getCurrentUser();
   if (!editableWeight.value || editableWeight.value <= 0) {
     error.value = '올바른 체중을 입력해주세요.';
     return;
@@ -61,6 +61,7 @@ async function handleSave() {
 }
 
 async function handleDelete() {
+  const currentUser = getCurrentUser();
   if (!isEditMode.value || !confirm('정말로 이 기록을 삭제하시겠습니까?')) return;
   if (!currentUser?.id || !props.record?.id) return;
 
