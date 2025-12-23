@@ -23,6 +23,7 @@ public class MealPlanDayDetailResponse {
 	    private String date;              // "2025-12-01" 형식 (String)
 	    private Integer totalCalories;    // 하루 총 kcal
 	    private List<MealItemResponse> items;
+	    private List<MealDetailResponse> meals;
 
   
 }

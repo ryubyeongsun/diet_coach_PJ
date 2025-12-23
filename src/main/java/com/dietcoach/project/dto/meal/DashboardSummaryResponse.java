@@ -18,6 +18,7 @@ public class DashboardSummaryResponse {
 
     private Long userId;
     private Long recentMealPlanId;
+    private Long todayDayId; // Added for TodayMealPreview
 
     private LocalDate startDate;
     private LocalDate endDate;
@@ -28,4 +29,9 @@ public class DashboardSummaryResponse {
     private int targetCaloriesPerDay;
     private int averageCalories;
     private int achievementRate; // %
+    
+    // Intake fields
+    private Integer consumedCalories;
+    private Integer todayTargetCalories;
+    private Integer todayAchievementRate;
 }

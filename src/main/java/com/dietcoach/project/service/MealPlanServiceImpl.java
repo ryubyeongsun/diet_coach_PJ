@@ -22,10 +22,12 @@ import com.dietcoach.project.common.TdeeCalculator;
 import com.dietcoach.project.common.error.BusinessException;
 import com.dietcoach.project.domain.User;
 import com.dietcoach.project.domain.WeightRecord;
+import com.dietcoach.project.domain.meal.MealIntake;
 import com.dietcoach.project.domain.meal.MealItem;
 import com.dietcoach.project.domain.meal.MealPlan;
 import com.dietcoach.project.domain.meal.MealPlanDay;
 import com.dietcoach.project.dto.meal.DashboardSummaryResponse;
+import com.dietcoach.project.dto.meal.MealDetailResponse;
 import com.dietcoach.project.dto.meal.MealItemResponse;
 import com.dietcoach.project.dto.meal.MealPlanCreateRequest;
 import com.dietcoach.project.dto.meal.MealPlanDayDetailResponse;
@@ -35,6 +37,7 @@ import com.dietcoach.project.dto.meal.MealPlanOverviewResponse;
 import com.dietcoach.project.dto.meal.ShoppingListResponse;
 import com.dietcoach.project.mapper.UserMapper;
 import com.dietcoach.project.mapper.WeightRecordMapper;
+import com.dietcoach.project.mapper.meal.MealIntakeMapper;
 import com.dietcoach.project.mapper.meal.MealPlanMapper;
 
 import lombok.AllArgsConstructor;
@@ -58,6 +61,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     private final UserMapper userMapper;
     private final MealPlanMapper mealPlanMapper;
     private final WeightRecordMapper weightRecordMapper;
+    private final MealIntakeMapper mealIntakeMapper;
 
     // AI Client
     private final DietAiClient dietAiClient;
@@ -962,6 +966,41 @@ public class MealPlanServiceImpl implements MealPlanService {
         int targetPerDay = latestPlan.getTargetCaloriesPerDay();
         int achievementRate = (int) Math.round(totalCalories / (double) (targetPerDay * days.size()) * 100.0);
 
+        // Calculate consumed calories for TODAY
+        LocalDate today = LocalDate.now();
+        MealPlanDay todayDay = days.stream()
+                .filter(d -> d.getPlanDate().equals(today))
+                .findFirst()
+                .orElse(null);
+
+        Integer consumedCalories = 0;
+        Integer todayTargetCalories = targetPerDay;
+        Integer todayAchievementRate = 0;
+
+        if (todayDay != null) {
+            // Check intakes
+            List<MealIntake> intakes = mealIntakeMapper.findConsumedByDayId(userId, todayDay.getId());
+            log.info("[Dashboard] todayDayId={} intakes.size={}", todayDay.getId(), intakes.size());
+            
+            Set<String> consumedMealTimes = intakes.stream()
+                    .map(MealIntake::getMealTime)
+                    .collect(Collectors.toSet());
+            
+            // Get items for today to sum consumed calories
+            List<MealItem> todayItems = mealPlanMapper.findMealItemsByDayId(todayDay.getId());
+            
+            consumedCalories = todayItems.stream()
+                    .filter(item -> consumedMealTimes.contains(item.getMealTime()))
+                    .mapToInt(MealItem::getCalories)
+                    .sum();
+                    
+            todayTargetCalories = todayDay.getTotalCalories() > 0 ? todayDay.getTotalCalories() : targetPerDay;
+            
+            if (todayTargetCalories > 0) {
+                todayAchievementRate = (int) Math.round((double) consumedCalories / todayTargetCalories * 100);
+            }
+        }
+
         WeightRecord latest = weightRecordMapper.findLatestByUserId(userId);
 
         boolean hasWeightRecords = latest != null;
@@ -977,12 +1016,16 @@ public class MealPlanServiceImpl implements MealPlanService {
         return DashboardSummaryResponse.builder()
                 .userId(userId)
                 .recentMealPlanId(latestPlan.getId())
+                .todayDayId(todayDay != null ? todayDay.getId() : null)
                 .startDate(latestPlan.getStartDate())
                 .endDate(latestPlan.getEndDate())
                 .totalDays(latestPlan.getTotalDays())
                 .targetCaloriesPerDay(targetPerDay)
                 .averageCalories(averageCalories)
                 .achievementRate(achievementRate)
+                .consumedCalories(consumedCalories)
+                .todayTargetCalories(todayTargetCalories)
+                .todayAchievementRate(todayAchievementRate)
                 .hasWeightRecords(hasWeightRecords)
                 .latestWeight(latestWeight)
                 .weightChange7Days(weightChange7Days)
@@ -996,8 +1039,52 @@ public class MealPlanServiceImpl implements MealPlanService {
         if (day == null) throw new BusinessException("존재하지 않는 Day 입니다. id=" + dayId);
 
         List<MealItem> items = mealPlanMapper.findMealItemsByDayId(dayId);
+        
+        // Find intakes
+        MealPlan plan = mealPlanMapper.findMealPlanById(day.getMealPlanId());
+        List<MealIntake> intakes = mealIntakeMapper.findByDayId(plan.getUserId(), dayId);
+        log.info("[DayDetail] dayId={} intakes={}", dayId, intakes.stream().map(i -> i.getMealTime() + "=" + i.isConsumed()).collect(Collectors.joining(",")));
 
-        List<MealItemResponse> itemResponses = items.stream()
+        Set<String> consumedMealTimes = intakes.stream()
+                .filter(MealIntake::isConsumed)
+                .map(MealIntake::getMealTime)
+                .collect(Collectors.toSet());
+
+        // Group by mealTime
+        Map<String, List<MealItem>> itemsByMealTime = items.stream()
+                .collect(Collectors.groupingBy(MealItem::getMealTime));
+        
+        // Sort meal times (Breakfast -> Lunch -> Dinner -> Snack)
+        List<String> sortedMealTimes = itemsByMealTime.keySet().stream()
+                .sorted(this::compareMealTimes)
+                .toList();
+
+        List<MealDetailResponse> meals = new ArrayList<>();
+        for (String mt : sortedMealTimes) {
+            List<MealItem> mealItems = itemsByMealTime.get(mt);
+            int mealTotalCalories = mealItems.stream().mapToInt(MealItem::getCalories).sum();
+            
+            List<MealItemResponse> itemResponses = mealItems.stream()
+                    .map(it -> MealItemResponse.builder()
+                            .id(it.getId())
+                            .mealTime(it.getMealTime())
+                            .foodName(it.getFoodName())
+                            .calories(it.getCalories())
+                            .grams(it.getGrams())
+                            .memo(it.getMemo())
+                            .build())
+                    .toList();
+            
+            meals.add(MealDetailResponse.builder()
+                    .mealTime(mt)
+                    .totalCalories(mealTotalCalories)
+                    .isConsumed(consumedMealTimes.contains(mt))
+                    .items(itemResponses)
+                    .build());
+        }
+
+        // Backward compatibility for flat list
+        List<MealItemResponse> flatItems = items.stream()
                 .map(it -> MealItemResponse.builder()
                         .id(it.getId())
                         .mealTime(it.getMealTime())
@@ -1012,8 +1099,24 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .dayId(day.getId())
                 .date(day.getPlanDate().toString())
                 .totalCalories(day.getTotalCalories())
-                .items(itemResponses)
+                .items(flatItems)
+                .meals(meals)
                 .build();
+    }
+    
+    private int compareMealTimes(String t1, String t2) {
+        return getMealTimeOrder(t1) - getMealTimeOrder(t2);
+    }
+    
+    private int getMealTimeOrder(String t) {
+        if (t == null) return 99;
+        switch (t.toUpperCase()) {
+            case "BREAKFAST": return 1;
+            case "LUNCH": return 2;
+            case "DINNER": return 3;
+            case "SNACK": return 4;
+            default: return 99;
+        }
     }
     @Override
     @Transactional
@@ -1023,6 +1126,9 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         MealPlan plan = mealPlanMapper.findMealPlanById(day.getMealPlanId());
         if (plan == null) throw new BusinessException("식단 플랜 정보를 찾을 수 없습니다.");
+
+        // Clear intakes
+        mealIntakeMapper.deleteByDayId(plan.getUserId(), dayId);
 
         // 1. 기존 데이터 삭제
         mealPlanMapper.deleteMealItemsByDayId(dayId);
@@ -1055,6 +1161,9 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         MealPlan plan = mealPlanMapper.findMealPlanById(day.getMealPlanId());
         if (plan == null) throw new BusinessException("식단 플랜 정보를 찾을 수 없습니다.");
+
+        // Clear intakes
+        mealIntakeMapper.deleteByDayIdAndMealTime(plan.getUserId(), dayId, normalizedMealTime);
 
         // 1. 해당 끼니 삭제
         mealPlanMapper.deleteMealItemsByDayIdAndMealTime(dayId, normalizedMealTime);

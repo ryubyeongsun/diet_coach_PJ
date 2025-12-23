@@ -43,3 +43,9 @@ export async function replaceMeal(dayId, mealTime) {
   const res = await http.post(`/meal-plans/days/${dayId}/meals/${mealTime}/replace`, {}, { timeout: 180000 });
   return res.data.data ?? res.data;
 }
+
+// 섭취 체크 (upsert)
+export async function upsertIntake(payload) {
+  const res = await http.put('/meal-intakes', payload);
+  return res.data.data ?? res.data;
+}

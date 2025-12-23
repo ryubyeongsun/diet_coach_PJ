@@ -23,7 +23,7 @@
 
       <!-- 3. 하단 보조 영역 -->
       <div class="bottom-aux-area">
-        <TodayMealPreview :summary="summaryData" />
+        <TodayMealPreview :summary="summaryData" @update="fetchDashboardData" />
       </div>
     </div>
   </div>
