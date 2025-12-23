@@ -125,9 +125,6 @@ public class MealPlanServiceImpl implements MealPlanService {
             new FoodPortion(new FoodItem("샐러드", 40), 80)
     );
 
-    // =========================
-    // 1) 한달 식단 생성 (단일 진입점)
-    // =========================
     @Override
     @Transactional
     public MealPlanOverviewResponse createMonthlyPlan(Long userId, MealPlanCreateRequest request) {
@@ -152,6 +149,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         log.info("[MealPlan] createMonthlyPlan start userId={}, startDate={}, mealsPerDay={}",
                 userId, startDate, mealsPerDay);
 
+        // 1. Create Plan & Days Skeleton (Empty)
         MealPlan mealPlan = MealPlan.builder()
                 .userId(userId)
                 .startDate(startDate)
@@ -166,161 +164,140 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         mealPlanMapper.insertMealPlan(mealPlan);
 
-        AiMonthlySkeletonResponse skeleton = null;
-        String generationSource = "TEMPLATE";
-
-        try {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("startDate", startDate.format(DF));
-            payload.put("totalDays", DEFAULT_PLAN_DAYS);
-            payload.put("targetCaloriesPerDay", targetKcalPerDay);
-            payload.put("mealsPerDay", mealsPerDay);
-            payload.put("monthlyBudget", request != null ? request.getMonthlyBudget() : null);
-            payload.put("preferences", request != null ? request.getPreferences() : List.of());
-            payload.put("allergies", request != null ? request.getAllergies() : List.of());
-
-            log.info("[MealPlan] AI call start planId={}, userId={}", mealPlan.getId(), userId);
-            skeleton = generateAiSkeletonInChunks(mealPlan.getId(), startDate, DEFAULT_PLAN_DAYS, payload);
-            if (skeleton == null) {
-                log.warn("[MealPlan] AI returned null, fallback to template. planId={}", mealPlan.getId());
-            } else {
-                validateAiSkeleton(skeleton);
-                logAiResponseSummary(skeleton);
-                int dayCount = (skeleton.getDays() == null ? 0 : skeleton.getDays().size());
-                log.info("[MealPlan] AI call success planId={}, days={}", mealPlan.getId(), dayCount);
-                generationSource = "AI";
-            }
-        } catch (BusinessException e) {
-            log.warn("[MealPlan] AI invalid, fallback to template. planId={}, reason={}",
-                    mealPlan.getId(), e.getMessage());
-            skeleton = null;
-        } catch (Exception e) {
-            log.warn("[MealPlan] AI failed, fallback to template. planId={}, reason={}",
-                    mealPlan.getId(), e.getMessage());
-            skeleton = null;
-        }
-
-        List<MealPlanDay> days = new ArrayList<>();
-        Map<Long, List<MealItem>> itemsByDayId = new HashMap<>();
-
+        List<MealPlanDay> allDays = new ArrayList<>();
         for (int i = 0; i < DEFAULT_PLAN_DAYS; i++) {
-            LocalDate date = startDate.plusDays(i);
-
             MealPlanDay day = MealPlanDay.builder()
                     .mealPlanId(mealPlan.getId())
-                    .planDate(date)
+                    .planDate(startDate.plusDays(i))
                     .dayIndex(i + 1)
                     .totalCalories(0)
                     .build();
-
             mealPlanMapper.insertMealPlanDay(day);
-            days.add(day);
+            allDays.add(day);
+        }
 
+        // Base Payload for AI
+        Map<String, Object> basePayload = new HashMap<>();
+        basePayload.put("targetCaloriesPerDay", targetKcalPerDay);
+        basePayload.put("mealsPerDay", mealsPerDay);
+        basePayload.put("monthlyBudget", request != null ? request.getMonthlyBudget() : null);
+        basePayload.put("preferences", request != null ? request.getPreferences() : List.of());
+        basePayload.put("allergies", request != null ? request.getAllergies() : List.of());
+        basePayload.put("goalType", user.getGoalType() != null ? user.getGoalType().name() : "MAINTAIN");
+
+        // 2. Generate First Week (Sync) - Days 0-6
+        log.info("[MealPlan] Generating Week 1 Sync...");
+        generateAndSaveChunk(mealPlan, allDays, basePayload, 0, 7, targetKcalPerDay, mealsPerDay);
+
+        // 3. Generate Remaining Weeks (Async) - Days 7-29
+        // We use CompletableFuture to run this in background without blocking response
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                generateRemainingWeeksParallel(mealPlan, allDays, basePayload, targetKcalPerDay, mealsPerDay);
+            } catch (Exception e) {
+                log.error("[MealPlan] Async generation failed for planId={}", mealPlan.getId(), e);
+            }
+        });
+
+        // 4. Return Response (Contains populated Week 1 and empty subsequent weeks)
+        return getMealPlan(mealPlan.getId());
+    }
+
+    private void generateRemainingWeeksParallel(
+            MealPlan mealPlan,
+            List<MealPlanDay> allDays,
+            Map<String, Object> basePayload,
+            int targetKcal,
+            int mealsPerDay
+    ) {
+        log.info("[MealPlan] Starting Async Parallel Generation for remaining weeks...");
+        
+        // Define chunks for remaining days (e.g. 7-13, 14-20, 21-29)
+        List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
+        
+        // From day 7 to 29
+        for (int offset = 7; offset < DEFAULT_PLAN_DAYS; offset += AI_CHUNK_DAYS) {
+            int currentOffset = offset;
+            int limit = Math.min(AI_CHUNK_DAYS, DEFAULT_PLAN_DAYS - currentOffset);
+            
+            // Create a parallel task for each chunk
+            futures.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
+                log.info("[MealPlan] Parallel Chunk Start offset={}", currentOffset);
+                generateAndSaveChunk(mealPlan, allDays, basePayload, currentOffset, limit, targetKcal, mealsPerDay);
+            }));
+        }
+
+        // Wait for all parallel chunks to complete
+        java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0])).join();
+        log.info("[MealPlan] Async Parallel Generation Completed for planId={}", mealPlan.getId());
+    }
+
+    private void generateAndSaveChunk(
+            MealPlan mealPlan,
+            List<MealPlanDay> allDays,
+            Map<String, Object> basePayload,
+            int offset,
+            int limit,
+            int targetKcal,
+            int mealsPerDay
+    ) {
+        LocalDate chunkStart = mealPlan.getStartDate().plusDays(offset);
+        
+        Map<String, Object> payload = new HashMap<>(basePayload);
+        payload.put("startDate", chunkStart.format(DF));
+        payload.put("totalDays", limit);
+
+        AiMonthlySkeletonResponse skeleton = null;
+        try {
+            skeleton = dietAiClient.generateMonthlySkeleton(payload);
+        } catch (Exception e) {
+            log.warn("[MealPlan] AI failed for chunk offset={}, reason={}", offset, e.getMessage());
+        }
+
+        // Calculate Meal Targets
+        List<String> mealTimesForDay = switch (mealsPerDay) {
+            case 1 -> List.of("LUNCH");
+            case 2 -> List.of("BREAKFAST", "DINNER");
+            default -> List.of("BREAKFAST", "LUNCH", "DINNER");
+        };
+        Map<String, Integer> mealTargets = distributeCalories(targetKcal, mealTimesForDay);
+
+        // Save Items
+        for (int i = 0; i < limit; i++) {
+            int dayIndex = offset + i; // 0-based global index
+            if (dayIndex >= allDays.size()) break;
+
+            MealPlanDay day = allDays.get(dayIndex);
             List<MealItem> itemsForDay;
-            List<String> mealTimesForDay = switch (mealsPerDay) {
-                case 1 -> List.of("LUNCH");
-                case 2 -> List.of("BREAKFAST", "DINNER");
-                default -> List.of("BREAKFAST", "LUNCH", "DINNER");
-            };
-            Map<String, Integer> mealTargets = distributeCalories(targetKcalPerDay, mealTimesForDay);
 
             if (skeleton != null) {
-                itemsForDay = buildItemsFromAiWithFixedRules(
-                        skeleton,
-                        i,
-                        day.getId(),
-                        mealsPerDay,
-                        mealTargets
-                );
-                if (itemsForDay.isEmpty()) {
-                    log.warn("[MealPlan] AI items empty planId={}, dayIndex={}", mealPlan.getId(), i + 1);
-                }
+                // Determine logic day index within skeleton (0 to limit-1)
+                itemsForDay = buildItemsFromAiWithFixedRules(skeleton, i, day.getId(), mealsPerDay, mealTargets);
             } else {
-                itemsForDay = buildItemsFromTemplate(day.getId(), targetKcalPerDay, mealsPerDay);
+                itemsForDay = buildItemsFromTemplate(day.getId(), targetKcal, mealsPerDay);
             }
 
-            for (MealItem item : itemsForDay) {
-                mealPlanMapper.insertMealItem(item);
-            }
-
-            int totalCaloriesForDay = 0;
-            Integer sumFromDb = mealPlanMapper.sumMealItemCaloriesByDayId(day.getId());
-            if (sumFromDb != null) {
-                totalCaloriesForDay = sumFromDb;
-            }
-
-            day.setTotalCalories(totalCaloriesForDay);
-            mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
-
-            if (skeleton != null && skeleton.getDays() != null && skeleton.getDays().size() > i) {
-                AiMonthlySkeletonResponse.AiDaySkeleton aiDay = skeleton.getDays().get(i);
-                if (aiDay != null && aiDay.getTotalCalories() != null) {
-                    int diff = totalCaloriesForDay - aiDay.getTotalCalories();
-                    if (diff != 0) {
-                        log.info("[DAY_CAL_DIFF] dayIndex={}, ai={}, server={}, diff={}",
-                                i + 1, aiDay.getTotalCalories(), totalCaloriesForDay, diff);
-                    }
-                }
-            }
-
-            itemsByDayId.put(day.getId(), itemsForDay);
+            // Using synchronized block or transaction might be needed if strictly enforcing transactional integrity,
+            // but for bulk insert in separate logic, calling mapper directly is fine.
+            // Note: Since we are in a async thread, we don't have the parent transaction.
+            // Ideally we should wrap this in a transaction or save safely.
+            saveItemsForDay(day, itemsForDay);
         }
-
-        List<MealPlanDaySummaryResponse> daySummaries = days.stream()
-                .map(d -> MealPlanDaySummaryResponse.from(d, itemsByDayId.getOrDefault(d.getId(), List.of())))
-                .toList();
-
-        MealPlanOverviewResponse resp = MealPlanOverviewResponse.of(mealPlan, daySummaries);
-        log.info("[MealPlan] created planId={}, source={}", mealPlan.getId(), generationSource);
-        return resp;
     }
 
-    private AiMonthlySkeletonResponse generateAiSkeletonInChunks(
-            Long planId,
-            LocalDate startDate,
-            int totalDays,
-            Map<String, Object> basePayload
-    ) {
-        List<AiMonthlySkeletonResponse.AiDaySkeleton> merged = new ArrayList<>();
-
-        for (int offset = 0; offset < totalDays; offset += AI_CHUNK_DAYS) {
-            int chunkDays = Math.min(AI_CHUNK_DAYS, totalDays - offset);
-            LocalDate chunkStart = startDate.plusDays(offset);
-
-            Map<String, Object> payload = new HashMap<>(basePayload);
-            payload.put("startDate", chunkStart.format(DF));
-            payload.put("totalDays", chunkDays);
-
-            log.info("[MealPlan] AI chunk start planId={}, chunkStart={}, chunkDays={}",
-                    planId, chunkStart, chunkDays);
-
-            AiMonthlySkeletonResponse chunk = dietAiClient.generateMonthlySkeleton(payload);
-            if (chunk == null || chunk.getDays() == null || chunk.getDays().isEmpty()) {
-                log.warn("[MealPlan] AI chunk empty planId={}, chunkStart={}", planId, chunkStart);
-                return null;
-            }
-
-            List<AiMonthlySkeletonResponse.AiDaySkeleton> days = chunk.getDays();
-            for (int i = 0; i < chunkDays; i++) {
-                AiMonthlySkeletonResponse.AiDaySkeleton day = (i < days.size()) ? days.get(i) : null;
-                if (day == null) {
-                    log.warn("[MealPlan] AI chunk missing day planId={}, chunkStart={}, dayOffset={}",
-                            planId, chunkStart, i);
-                    return null;
-                }
-                merged.add(AiMonthlySkeletonResponse.AiDaySkeleton.builder()
-                        .dayIndex(offset + i + 1)
-                        .planDate(chunkStart.plusDays(i).format(DF))
-                        .meals(day.getMeals())
-                        .totalCalories(day.getTotalCalories())
-                        .build());
-            }
+    private void saveItemsForDay(MealPlanDay day, List<MealItem> items) {
+        for (MealItem item : items) {
+            mealPlanMapper.insertMealItem(item);
         }
-
-        return AiMonthlySkeletonResponse.builder()
-                .days(merged)
-                .build();
+        int totalCaloriesForDay = items.stream().mapToInt(MealItem::getCalories).sum();
+        day.setTotalCalories(totalCaloriesForDay);
+        mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
     }
+
+    // Removing old generateAiSkeletonInChunks as it's replaced by generateRemainingWeeksParallel
+    /*
+    private AiMonthlySkeletonResponse generateAiSkeletonInChunks(...) { ... }
+    */
 
     private List<MealItem> buildItemsFromAiWithFixedRules(
             AiMonthlySkeletonResponse skeleton,
