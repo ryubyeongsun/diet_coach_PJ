@@ -758,6 +758,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .range(normalizedRange)
                 .startDate(w.from)
                 .endDate(w.to)
+                .budget((long) rangeBudget) // ✅ Set the calculated range budget
                 .source(overallSource)
                 .items(items)
                 .build();
@@ -1122,7 +1123,8 @@ public class MealPlanServiceImpl implements MealPlanService {
         mealIntakeMapper.deleteByDayId(plan.getUserId(), dayId);
 
         // 1. 기존 데이터 삭제
-        mealPlanMapper.deleteMealItemsByDayId(dayId);
+        int deleted = mealPlanMapper.deleteMealItemsByDayId(dayId);
+        log.info("[MealPlan] regenerateDay dayId={} deletedItems={}", dayId, deleted);
 
         // 2. AI 생성 (1일치)
         int targetKcal = plan.getTargetCaloriesPerDay();
@@ -1157,7 +1159,8 @@ public class MealPlanServiceImpl implements MealPlanService {
         mealIntakeMapper.deleteByDayIdAndMealTime(plan.getUserId(), dayId, normalizedMealTime);
 
         // 1. 해당 끼니 삭제
-        mealPlanMapper.deleteMealItemsByDayIdAndMealTime(dayId, normalizedMealTime);
+        int deleted = mealPlanMapper.deleteMealItemsByDayIdAndMealTime(dayId, normalizedMealTime);
+        log.info("[MealPlan] replaceMeal dayId={} mealTime={} deletedItems={}", dayId, normalizedMealTime, deleted);
 
         // 2. AI 생성 (1일치 생성 후 해당 끼니만 추출)
         // 효율성을 위해 전체 하루를 생성하고 필요한 끼니만 골라냅니다.
@@ -1172,6 +1175,8 @@ public class MealPlanServiceImpl implements MealPlanService {
         List<MealItem> targetItems = allNewItems.stream()
                 .filter(item -> item.getMealTime().equals(normalizedMealTime))
                 .toList();
+        
+        log.info("[MealPlan] replaceMeal generated items for insert={}", targetItems.size());
 
         // 3. 저장
         for (MealItem item : targetItems) {

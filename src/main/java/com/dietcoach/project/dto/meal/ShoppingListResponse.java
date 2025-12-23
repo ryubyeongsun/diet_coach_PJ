@@ -13,6 +13,7 @@ public class ShoppingListResponse {
     private String range;
     private LocalDate startDate;
     private LocalDate endDate;
+    private Long budget; // ✅ Allocated Budget for this range
     private String source; // REAL|MOCK
     private List<ShoppingItem> items;
 
