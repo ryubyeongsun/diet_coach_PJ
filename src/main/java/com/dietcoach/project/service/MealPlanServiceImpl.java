@@ -691,19 +691,33 @@ public class MealPlanServiceImpl implements MealPlanService {
         String traceId = currentTraceId();
         log.info("[SHOPPING_LIST][{}] INGREDIENT_SUMMARY top10={}", traceId, buildIngredientSummary(ingredients));
 
-        Map<String, String> keywordByKey = new LinkedHashMap<>();
-        for (MealPlanIngredientResponse ing : ingredients) {
-            String ingredientName = safeTrim(ing.getIngredientName());
-            if (ingredientName.isEmpty()) continue;
-            String key = normalizeCacheKey(ingredientName);
-            if (key.isEmpty()) continue;
-            keywordByKey.putIfAbsent(key, ingredientName);
-        }
+        // A2-R4 Budget Allocation
+        int planMonthlyBudget = (plan.getMonthlyBudget() != null && plan.getMonthlyBudget() > 0) 
+                ? plan.getMonthlyBudget().intValue() : 300000;
+        
+        double rangeFraction = 1.0;
+        if ("WEEK".equalsIgnoreCase(range)) rangeFraction = 7.0 / 30.0;
+        else if ("TODAY".equalsIgnoreCase(range)) rangeFraction = 1.0 / 30.0;
+        
+        int rangeBudget = (int) (planMonthlyBudget * rangeFraction);
 
-        Map<String, ProductLookup> lookupByKey = new HashMap<>();
-        for (Map.Entry<String, String> entry : keywordByKey.entrySet()) {
-            lookupByKey.put(entry.getKey(), getRepresentativeProductCached(entry.getValue()));
+        // Calculate Weights & Total
+        double totalWeight = 0.0;
+        Map<String, Double> weightMap = new HashMap<>();
+        for (MealPlanIngredientResponse ing : ingredients) {
+             String name = safeTrim(ing.getIngredientName());
+             if (name.isEmpty()) continue;
+             
+             double weight = 1.0;
+             if (ing.getDaysCount() != null && ing.getDaysCount() > 0) {
+                 weight = ing.getDaysCount() * 10.0; // Day count has high priority
+             } else if (toLongSafe(ing.getTotalGram()) != null) {
+                 weight = toLongSafe(ing.getTotalGram()) / 100.0; // 100g = 1 point
+             }
+             weightMap.put(name, weight);
+             totalWeight += weight;
         }
+        if (totalWeight <= 0) totalWeight = 1.0;
 
         List<ShoppingListResponse.ShoppingItem> items = new ArrayList<>();
 
@@ -715,9 +729,16 @@ public class MealPlanServiceImpl implements MealPlanService {
             if (totalGram == null || totalGram <= 0) continue;
 
             Integer totalCalories = toIntSafe(ing.getTotalCalories());
+            
+            // Calculate Allocated Budget
+            double weight = weightMap.getOrDefault(ingredientName, 1.0);
+            int allocated = (int) (rangeBudget * (weight / totalWeight));
+            
+            // Clamp (Min 2k, Max 30k)
+            if (allocated < 2000) allocated = 2000;
+            if (allocated > 30000) allocated = 30000;
 
-            String key = normalizeCacheKey(ingredientName);
-            ProductLookup lookup = lookupByKey.getOrDefault(key, getRepresentativeProductCached(ingredientName));
+            ProductLookup lookup = getRepresentativeProductCached(ingredientName, allocated);
 
             items.add(ShoppingListResponse.ShoppingItem.builder()
                     .ingredientName(ingredientName)
@@ -751,34 +772,37 @@ public class MealPlanServiceImpl implements MealPlanService {
         }
     }
 
-    private ProductLookup getRepresentativeProductCached(String ingredientName) {
+    private ProductLookup getRepresentativeProductCached(String ingredientName, int allocatedBudget) {
         String traceId = currentTraceId();
-        String key = normalizeCacheKey(ingredientName);
-        if (key.isEmpty()) {
+        
+        // A2-R5 Cache Key Improvement: ingredient + priceBucket
+        // Bucket size: 2000 KRW
+        int bucket = (allocatedBudget / 2000) * 2000;
+        String normalizedName = normalizeCacheKey(ingredientName);
+        String key = normalizedName + ":" + bucket;
+
+        if (normalizedName.isEmpty()) {
             return new ProductLookup(null, "MOCK");
         }
 
         CachedProduct cached = productCache.get(key);
         if (cached != null && !cached.isExpired()) {
             // ✅ 캐시된 상품도 재검증 (Banned Keyword 체크)
-            // cached.product가 null이면 (이전에 검색 결과 없음으로 캐싱됨) 검증 패스
             if (cached.product == null || categoryService.isValidProductTitle(cached.product.getProductName())) {
-                log.info("[SHOPPING_LIST][{}] CACHE_HIT ingredient={}", traceId, ingredientName);
+                log.info("[SHOPPING_LIST][{}] CACHE_HIT ingredient={} key={}", traceId, ingredientName, key);
                 return new ProductLookup(cached.product, normalizeSource(cached.source));
             } else {
-                log.info("[SHOPPING_LIST][{}] CACHE_INVALIDATED ingredient={} reason=BANNED_KEYWORD product=\"{}\"", 
-                        traceId, ingredientName, cached.product.getProductName());
+                 log.info("[SHOPPING_LIST][{}] CACHE_INVALIDATED ingredient={} reason=BANNED_KEYWORD", traceId, ingredientName);
             }
         }
-        log.info("[SHOPPING_LIST][{}] CACHE_MISS ingredient={}", traceId, ingredientName);
+        log.info("[SHOPPING_LIST][{}] CACHE_MISS ingredient={} key={} budget={}", traceId, ingredientName, key, allocatedBudget);
 
         ShoppingListResponse.ProductCard product = null;
         String source = "MOCK";
 
         try {
-            log.info("[SHOPPING_LIST][{}] SEARCH_REQ ingredient={} keyword=\"{}\" limit={}",
-                    traceId, ingredientName, ingredientName, SHOPPING_SEARCH_TOP_N);
-            ShoppingService.SearchOneResult r = shoppingService.searchOne(ingredientName);
+            // A2-R3 Call with allocatedBudget
+            ShoppingService.SearchOneResult r = shoppingService.searchOne(ingredientName, allocatedBudget);
             if (r != null) {
                 product = r.product();
                 source = normalizeSource(r.source());
