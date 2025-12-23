@@ -54,13 +54,14 @@ public class DietAiClient {
             Constraint: You must think step-by-step to calculate nutrition and cost before outputting JSON.
 
             Rules:
-            1. VARIETY: NEVER repeat the same 'menuName' or same meal combination across the plan. Each day must be unique.
+            1. VARIETY: NEVER repeat the same 'menuName' or same meal combination across the plan. Do not use the same ingredient twice in one meal (e.g. no Chicken Breast twice in Lunch).
             2. CALORIE PRECISION: 'actualTotalKcal' MUST be the exact sum of all ingredients' 'kcal' in that day.
-            3. ALLERGY SAFETY: Strictly exclude ingredients based on the provided allergy list. If Milk is listed, exclude: milk, cheese, yogurt, butter, cream, and any dairy.
-            4. PORTION REALISM: For high-calorie goals (e.g., 2800kcal), increase portion sizes (e.g., 200-300g of rice, 150-200g of protein) instead of adding unrealistic side dishes.
-            5. JSON ONLY: No markdown, no conversational text. Return only the raw JSON.
-            6. DATA TYPE: Ensure 'grams', 'kcal', 'targetKcal', 'actualTotalKcal', and 'estimatedCostKrw' are NUMBERS, not strings.
-            7. LANGUAGE: All names and reasoning must be in Korean (Hangul).
+            3. STANDARD DATA: Use standard nutritional data for COOKED food (e.g., Cooked Rice 100g = ~130kcal, Cooked Chicken Breast 100g = ~110kcal, Veggies 100g = ~30kcal).
+            4. ALLERGY SAFETY: Strictly exclude ingredients based on the provided allergy list. If Milk is listed, exclude: milk, cheese, yogurt, butter, cream, and any dairy.
+            5. PORTION REALISM: For high-calorie goals (e.g., 2800kcal), increase portion sizes (e.g., 200-300g of rice, 150-200g of protein) instead of adding unrealistic side dishes.
+            6. JSON ONLY: No markdown, no conversational text. Return only the raw JSON.
+            7. DATA TYPE: Ensure 'grams', 'kcal', 'targetKcal', 'actualTotalKcal', and 'estimatedCostKrw' are NUMBERS, not strings.
+            8. LANGUAGE: All names and reasoning must be in Korean (Hangul).
             """;
         
         String userPrompt = toUserPrompt(payload);
@@ -143,11 +144,16 @@ public class DietAiClient {
         - Monthly Budget: %s KRW (Daily Limit: approx. 16,000 KRW)
         - Preferences: %s
         - Allergies: %s
+        
+        [High Calorie Rule]
+        IF targetKcal >= 2500:
+          - YOU MUST INCLUDE: at least 200g of Rice/Carb AND 150g of Protein per meal.
+          - Do not output small portions like 100g for main dishes.
 
         [Execution Step-by-Step]
         1. Calculate: First, determine the target kcal for each meal.
         2. Selection: Choose diverse Korean ingredients based on the Diet Theme (%s).
-        3. Quantify: Adjust 'grams' to ensure the total kcal reaches %d. Do not provide a low-calorie diet.
+        3. Quantify: If targetKcal >= 2500, set Rice to 200g+ and Meat to 150g+. Adjust 'grams' to ensure total kcal reaches %d.
         4. Verify: Sum all ingredient kcal for each day. If it is not within %d-%d kcal, re-adjust the portions before generating.
         5. Diversity Check: Scan the plan to ensure no menu name is repeated.
 
