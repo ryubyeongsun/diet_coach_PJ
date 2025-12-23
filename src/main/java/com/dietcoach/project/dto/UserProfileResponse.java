@@ -26,6 +26,7 @@ public class UserProfileResponse {
 
     private Double height;
     private Double weight;
+    private Double targetWeight;
 
     private ActivityLevel activityLevel;
     private GoalType goalType;

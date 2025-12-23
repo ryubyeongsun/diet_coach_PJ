@@ -26,3 +26,8 @@ naver:
   shopping:
     client-id: ${NAVER_SHOPPING_CLIENT_ID}
     client-secret: ${NAVER_SHOPPING_CLIENT_SECRET}
+
+server:
+  servlet:
+    session:
+      timeout: 60m

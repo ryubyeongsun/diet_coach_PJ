@@ -38,6 +38,7 @@ public class UserServiceImpl implements UserService {
                 .birthDate(request.getBirthDate())
                 .height(request.getHeight())
                 .weight(request.getWeight())
+                .targetWeight(request.getTargetWeight())
                 .activityLevel(request.getActivityLevel())
                 .goalType(request.getGoalType())
                 .build();
@@ -78,6 +79,7 @@ public class UserServiceImpl implements UserService {
                 .birthDate(user.getBirthDate())
                 .height(user.getHeight())
                 .weight(user.getWeight())
+                .targetWeight(user.getTargetWeight())
                 .activityLevel(user.getActivityLevel())
                 .goalType(user.getGoalType())
                 .bmr(user.getBmr())
@@ -99,6 +101,7 @@ public class UserServiceImpl implements UserService {
         user.setBirthDate(request.getBirthDate());
         user.setHeight(request.getHeight());
         user.setWeight(request.getWeight());
+        user.setTargetWeight(request.getTargetWeight());
         user.setActivityLevel(request.getActivityLevel());
         user.setGoalType(request.getGoalType());
 
