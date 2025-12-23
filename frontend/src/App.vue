@@ -77,6 +77,12 @@ const handleWeightSaved = () => {
             >🛒 ({{ cartItemCount }})</span
           >
           <span>{{ currentUser.name }}님</span>
+          <button 
+            @click="go('/profile/edit')" 
+            class="layout__chip"
+          >
+            내 정보
+          </button>
           <button
             @click="handleLogout"
             class="layout__chip layout__chip--secondary"

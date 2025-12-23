@@ -103,10 +103,10 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import NnInput from "../components/common/NnInput.vue";
-import NnButton from "../components/common/NnButton.vue";
+import NnInput from "@/components/common/NnInput.vue";
+import NnButton from "@/components/common/NnButton.vue";
 import { getCurrentUser, updateCurrentUser } from "@/utils/auth.js";
-import { updateUserProfile } from "../api/usersApi";
+import { updateUserProfile } from "@/api/usersApi";
 
 const router = useRouter();
 const currentUser = ref(null);

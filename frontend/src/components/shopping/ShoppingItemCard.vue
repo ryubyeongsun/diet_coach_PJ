@@ -1,33 +1,54 @@
 <template>
-  <div class="shopping-item-card">
-    <div class="ingredient-info">
-      <h3 class="ingredient-name">{{ item.ingredientName }}</h3>
-      <p v-if="item.totalGram" class="ingredient-amount">
-        총 필요량: {{ item.totalGram }}g
-      </p>
+  <div 
+    class="shopping-card" 
+    :class="{ 'is-checked': isChecked, 'has-product': !!item.product }"
+    @click="$emit('toggle')"
+  >
+    <!-- 체크박스 (이미지 위 플로팅) -->
+    <div class="checkbox-overlay">
+      <div class="custom-checkbox" :class="{ checked: isChecked }">
+        <span v-if="isChecked">✔</span>
+      </div>
     </div>
 
-    <div v-if="item.product" class="product-card">
-      <div class="product-image">
-        <img :src="item.product.imageUrl" :alt="item.product.name" />
+    <!-- 상품 이미지 영역 -->
+    <div class="image-area">
+      <img 
+        v-if="item.product && item.product.imageUrl" 
+        :src="item.product.imageUrl" 
+        :alt="item.product.title" 
+      />
+      <div v-else class="placeholder-img">
+        <span>이미지 없음</span>
       </div>
-      <div class="product-details">
-        <p class="product-name">{{ item.product.name }}</p>
-        <p class="product-price">{{ item.product.price.toLocaleString() }}원</p>
+      
+      <div class="ingredient-badge">
+        {{ item.ingredientName }} {{ item.totalGram ? `(${item.totalGram}g)` : '' }}
       </div>
-      <a
-        :href="item.product.productUrl"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="buy-button"
-      >
-        구매하기
-      </a>
     </div>
 
-    <div v-else class="no-product-card">
-      <p>추천 상품을 찾을 수 없습니다.</p>
-      <button class="buy-button" disabled>구매 불가</button>
+    <!-- 정보 영역 -->
+    <div class="info-area">
+      <div v-if="item.product">
+        <div class="product-title" :title="item.product.title">
+          {{ item.product.title }}
+        </div>
+        <div class="price-row">
+          <span class="price">{{ item.product.price.toLocaleString() }}원</span>
+          <span class="mall">{{ item.product.mallName }}</span>
+        </div>
+        
+        <button 
+          class="add-cart-btn" 
+          @click.stop="$emit('add-to-cart', item.product)"
+        >
+          🛒 담기
+        </button>
+      </div>
+      
+      <div v-else class="empty-state">
+        <p>추천 상품이 없습니다.</p>
+      </div>
     </div>
   </div>
 </template>
@@ -38,113 +59,178 @@ defineProps({
     type: Object,
     required: true,
   },
+  isChecked: {
+    type: Boolean,
+    default: false,
+  },
 });
+
+defineEmits(['toggle', 'add-to-cart']);
 </script>
 
 <style scoped>
-.shopping-item-card {
+.shopping-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background-color: #fff;
+  flex-direction: column;
+  background-color: white;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 16px;
-  gap: 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 100%;
 }
 
-.ingredient-info {
-  flex: 1;
-  min-width: 120px;
+.shopping-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border-color: #d1fae5;
 }
 
-.ingredient-name {
-  margin: 0 0 4px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #111827;
-  text-transform: capitalize;
+.shopping-card.is-checked {
+  opacity: 0.8;
+  border-color: #10b981;
 }
 
-.ingredient-amount {
-  margin: 0;
-  font-size: 13px;
-  color: #6b7280;
+/* 체크박스 */
+.checkbox-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
 }
 
-.product-card,
-.no-product-card {
-  flex: 3;
+.custom-checkbox {
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  background-color: #f9fafb;
-  padding: 12px;
-  border-radius: 6px;
-}
-
-.no-product-card {
-  color: #6b7280;
+  justify-content: center;
+  color: white;
   font-size: 14px;
+  transition: all 0.2s;
+  cursor: pointer;
 }
 
-.product-image {
-  width: 64px;
-  height: 64px;
-  flex-shrink: 0;
+.shopping-card.is-checked .custom-checkbox {
+  background-color: #10b981;
+  border-color: #10b981;
 }
 
-.product-image img {
+/* 이미지 영역 */
+.image-area {
+  position: relative;
+  width: 100%;
+  padding-top: 100%; /* 1:1 Aspect Ratio */
+  background-color: #f9fafb;
+}
+
+.image-area img {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.placeholder-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.ingredient-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 4px 8px;
   border-radius: 4px;
-  border: 1px solid #f3f4f6;
+  font-size: 12px;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
 }
 
-.product-details {
-  flex-grow: 1;
-  overflow: hidden;
+/* 정보 영역 */
+.info-area {
+  padding: 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.product-name {
-  margin: 0;
+.product-title {
   font-size: 14px;
-  font-weight: 500;
   color: #374151;
-  white-space: nowrap;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  height: 2.8em; /* 2 lines */
   overflow: hidden;
   text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.product-price {
-  margin: 4px 0 0;
-  font-size: 15px;
+.price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.price {
+  font-size: 16px;
   font-weight: 700;
-  color: #1f2937;
+  color: #111827;
 }
 
-.buy-button {
-  display: inline-block;
-  padding: 8px 16px;
-  background-color: #2563eb;
+.mall {
+  font-size: 11px;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.add-cart-btn {
+  width: 100%;
+  padding: 10px;
+  background-color: #047857;
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-  text-align: center;
+  font-weight: 600;
   cursor: pointer;
   transition: background-color 0.2s;
+  margin-top: auto;
 }
 
-.buy-button:hover {
-  background-color: #1d4ed8;
+.add-cart-btn:hover {
+  background-color: #065f46;
 }
 
-.buy-button[disabled] {
-  background-color: #d1d5db;
-  cursor: not-allowed;
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 13px;
+  min-height: 80px;
 }
 </style>
