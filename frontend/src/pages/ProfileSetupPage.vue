@@ -71,6 +71,13 @@
             </div>
           </div>
 
+          <div class="row">
+             <div class="input-group">
+              <label>목표 체중 (kg)</label>
+              <NnInput type="number" v-model.number="form.targetWeight" placeholder="65" required />
+            </div>
+          </div>
+
           <div class="input-group">
             <label>목표</label>
             <div class="goal-options">
@@ -115,6 +122,7 @@ const form = ref({
   birthDate: "",
   height: null,
   weight: null,
+  targetWeight: null,
   activityLevel: "SEDENTARY",
   goalType: "MAINTAIN",
 });

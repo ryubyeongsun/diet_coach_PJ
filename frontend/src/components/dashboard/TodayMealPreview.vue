@@ -12,8 +12,10 @@
     </div>
 
     <div v-else-if="!hasData" class="state-msg empty">
-      <p>오늘의 식단이 없습니다.</p>
-      <p class="sub-text">월간 식단을 생성하면 여기에 표시됩니다.</p>
+      <div class="cute-mascot">🥑</div>
+      <p class="cute-text">앗! 아직 식단이 없어요.</p>
+      <p class="sub-text">나만의 맞춤 식단을 생성하고<br/>건강한 하루를 시작해볼까요? ✨</p>
+      <button class="go-plan-btn" @click="$router.push('/meal-plans')">식단 만들러 가기</button>
     </div>
 
     <div v-else class="meal-list">
@@ -197,13 +199,47 @@ async function onToggle(meal) {
   color: #6b7280;
 }
 .state-msg.empty {
-  background-color: #f9fafb;
-  border-radius: 8px;
+  background-color: #f0fdf4;
+  border: 2px dashed #bbf7d0;
+  border-radius: 16px;
+  padding: 40px 20px;
+}
+.cute-mascot {
+  font-size: 48px;
+  margin-bottom: 12px;
+  animation: bounce 2s infinite;
+}
+.cute-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #047857;
+  margin-bottom: 8px;
 }
 .sub-text {
-  font-size: 13px;
-  color: #9ca3af;
+  font-size: 14px;
+  color: #6b7280;
   margin-top: 4px;
+  line-height: 1.5;
+}
+.go-plan-btn {
+  margin-top: 20px;
+  padding: 10px 24px;
+  background-color: #047857;
+  color: white;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.go-plan-btn:hover {
+  transform: scale(1.05);
+  background-color: #059669;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 .meal-list {

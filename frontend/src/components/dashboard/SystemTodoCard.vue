@@ -37,11 +37,9 @@ const router = useRouter();
 
 const systemTodos = computed(() => {
   const todos = [];
-  if (!props.summary) return [];
-
+  
   // 1. 오늘 체중 기록 여부 확인
-  //    (백엔드 summary API가 'todayWeightRecorded: boolean'을 준다고 가정)
-  if (!props.summary.todayWeightRecorded) {
+  if (!props.summary || !props.summary.todayWeightRecorded) {
     todos.push({
       id: 'record-weight',
       icon: '⚖️',
@@ -52,7 +50,7 @@ const systemTodos = computed(() => {
   }
 
   // 2. 식단 생성 여부 확인
-  if (props.summary.mealPlanId) {
+  if (props.summary && props.summary.mealPlanId) {
     todos.push({
       id: 'check-shopping-list',
       icon: '🛒',

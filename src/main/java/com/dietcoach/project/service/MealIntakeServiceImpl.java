@@ -40,6 +40,16 @@ public class MealIntakeServiceImpl implements MealIntakeService {
         boolean isConsumed = Boolean.TRUE.equals(request.getIsConsumed());
         LocalDateTime consumedAt = isConsumed ? LocalDateTime.now() : null;
 
+        if (!isConsumed) {
+            mealIntakeMapper.deleteByDayIdAndMealTime(userId, request.getMealPlanDayId(), request.getMealTime());
+            return MealIntakeResponse.builder()
+                    .mealPlanDayId(request.getMealPlanDayId())
+                    .mealTime(request.getMealTime())
+                    .isConsumed(false)
+                    .consumedAt(null)
+                    .build();
+        }
+
         MealIntake intake = MealIntake.builder()
                 .userId(userId)
                 .mealPlanDayId(request.getMealPlanDayId())

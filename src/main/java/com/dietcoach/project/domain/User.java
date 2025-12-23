@@ -28,6 +28,7 @@ public class User {
 
     private Double height; // cm
     private Double weight; // kg
+    private Double targetWeight; // kg
 
     private ActivityLevel activityLevel;
     private GoalType goalType;

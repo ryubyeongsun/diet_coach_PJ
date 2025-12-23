@@ -10,7 +10,7 @@
       </div>
       <div class="character-feedback">
         <p class="speech-bubble">{{ statusText }}</p>
-        <p class="key-metric">달성률: <strong>{{ achievementRate }}%</strong></p>
+        <p class="key-metric">목표 체중 달성률: <strong>{{ achievementRate }}%</strong></p>
       </div>
     </div>
     <div v-else class="empty-state">
@@ -50,8 +50,38 @@ const level = computed(() => {
 });
 
 const achievementRate = computed(() => {
-  if (!props.summary || props.summary.achievementRate === null) return 0;
-  return props.summary.achievementRate.toFixed(0);
+  const user = getCurrentUser();
+  if (!user || !user.targetWeight) return 0;
+
+  const current = props.latestWeight;
+  const target = user.targetWeight;
+  
+  // Goal reached check
+  if (user.goalType === 'LOSE_WEIGHT' && current <= target) return 100;
+  if (user.goalType === 'GAIN_WEIGHT' && current >= target) return 100;
+  if (user.goalType === 'MAINTAIN') {
+      // For maintenance, maybe just 100 if within range?
+      return Math.abs(current - target) < 1 ? 100 : 90;
+  }
+
+  // Proximity-based achievement rate
+  let progress = 0;
+  
+  if (user.goalType === 'LOSE_WEIGHT') {
+      // e.g. Current 80, Target 70 -> 70/80 = 87.5%
+      progress = (target / current) * 100;
+  } else if (user.goalType === 'GAIN_WEIGHT') {
+      // e.g. Current 60, Target 70 -> 60/70 = 85.7%
+      progress = (current / target) * 100;
+  } else {
+      // MAINTAIN
+      // e.g. Target 70. Current 77 (10% diff) -> 90% achieved.
+      // diff ratio = abs(77-70)/70 = 0.1
+      const diffRatio = Math.abs(current - target) / target;
+      progress = Math.max(0, (1 - diffRatio) * 100);
+  }
+
+  return Math.max(0, Math.min(100, progress)).toFixed(0);
 });
 
 const weightChangeLast7Days = computed(() => {

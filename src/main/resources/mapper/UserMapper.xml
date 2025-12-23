@@ -17,6 +17,7 @@
 
         <result property="height"          column="height"/>
         <result property="weight"          column="weight"/>
+        <result property="targetWeight"    column="target_weight"/>
 
         <result property="activityLevel"   column="activity_level"
                 javaType="com.dietcoach.project.domain.ActivityLevel"/>
@@ -37,7 +38,7 @@
         INSERT INTO users (
             email, password, name,
             gender, birth_date,
-            height, weight,
+            height, weight, target_weight,
             activity_level, goal_type,
             bmr, tdee, target_calories,
             created_at, updated_at
@@ -45,7 +46,7 @@
         VALUES (
             #{email}, #{password}, #{name},
             #{gender}, #{birthDate},
-            #{height}, #{weight},
+            #{height}, #{weight}, #{targetWeight},
             #{activityLevel}, #{goalType},
             #{bmr}, #{tdee}, #{targetCalories},
             NOW(), NOW()
@@ -75,6 +76,7 @@
             birth_date = #{birthDate},
             height = #{height},
             weight = #{weight},
+            target_weight = #{targetWeight},
             activity_level = #{activityLevel},
             goal_type = #{goalType},
             bmr = #{bmr},
