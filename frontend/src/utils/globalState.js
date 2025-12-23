@@ -24,17 +24,7 @@ export const globalState = reactive({
 });
 
 // Sync watchers
-watch(() => globalState.cart, (newVal) => {
-  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newVal));
-}, { deep: true });
-
-watch(() => globalState.confirmed, (newVal) => {
-  localStorage.setItem(PURCHASED_ID_STORAGE_KEY, JSON.stringify([...newVal]));
-}, { deep: true });
-
-watch(() => globalState.purchasedItems, (newVal) => {
-  localStorage.setItem(PURCHASED_ITEMS_STORAGE_KEY, JSON.stringify(newVal));
-}, { deep: true });
+// ... (existing watchers) ...
 
 export function setWeightModalOpen(isOpen) {
   globalState.isWeightModalOpen = isOpen;

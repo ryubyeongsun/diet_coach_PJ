@@ -2,10 +2,10 @@
   <div class="loading-overlay">
     <div class="loading-content">
       <div class="character-bounce">
-        <!-- 간단한 캐릭터/이모지 애니메이션 -->
-        🧑‍🍳
+        <!-- 아이콘 (이모지) -->
+        {{ icon }}
       </div>
-      <h3 class="loading-title">남남코치가 식단을 짜고 있어요!</h3>
+      <h3 class="loading-title">{{ title }}</h3>
       <p class="loading-message">{{ currentMessage }}</p>
       <div class="progress-bar">
         <div class="progress-fill"></div>
@@ -15,25 +15,38 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, defineProps } from "vue";
 
-const messages = [
-  "사용자님의 건강 데이터를 분석하고 있습니다...",
-  "이번 달 예산에 맞는 재료를 찾는 중이에요...",
-  "영양 밸런스를 꼼꼼히 체크하고 있습니다...",
-  "맛있는 레시피를 조합하는 중입니다...",
-  "거의 다 됐어요! 잠시만 기다려주세요...",
-];
+const props = defineProps({
+  title: {
+    type: String,
+    default: "남남코치가 도와드리고 있어요!",
+  },
+  messages: {
+    type: Array,
+    default: () => [
+      "사용자님의 건강 데이터를 분석하고 있습니다...",
+      "이번 달 예산에 맞는 재료를 찾는 중이에요...",
+      "영양 밸런스를 꼼꼼히 체크하고 있습니다...",
+      "맛있는 레시피를 조합하는 중입니다...",
+      "거의 다 됐어요! 잠시만 기다려주세요...",
+    ],
+  },
+  icon: {
+    type: String,
+    default: "🧑‍🍳",
+  },
+});
 
-const currentMessage = ref(messages[0]);
+const currentMessage = ref(props.messages[0]);
 let intervalId = null;
 
 onMounted(() => {
   let index = 0;
   intervalId = setInterval(() => {
-    index = (index + 1) % messages.length;
-    currentMessage.value = messages[index];
-  }, 3500); // 3.5초마다 메시지 변경
+    index = (index + 1) % props.messages.length;
+    currentMessage.value = props.messages[index];
+  }, 2500); // 2.5초마다 메시지 변경 (조금 더 빠르게)
 });
 
 onUnmounted(() => {

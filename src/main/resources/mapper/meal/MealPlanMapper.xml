@@ -82,7 +82,7 @@
     </delete>
 
     <delete id="deleteMealItemsByDayIdAndMealTime">
-        DELETE FROM meal_items WHERE meal_plan_day_id = #{mealPlanDayId} AND meal_time = #{mealTime}
+        DELETE FROM meal_items WHERE meal_plan_day_id = #{mealPlanDayId} AND UPPER(meal_time) = UPPER(#{mealTime})
     </delete>
 
 </mapper>
