@@ -325,66 +325,63 @@ public class MealPlanServiceImpl implements MealPlanService {
             if (mt == null) continue;
             if (!allowedMealTimes.contains(mt)) continue;
 
-            Integer mealTargetCalories = (mealTargets == null ? null : mealTargets.get(mt));
             String menuName = safeTrim(meal.getMenuName());
 
             List<AiMonthlySkeletonResponse.AiIngredient> ings =
                     (meal.getIngredients() == null) ? List.of() : meal.getIngredients();
-            int ingredientCount = ings.size();
 
             for (AiMonthlySkeletonResponse.AiIngredient ing : ings) {
                 if (ing == null) continue;
                 String ingredient = safeTrim(ing.getIngredientName());
                 if (ingredient.isEmpty()) continue;
 
-                // 1) grams 먼저 계산(또는 파생)
-                Integer grams = adjustGrams(ing.getGrams(), ingredient, ing.getCalories());
-
-                // 2) calories 계산 (AI값 검증 포함)
-                Integer calories = adjustCalories(ing.getCalories(), ingredient, mealTargetCalories, ingredientCount, grams);
+                // 1) grams 확정
+                Integer grams = adjustGrams(ing.getGrams(), ingredient);
 
                 String memo = menuName.isEmpty() ? "AI" : menuName;
 
-                // 중복 허용: AI가 보낸 그대로 추가
-                result.add(MealItem.builder()
+                // 2) 객체 생성 (일단 칼로리 0으로 생성)
+                MealItem item = MealItem.builder()
                         .mealPlanDayId(mealPlanDayId)
                         .mealTime(mt)
                         .foodName(ingredient)
                         .grams(grams)
-                        .calories(calories)
+                        .calories(0)
                         .memo(memo)
-                        .build());
+                        .build();
+                
+                // 3) 정밀 영양 분석 엔진 돌리기 (Calories, Carbs, Protein, Fat 계산)
+                calculateAndSetNutrients(item);
+
+                // 중복 허용: AI가 보낸 그대로 추가
+                result.add(item);
             }
         }
 
         // =========================================================
-        // 3) Post-Scaling: 총 칼로리가 목표 대비 너무 낮으면 전체적으로 증량
+        // 3) Post-Scaling: 총 칼로리가 목표 대비 너무 낮거나 높으면 전체적으로 조정
         // =========================================================
         if (mealTargets != null) {
             int targetTotal = mealTargets.values().stream().mapToInt(Integer::intValue).sum();
             int currentTotal = result.stream().mapToInt(MealItem::getCalories).sum();
             
-            // 90% 미만이면 강제 증량 (최대 1.5배)
-            if (targetTotal > 0 && currentTotal > 0 && currentTotal < targetTotal * 0.9) {
+            // 오차 범위 10% 초과 시 양방향 스케일링 수행
+            if (targetTotal > 0 && currentTotal > 0 && 
+               (currentTotal < targetTotal * 0.9 || currentTotal > targetTotal * 1.1)) {
+                
                 double scale = (double) targetTotal / currentTotal;
-                if (scale > 1.5) scale = 1.5; // 너무 과도한 뻥튀기 방지
+                // 안전 장치: 최대 1.5배 증량, 최소 0.5배 감량
+                scale = Math.max(0.5, Math.min(1.5, scale));
                 
                 log.info("[SCALING_APPLIED] target={} current={} scale={}", targetTotal, currentTotal, String.format("%.2f", scale));
                 
                 List<MealItem> scaledItems = new ArrayList<>();
                 for (MealItem item : result) {
                     int newGrams = (int) Math.round(item.getGrams() * scale);
-                    int newCalories = (int) Math.round(item.getCalories() * scale);
-                    
-                    // Re-build
-                    scaledItems.add(MealItem.builder()
-                            .mealPlanDayId(item.getMealPlanDayId())
-                            .mealTime(item.getMealTime())
-                            .foodName(item.getFoodName())
-                            .grams(newGrams)
-                            .calories(newCalories)
-                            .memo(item.getMemo())
-                            .build());
+                    // Re-calculate nutrients based on new grams
+                    item.setGrams(newGrams);
+                    calculateAndSetNutrients(item);
+                    scaledItems.add(item);
                 }
                 return scaledItems;
             }
@@ -436,119 +433,73 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     // =========================
-    // grams / calories 보정
+    // 정밀 영양 분석 엔진
     // =========================
 
-    private Integer adjustGrams(Integer grams, String ingredientName, Integer calories) {
-        // 1) AI grams 무조건 신뢰 (상한 체크/변경 없음)
+    private Integer adjustGrams(Integer grams, String ingredientName) {
+        // 1) AI grams 무조건 신뢰
         if (grams != null && grams > 0) {
             return grams;
         }
-
-        // 2) AI grams 누락 시에만 백엔드 추정
-        int max = maxGramsFor(ingredientName);
-        if (calories != null && calories > 0) {
-            double kcalPerGram = kcalPerGramFor(ingredientName);
-            int derived = (int) Math.round(calories / kcalPerGram);
-            return clamp(derived, 10, max);
-        }
-
-        return 100; // Default
+        // 2) 없으면 기본값 (추후 고도화 가능)
+        return 100;
     }
 
-    private Integer adjustCalories(Integer calories, String ingredientName, Integer mealCalories, int ingredientCount, Integer grams) {
-        // 1) AI Grams 기반 백엔드 강제 재계산 (AI가 준 calories 값 무시)
-        // 이유: AI의 칼로리 계산은 부정확할 수 있으므로, 분량(g)만 믿고 칼로리는 우리 상수로 통일.
-        if (grams != null && grams > 0) {
-            double kpg = kcalPerGramFor(ingredientName);
-            int recalculated = (int) Math.round(grams * kpg);
-            log.info("[CAL_RECALC] {} {}g * {} = {}kcal", ingredientName, grams, kpg, recalculated);
-            return recalculated;
+    private void calculateAndSetNutrients(MealItem item) {
+        // 공백을 제거하여 "기름 뺀" -> "기름뺀"으로 인식하게 함
+        String n = normalizeName(item.getFoodName()).replace(" ", "");
+        int grams = item.getGrams();
+        
+        double kpg = 1.2;
+        double cRatio = 0.4; double pRatio = 0.3; double fRatio = 0.3;
+
+        // 1. 예외 처리 강화 (공백 제거 상태로 체크)
+        boolean isFatRemoved = n.contains("기름뺀") || n.contains("기름제거") || n.contains("지방제거") || n.contains("저지방") || n.contains("언스위트");
+
+        // 2. 우선순위 재배치: 음료/대체유를 최우선으로 (Tier 0)
+        if (containsAny(n, "아몬드브리즈", "아몬드유", "almondbreeze", "almondmilk", "우유", "두유", "음료")) {
+            kpg = 0.3; cRatio = 0.5; pRatio = 0.2; fRatio = 0.3;
+        }
+        // 3. 저지방 단백질 (참치 기름 뺀 것 등은 여기서 먼저 걸러짐)
+        else if (isFatRemoved || containsAny(n, "닭가슴살", "흰살생선", "새우", "오징어", "참치", "계란", "달걀", "명태", "동태")) {
+            kpg = 1.2; cRatio = 0.05; pRatio = 0.85; fRatio = 0.10;
+        }
+        // 4. 순수 유지류 (isFatRemoved가 아님이 보장됨)
+        else if (containsAny(n, "oil", "butter", "기름", "오일", "버터", "마요네즈", "참기름", "들기름", "식용유")) {
+            kpg = 8.5; cRatio = 0.0; pRatio = 0.0; fRatio = 1.0;
+        }
+        // 5. 조리된 면/빵류 (상수 하향: 2.5 -> 1.5)
+        else if (containsAny(n, "면", "국수", "파스타", "라면", "칼국수", "우동", "잔치국수", "빵", "베이글", "떡")) {
+            kpg = 1.5; cRatio = 0.80; pRatio = 0.12; fRatio = 0.08;
+        }
+        // [Tier 2] 견과류
+        else if (containsAny(n, "nuts", "almond", "peanut", "walnut", "견과", "아몬드", "땅콩", "호두")) {
+            kpg = 6.0; cRatio = 0.15; pRatio = 0.15; fRatio = 0.70;
+        }
+        // [Tier 3] 고지방 단백질
+        else if (containsAny(n, "pork", "belly", "beef", "mackerel", "salmon", "돼지", "삼겹살", "소고기", "쇠고기", "고등어", "연어", "갈비")) {
+            kpg = 2.5; cRatio = 0.05; pRatio = 0.40; fRatio = 0.55;
+        }
+        // [Tier 5] 밥/구황작물
+        else if (containsAny(n, "밥", "현미", "고구마", "감자", "옥수수", "rice", "potato")) {
+            kpg = 1.4; cRatio = 0.88; pRatio = 0.08; fRatio = 0.04;
+        }
+        // [Tier 8] 양념
+        else if (containsAny(n, "sauce", "장", "소스", "양념", "케찹", "마요")) {
+            kpg = 1.6; cRatio = 0.6; pRatio = 0.2; fRatio = 0.2;
+        }
+        // [Tier 9] 채소
+        else if (containsAny(n, "샐러드", "김치", "배추", "숙주", "나물", "채소", "상추", "깻잎", "오이", "당근", "버섯", "브로콜리")) {
+            kpg = 0.35; cRatio = 0.70; pRatio = 0.20; fRatio = 0.10;
         }
 
-        // 2) Grams도 없고 Calories만 있는 경우 (드문 케이스) -> 그대로 사용
-        if (calories != null && calories > 0) {
-            return calories;
-        }
-
-        // 3) 균등 분배 (최후 수단)
-        if (mealCalories != null && ingredientCount > 0) {
-            int derived = (int) Math.round(mealCalories / (double) ingredientCount);
-            return clamp(derived, 0, 3000);
-        }
-
-        return 0;
-    }
-
-    private int maxGramsFor(String ingredientName) {
-        String n = normalizeName(ingredientName);
-        if (n.isEmpty()) return 600;
-
-        // 지방류(오일/버터/치즈/견과 등)
-        if (containsAny(n,
-                "oil", "olive", "butter", "mayo", "mayonnaise", "cream", "cheese",
-                "nuts", "almond", "peanut", "walnut", "avocado",
-                "기름", "오일", "올리브유", "참기름", "들기름", "식용유",
-                "버터", "마요", "마요네즈", "크림", "치즈",
-                "견과", "아몬드", "땅콩", "호두", "아보카도"
-        )) {
-            return 80;
-        }
-
-        // 소스/양념류
-        if (containsAny(n,
-                "sauce", "soy sauce", "gochujang", "doenjang", "ketchup",
-                "소스", "간장", "고추장", "된장", "케찹", "드레싱", "양념"
-        )) {
-            return 120;
-        }
-
-        // 채소/과일류
-        if (containsAny(n,
-                "salad", "lettuce", "spinach", "broccoli", "cabbage", "tomato", "cucumber", "carrot",
-                "apple", "banana", "grape", "orange", "berry",
-                "샐러드", "양상추", "상추", "시금치",
-                "브로콜리", "양배추", "토마토", "오이", "당근",
-                "사과", "바나나", "포도", "오렌지", "딸기", "김치"
-        )) {
-            return 300;
-        }
-
-        return 500;
-    }
-
-    private double kcalPerGramFor(String ingredientName) {
-        String n = normalizeName(ingredientName);
-        if (n.isEmpty()) return 1.2;
-
-        // [Step 1] 예외 처리: '기름 제거', '기름 뺀' 등이 포함되면 오일 Tier 패스
-        boolean isFatRemoved = n.contains("기름뺀") || n.contains("기름제거") || n.contains("기름을뺀");
-
-        // [Step 2] 단백질/생선류를 오일보다 먼저 체크 (우선순위 조정)
-        // 참치(기름 뺀 것)가 오일에 걸리지 않게 하기 위함
-        if (containsAny(n, "chicken", "breast", "tuna", "pork", "beef", "salmon", "mackerel", "닭", "참치", "돼지", "소고기", "쇠고기", "연어", "고등어", "삼겹살", "수육")) {
-            if (containsAny(n, "pork", "beef", "salmon", "mackerel", "돼지", "소고기", "연어", "고등어", "삼겹살", "수육")) {
-                return 2.3; // 고지방 육류/생선
-            }
-            return 1.2; // 저지방 단백질 (닭가슴살, 기름 뺀 참치 등)
-        }
-
-        // [Step 3] 오일류 (단백질이 아님이 확인된 경우에만 기름 키워드 체크)
-        if (!isFatRemoved && containsAny(n, "oil", "butter", "오일", "기름", "버터", "들기름", "참기름")) {
-            return 8.8; 
-        }
-
-        // [Step 4] 채소류 키워드 대폭 보강
-        if (containsAny(n, "salad", "broccoli", "kimchi", "veg", "mushroom", "샐러드", "상추", "깻잎", "배추", "숙주", "나물", "오이", "당근", "무생채", "버섯", "브로콜리")) {
-            return 0.3;
-        }
-
-        // [Step 5] 탄수화물 (밥, 면)
-        if (containsAny(n, "rice", "noodle", "bread", "potato", "밥", "현미", "국수", "면", "빵", "고구마", "감자", "소면")) {
-            return 1.4;
-        }
-
-        return 1.2;
+        // 최종 산출
+        int totalKcal = (int) Math.round(grams * kpg);
+        item.setCalories(totalKcal);
+        item.setCarbs((int) Math.round((totalKcal * cRatio) / 4.0));
+        item.setProtein((int) Math.round((totalKcal * pRatio) / 4.0));
+        item.setFat((int) Math.round((totalKcal * fRatio) / 9.0));
+        item.setIsHighProtein((item.getProtein() * 4.0) >= (totalKcal * 0.3));
     }
 
     private String normalizeName(String ingredientName) {
@@ -1060,6 +1011,10 @@ public class MealPlanServiceImpl implements MealPlanService {
                             .foodName(it.getFoodName())
                             .calories(it.getCalories())
                             .grams(it.getGrams())
+                            .carbs(it.getCarbs())
+                            .protein(it.getProtein())
+                            .fat(it.getFat())
+                            .isHighProtein(it.getIsHighProtein())
                             .memo(it.getMemo())
                             .build())
                     .toList();
@@ -1080,6 +1035,10 @@ public class MealPlanServiceImpl implements MealPlanService {
                         .foodName(it.getFoodName())
                         .calories(it.getCalories())
                         .grams(it.getGrams())
+                        .carbs(it.getCarbs())
+                        .protein(it.getProtein())
+                        .fat(it.getFat())
+                        .isHighProtein(it.getIsHighProtein())
                         .memo(it.getMemo())
                         .build())
                 .toList();

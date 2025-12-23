@@ -15,8 +15,8 @@
     </insert>
 
     <insert id="insertMealItem" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO meal_items (meal_plan_day_id, meal_time, food_name, calories, grams, memo)
-        VALUES (#{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{grams}, #{memo})
+        INSERT INTO meal_items (meal_plan_day_id, meal_time, food_name, calories, grams, carbs, protein, fat, is_high_protein, memo)
+        VALUES (#{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{grams}, #{carbs}, #{protein}, #{fat}, #{isHighProtein}, #{memo})
     </insert>
 
     <select id="findMealPlanById" resultType="com.dietcoach.project.domain.meal.MealPlan">
