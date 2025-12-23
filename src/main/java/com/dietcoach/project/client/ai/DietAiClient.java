@@ -63,8 +63,10 @@ public class DietAiClient {
                     {
                       "mealTime":"BREAKFAST",
                       "menuName":"오트밀 볼",
-                      "ingredients":["오트밀","우유","바나나"],
-                      "calories":450
+                      "ingredients":[
+                        {"ingredientName":"오트밀", "grams":50, "calories":190},
+                        {"ingredientName":"바나나", "grams":100, "calories":89}
+                      ]
                     }
                   ]
                 }
@@ -74,7 +76,7 @@ public class DietAiClient {
             Rules:
             - mealTime must be one of BREAKFAST|LUNCH|DINNER|SNACK
             - planDate format yyyy-MM-dd
-            - ingredients must be keyword list (no grams, no prices)
+            - ingredients MUST be an array of objects containing ingredientName, grams, and calories.
             - menuName and ingredients must be Korean (Hangul). Do NOT use English.
             """;
 

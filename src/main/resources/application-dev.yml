@@ -30,4 +30,4 @@ gms:
   openai:
     base-url: https://gms.ssafy.io/gmsapi/api.openai.com/v1
     api-key: S14P02CE06-255ba570-2c59-48eb-a2ed-e34bac45bdd6
-    timeout-ms: 120000
+    timeout-ms: 3600000

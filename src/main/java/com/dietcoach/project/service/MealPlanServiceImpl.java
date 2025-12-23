@@ -366,9 +366,6 @@ public class MealPlanServiceImpl implements MealPlanService {
                 // 2) calories가 없으면 grams*kpg 우선으로 계산 (균등분배는 최후)
                 Integer calories = adjustCalories(ing.getCalories(), ingredient, mealTargetCalories, ingredientCount, grams);
 
-                // 3) calories가 바뀌었을 수 있으니 grams 한 번 더 보정 (폭발 방지 clamp 포함)
-                grams = adjustGrams(ing.getGrams(), ingredient, calories);
-
                 String memo = menuName.isEmpty() ? "AI" : menuName;
 
                 result.add(MealItem.builder()
@@ -432,16 +429,12 @@ public class MealPlanServiceImpl implements MealPlanService {
     // =========================
 
     private Integer adjustGrams(Integer grams, String ingredientName, Integer calories) {
-        int max = maxGramsFor(ingredientName);
-
-        // 1) AI grams 우선
+        // 1) AI grams 우선 (최소한의 유효성 검사만 수행하고 그대로 사용)
         if (grams != null && grams > 0) {
-            int adjusted = clamp(grams, 10, max);
-            if (adjusted != grams) {
-                log.info("[GRAMS_CLAMP] ingredient={}, {} -> {}", ingredientName, grams, adjusted);
-            }
-            return adjusted;
+            return grams;
         }
+
+        int max = maxGramsFor(ingredientName);
 
         // 2) grams 없으면 calories/kpg로 파생
         if (calories != null && calories > 0) {
@@ -461,20 +454,17 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private Integer adjustCalories(Integer calories, String ingredientName, Integer mealCalories, int ingredientCount, Integer grams) {
-        // 1) AI calories 우선
-        if (calories != null) {
-            int adjusted = clamp(calories, 0, 2000);
-            if (adjusted != calories) {
-                log.info("[CAL_CLAMP] ingredient={}, {} -> {}", ingredientName, calories, adjusted);
-            }
-            return adjusted;
+        // 1) AI calories 우선 (그대로 사용)
+        if (calories != null && calories > 0) {
+            return calories;
         }
 
         // 2) grams가 있으면 grams*kpg로 calories 파생 (균등분배보다 우선)
         if (grams != null && grams > 0) {
             double kpg = kcalPerGramFor(ingredientName);
             int derived = (int) Math.round(grams * kpg);
-            int clamped = clamp(derived, 0, 2000);
+            // 최소한의 상한만 적용
+            int clamped = clamp(derived, 0, 3000); 
             log.info("[CAL_FROM_GRAMS] ingredient={}, grams={}, kpg={} -> {}",
                     ingredientName, grams, String.format(Locale.US, "%.2f", kpg), clamped);
             return clamped;
@@ -483,7 +473,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         // 3) 최후에만 균등분배
         if (mealCalories != null && ingredientCount > 0) {
             int derived = (int) Math.round(mealCalories / (double) ingredientCount);
-            int clamped = clamp(derived, 0, 2000);
+            int clamped = clamp(derived, 0, 3000);
             log.info("[CAL_DERIVE] ingredient={}, mealCal={}, count={} -> {}",
                     ingredientName, mealCalories, ingredientCount, clamped);
             return clamped;
