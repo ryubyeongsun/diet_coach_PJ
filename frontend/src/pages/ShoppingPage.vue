@@ -24,35 +24,102 @@
         <p>{{ error }}</p>
       </div>
 
-      <div v-else-if="shoppingData && shoppingData.items.length > 0">
-        <!-- 요약 및 일괄 작업 카드 -->
-        <div class="summary-bar">
-          <div class="summary-info">
-            <span class="label">총 예상 비용</span>
-            <span class="value">{{ totalPrice.toLocaleString() }}원</span>
+      <div v-else-if="shoppingData && shoppingData.items.length > 0" class="shopping-layout">
+        
+        <!-- 왼쪽: 메인 리스트 영역 -->
+        <div class="shopping-main">
+          <!-- 요약 카드 -->
+          <div class="summary-bar">
+            <div class="summary-info">
+              <span class="label">총 예상 비용 (전체)</span>
+              <span class="value">{{ totalPrice.toLocaleString() }}원</span>
+            </div>
           </div>
-          <div class="summary-actions">
-            <button class="bulk-btn" @click="addSelectedToCart" :disabled="checkedItems.size === 0">
-              선택 담기 ({{ checkedItems.size }})
-            </button>
+
+          <!-- 리스트 -->
+          <div class="item-list">
+            <ShoppingItemCard
+              v-for="(item, index) in shoppingData.items"
+              :key="getItemKey(item)"
+              :item="item"
+              :is-checked="isItemInCart(item)"
+              @toggle="toggleCheck(item)"
+            />
           </div>
         </div>
 
-        <!-- 그리드 리스트 -->
-        <div class="item-grid">
-          <ShoppingItemCard
-            v-for="(item, index) in shoppingData.items"
-            :key="index"
-            :item="item"
-            :is-checked="checkedItems.has(index)"
-            @toggle="toggleCheck(index)"
-            @add-to-cart="handleAddSingle"
-          />
+        <!-- 오른쪽: 영수증 사이드바 -->
+        <div class="shopping-sidebar">
+          <div class="receipt-card">
+            <div class="receipt-header">
+              <h3>장바구니 영수증</h3>
+              <span class="count">{{ globalState.cart.length }}</span>
+            </div>
+            
+            <div class="receipt-body">
+              <div v-if="globalState.cart.length === 0" class="empty-receipt">
+                목록에서 재료를 선택하여<br>예산 계획을 세워보세요.
+              </div>
+              <ul v-else class="selected-items">
+                <li 
+                  v-for="item in selectedItemsList" 
+                  :key="item.productCode"
+                  :class="{ 'is-purchased': purchasedIndices.has(item.productCode) }"
+                >
+                  <input 
+                    type="checkbox" 
+                    class="receipt-check"
+                    :checked="purchasedIndices.has(item.productCode)"
+                    @change="togglePurchased(item.productCode)"
+                  />
+                  <div class="item-details">
+                    <div class="ingredient-row">
+                      <span class="ingredient-name">{{ item.ingredientName }}</span>
+                      <span class="price">{{ item.price.toLocaleString() }}원</span>
+                    </div>
+                    <a 
+                      v-if="item.productUrl" 
+                      :href="item.productUrl" 
+                      target="_blank" 
+                      class="name-link"
+                    >
+                      {{ item.name }} 🔗
+                    </a>
+                    <span v-else class="name">{{ item.name }}</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="receipt-footer">
+              <div class="total-row">
+                <span>예상 합계</span>
+                <span class="total-price">{{ selectedTotalPrice.toLocaleString() }}원</span>
+              </div>
+              
+              <div class="footer-buttons">
+                <button 
+                  class="bulk-add-btn" 
+                  @click="confirmPurchase" 
+                  :disabled="globalState.cart.length === 0"
+                >
+                  ✅ 구매 확정
+                </button>
+                <button class="go-cart-btn" @click="goToLedgerPage">
+                  💰 식단 가계부 확인
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
+
       </div>
 
       <div v-else class="page__status">
         <p>구매할 재료가 없습니다.</p>
+        <button v-if="range !== 'MONTH'" class="retry-btn" @click="setRange('MONTH')">
+          전체 기간으로 보기
+        </button>
       </div>
     </div>
 
@@ -69,7 +136,7 @@ import { useRoute, useRouter } from "vue-router";
 import { fetchShoppingList } from "../api/shoppingApi.js";
 import { fetchLatestMealPlan } from "../api/mealPlanApi.js";
 import { getCurrentUser } from "../utils/auth";
-import { addToCart } from "../utils/globalState"; // Import global cart action
+import { globalState, addToCart, removeFromCart } from "../utils/globalState";
 import ShoppingItemCard from "../components/shopping/ShoppingItemCard.vue";
 import NnButton from "../components/common/NnButton.vue";
 
@@ -78,13 +145,29 @@ const router = useRouter();
 
 const planId = ref(null);
 const isValidPlanId = ref(false);
-const range = ref("WEEK");
+const range = ref("MONTH");
 const shoppingData = ref(null);
 const isLoading = ref(false);
 const error = ref("");
 
-const checkedItems = ref(new Set());
+// 영수증 내 체크 표시 (취소선용)
+const purchasedIndices = ref(new Set());
 
+// Helper to get a unique key for an item (Product ID > Ingredient Name)
+const getItemKey = (item) => {
+  if (item.product && item.product.externalId) {
+    return item.product.externalId;
+  }
+  return 'ing_' + item.ingredientName;
+};
+
+// Sync check with global cart
+const isItemInCart = (item) => {
+  const key = getItemKey(item);
+  return globalState.cart.some(c => c.productCode === key);
+};
+
+// Total price of ALL items in the list
 const totalPrice = computed(() => {
   if (!shoppingData.value) return 0;
   return shoppingData.value.items.reduce((sum, item) => {
@@ -95,39 +178,68 @@ const totalPrice = computed(() => {
   }, 0);
 });
 
-function toggleCheck(index) {
-  if (checkedItems.value.has(index)) {
-    checkedItems.value.delete(index);
+// Selected items list (from Global Cart)
+const selectedItemsList = computed(() => {
+  return globalState.cart.map(item => ({
+    productCode: item.productCode,
+    ingredientName: item.ingredientName || item.name,
+    name: item.name,
+    price: item.price,
+    productUrl: item.productUrl
+  }));
+});
+
+// Total price of Selected items
+const selectedTotalPrice = computed(() => {
+  return globalState.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+});
+
+// 리스트에서 체크/해제 시 장바구니 동기화
+function toggleCheck(item) {
+  const key = getItemKey(item);
+  
+  if (isItemInCart(item)) {
+    removeFromCart(key);
   } else {
-    checkedItems.value.add(index);
+    // Construct product object for cart
+    const productToAdd = item.product ? {
+      externalId: item.product.externalId || key,
+      name: item.product.productName,
+      ingredientName: item.ingredientName, // Important: Pass ingredient name
+      price: item.product.price,
+      imageUrl: item.product.imageUrl,
+      productUrl: item.product.productUrl
+    } : {
+      externalId: key,
+      name: item.ingredientName, // Product name fallback
+      ingredientName: item.ingredientName, // Ingredient name
+      price: 0, 
+      imageUrl: '', 
+      productUrl: ''
+    };
+    
+    addToCart(productToAdd);
   }
 }
 
-// 개별 담기
-function handleAddSingle(product) {
-  addToCart(product);
+// 영수증 내 취소선 토글
+function togglePurchased(productCode) {
+  if (purchasedIndices.value.has(productCode)) {
+    purchasedIndices.value.delete(productCode);
+  } else {
+    purchasedIndices.value.add(productCode);
+  }
 }
 
-// 일괄 담기
-function addSelectedToCart() {
-  if (checkedItems.value.size === 0) return;
-  
-  let addedCount = 0;
-  checkedItems.value.forEach((index) => {
-    const item = shoppingData.value.items[index];
-    if (item && item.product) {
-      // addToCart는 내부적으로 중복 체크 등을 수행함 (globalState 확인)
-      // 하지만 alert가 매번 뜨면 귀찮으므로, globalState의 addToCart를 수정하거나
-      // 여기서는 직접 push하고 한 번만 알림을 띄우는 게 나음.
-      // 일단 기존 addToCart 재사용 (알림이 여러번 뜰 수 있음 - UX 개선 포인트)
-      // 개선: globalState에 addMultipleToCart가 없으므로 반복 호출
-      addToCart(item.product); 
-      addedCount++;
-    }
-  });
-  
-  // 선택 해제
-  checkedItems.value.clear();
+function goToLedgerPage() {
+  router.push('/cart'); // /cart is the Ledger page
+}
+
+// 구매 확정 알림 및 이동
+function confirmPurchase() {
+  if (globalState.cart.length === 0) return;
+  alert(`${globalState.cart.length}개의 상품이 지출 예정 목록에 담겼습니다.\n식단 가계부로 이동합니다.`);
+  router.push('/cart');
 }
 
 async function loadShoppingList() {
@@ -135,7 +247,6 @@ async function loadShoppingList() {
 
   isLoading.value = true;
   error.value = "";
-  checkedItems.value.clear();
 
   try {
     const response = await fetchShoppingList(planId.value, range.value);
@@ -200,7 +311,7 @@ onMounted(async () => {
 
 <style scoped>
 .page {
-  max-width: 1000px; /* 넓은 그리드를 위해 폭 확장 */
+  max-width: 1200px;
   margin: 0 auto;
   padding: 24px 16px;
   display: flex;
@@ -263,21 +374,35 @@ onMounted(async () => {
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-/* 요약 바 (Sticky) */
-.summary-bar {
+/* --- Layout --- */
+.shopping-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.shopping-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.shopping-sidebar {
+  width: 320px;
   position: sticky;
-  top: 10px; /* 헤더 아래 고정 */
-  z-index: 100;
-  background-color: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+  top: 24px;
+  flex-shrink: 0;
+}
+
+/* --- Main Area --- */
+.summary-bar {
+  background-color: white;
   border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 16px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 
 .summary-info {
@@ -297,33 +422,208 @@ onMounted(async () => {
   color: #047857;
 }
 
-.bulk-btn {
-  padding: 10px 20px;
+/* Item List */
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* --- Sidebar Receipt --- */
+.receipt-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
+.receipt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 2px dashed #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.receipt-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.receipt-header .count {
+  background-color: #ecfdf5;
+  color: #047857;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.receipt-body {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+  margin-bottom: 16px;
+}
+
+.empty-receipt {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 40px 0;
+  line-height: 1.5;
+}
+
+.selected-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.selected-items li {
+  display: flex;
+  align-items: flex-start;
+  font-size: 13px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+  gap: 8px;
+}
+
+.selected-items li:last-child {
+  border-bottom: none;
+}
+
+.receipt-check {
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.item-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ingredient-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ingredient-name {
+  font-weight: 700;
+  color: #111827;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  padding-right: 8px;
+}
+
+.selected-items li .price {
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.name-link {
+  color: #059669;
+  font-size: 12px;
+  text-decoration: none;
+  display: block;
+}
+
+.name-link:hover {
+  text-decoration: underline;
+}
+
+/* Strikethrough style for purchased items */
+.selected-items li.is-purchased .item-details {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.receipt-footer {
+  border-top: 2px solid #e5e7eb;
+  padding-top: 16px;
+}
+
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.total-row span:first-child {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.total-price {
+  font-size: 22px;
+  font-weight: 800;
+  color: #059669;
+}
+
+.footer-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.bulk-add-btn {
+  flex: 2;
+  padding: 14px;
   background-color: #111827;
   color: white;
   border: none;
   border-radius: 8px;
-  font-weight: 600;
   font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.bulk-btn:disabled {
+.go-cart-btn {
+  flex: 1;
+  padding: 14px;
+  background-color: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.go-cart-btn:hover {
+  background-color: #f9fafb;
+}
+
+.bulk-add-btn:hover:not(:disabled) {
+  background-color: #374151;
+  transform: translateY(-2px);
+}
+
+.bulk-add-btn:disabled {
   background-color: #e5e7eb;
   color: #9ca3af;
   cursor: not-allowed;
-}
-
-.bulk-btn:not(:disabled):hover {
-  background-color: #374151;
-}
-
-/* 그리드 레이아웃 */
-.item-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 20px;
 }
 
 .page__status,
@@ -352,25 +652,16 @@ onMounted(async () => {
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 600px) {
-  .header-top {
+@media (max-width: 900px) {
+  .shopping-layout {
     flex-direction: column;
-    align-items: flex-start;
   }
-  .period-selector {
+  .shopping-sidebar {
     width: 100%;
-    justify-content: space-between;
+    position: static;
   }
-  .period-selector button {
-    flex: 1;
-  }
-  .summary-bar {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-  .summary-info {
-    justify-content: space-between;
+  .receipt-body {
+    max-height: 200px;
   }
 }
 </style>

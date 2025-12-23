@@ -33,10 +33,8 @@ const props = defineProps({
   latestWeight: Number,
 });
 
-const currentUser = getCurrentUser();
-
 const bmi = computed(() => 
-  calculateBmi(props.latestWeight, currentUser?.height)
+  calculateBmi(props.latestWeight, getCurrentUser()?.height)
 );
 
 const category = computed(() => getBmiCategory(bmi.value));
