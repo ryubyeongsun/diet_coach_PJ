@@ -699,6 +699,12 @@ public class MealPlanServiceImpl implements MealPlanService {
                  recommendedCount = (int) Math.ceil((double) totalGram / packageGram);
             }
 
+            // PRD 8. Logging
+            if (lookup.product != null) {
+                log.info("[SHOPPING_ITEM] ingredient={} product=\"{}\" budget={} totalGram={} pkgGram={} recCount={} source={}", 
+                        ingredientName, lookup.product.getProductName(), allocated, totalGram, packageGram, recommendedCount, lookup.source);
+            }
+
             items.add(ShoppingListResponse.ShoppingItem.builder()
                     .ingredientName(ingredientName)
                     .totalGram(totalGram)
