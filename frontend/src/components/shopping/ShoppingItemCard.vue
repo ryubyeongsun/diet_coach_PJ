@@ -47,6 +47,12 @@
           <span class="price">{{ item.product.price.toLocaleString() }}원</span>
           <span class="mall">{{ item.product.mallName }}</span>
         </div>
+        
+        <!-- 추천 구매 개수 배지 추가 (PRD 요구사항) -->
+        <div class="recommendation-row" v-if="item.recommendedCount && item.recommendedCount > 0">
+          <span class="rec-badge">추천: {{ item.recommendedCount }}개</span>
+          <span class="pkg-info" v-if="item.packageGram">{{ item.packageGram }}g/팩</span>
+        </div>
       </div>
       
       <div v-else class="empty-state">
@@ -136,6 +142,30 @@ defineEmits(['toggle']);
 .product-title { font-size: 13px; color: #4b5563; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .price-row { display: flex; align-items: center; gap: 8px; }
 .price { font-size: 14px; font-weight: 700; color: #059669; }
+.mall { font-size: 11px; color: #9ca3af; }
+
+.recommendation-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.rec-badge {
+  background-color: #ecfdf5;
+  color: #059669;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #10b981;
+}
+
+.pkg-info {
+  font-size: 10px;
+  color: #6b7280;
+}
+
 .action-area { padding: 0 16px; }
 .add-cart-btn { width: 36px; height: 36px; border-radius: 50%; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center; text-decoration: none; }
 </style>

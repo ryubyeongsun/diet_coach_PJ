@@ -27,6 +27,13 @@ naver:
     client-id: ${NAVER_SHOPPING_CLIENT_ID}
     client-secret: ${NAVER_SHOPPING_CLIENT_SECRET}
 
+# GMS (OpenAI) API
+gms:
+  api:
+    key: ${GMS_KEY:} # Default to empty if env var is missing
+    url: https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions
+    model: gpt-4o-mini
+
 server:
   servlet:
     session:
