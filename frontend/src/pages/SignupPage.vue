@@ -20,7 +20,7 @@
         </div>
 
         <div class="brand">
-          <span class="logo-icon">🥑</span> 남남코치
+          <img src="/images/brand-logo.png" alt="남남코치" class="logo-img" />
         </div>
 
         <div class="header">
@@ -223,15 +223,16 @@ async function handleSignup() {
 }
 
 .brand {
-  font-size: 18px;
-  font-weight: 800;
-  color: #047857;
-  text-align: center;
   margin-bottom: 24px;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 6px;
+}
+
+.logo-img {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
 }
 
 .header {

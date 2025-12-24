@@ -67,7 +67,9 @@ const handleWeightSaved = () => {
   <div v-if="!isStandalonePage" class="layout">
     <!-- 상단 헤더 -->
     <header class="layout__header">
-      <div class="layout__logo" @click="go('/')">🥑 <span>남남코치</span></div>
+              <div class="layout__logo" @click="go('/')">
+                <img src="/images/brand-logo.png" alt="남남코치" class="logo-img" />
+              </div>
       <div class="layout__header-right">
         <div v-if="currentUser" class="user-info">
           <button class="layout__chip cta-btn" @click="setWeightModalOpen(true)">+ 오늘 체중 기록</button>
@@ -248,15 +250,13 @@ const handleWeightSaved = () => {
 .layout__logo {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 800;
-  font-size: 18px;
-  color: #047857;
   cursor: pointer;
 }
 
-.layout__logo span {
-  transform: translateY(-1px);
+.logo-img {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
 }
 
 .layout__header-right {

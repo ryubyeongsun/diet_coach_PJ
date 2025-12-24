@@ -16,7 +16,7 @@
             title="현재 식단이 마음에 들지 않으면 새로 추천받으세요"
           >
             <span class="regen-icon">🔄</span>
-            <span class="regen-text">{{ isRegenerating ? "생성 중.." : "전체 다시 짜기" }}</span>
+            <span class="regen-text">{{ isRegenerating ? "열심히 짜는 중... 🧑‍🍳" : "전체 다시 짜기" }}</span>
           </button>
         </div>
         <h2 v-else class="modal-card__title">하루 상세 식단</h2>
@@ -48,7 +48,7 @@
 
       <div class="modal-card__body">
         <div v-if="isLoading" class="status-text">
-          상세 식단 정보를 불러오는 중입니다...
+          남남코치가 식단 정보를 가져오는 중이에요... 🥑
         </div>
         <div v-else-if="errorMessage" class="status-text error">
           {{ errorMessage }}

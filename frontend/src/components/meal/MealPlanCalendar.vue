@@ -32,13 +32,25 @@
         <p class="calendar__date">
           {{ formatDate(day.date) }}
         </p>
-        <p class="calendar__kcal">
-          {{ day.totalCalories != null ? day.totalCalories : "-" }} kcal
-        </p>
-        <!-- 대표 메뉴 표시 -->
-        <p class="calendar__menu">
-          {{ getRepresentativeMenu(day) }}
-        </p>
+
+        <!-- 생성 중 (데이터 없음/0kcal) -->
+        <div v-if="!day.totalCalories || day.totalCalories === 0" class="generating-state">
+          <div class="generating-text"> 열심히 요리 중.. 🍳</div>
+          <div class="generating-gauge">
+            <div class="generating-gauge__fill"></div>
+          </div>
+        </div>
+
+        <!-- 생성 완료 -->
+        <div v-else>
+          <p class="calendar__kcal">
+            {{ day.totalCalories }} kcal
+          </p>
+          <!-- 대표 메뉴 표시 -->
+          <p class="calendar__menu">
+            {{ getRepresentativeMenu(day) }}
+          </p>
+        </div>
       </button>
     </div>
   </div>
@@ -87,7 +99,7 @@ function onClickDay(day) {
 
 // 상태별 클래스 반환 (초록: ±5% 이내, 주황: 그 외)
 function getStatusClass(day) {
-  if (!day.totalCalories || !props.targetCalories) return "";
+  if (!day.totalCalories || !props.targetCalories) return "calendar__item--generating";
   
   const ratio = day.totalCalories / props.targetCalories;
   // 0.95 ~ 1.05 사이면 성공
@@ -100,7 +112,7 @@ function getStatusClass(day) {
 // 대표 메뉴 추출 (칼로리가 가장 높은 항목)
 function getRepresentativeMenu(day) {
   if (day.representativeMenu) return day.representativeMenu;
-  return "식단 미정";
+  return "식단 생성중... 🧑‍🍳";
 }
 </script>
 
@@ -170,6 +182,10 @@ function getRepresentativeMenu(day) {
   transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
+  height: 100px; /* 높이 고정하여 레이아웃 안정화 */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .calendar__item:hover {
@@ -195,6 +211,12 @@ function getRepresentativeMenu(day) {
   color: #c2410c; /* Orange-700 */
 }
 
+/* Generating State (Gray/Pulse) */
+.calendar__item--generating {
+  border-color: #e5e7eb;
+  background-color: #f9fafb;
+}
+
 .calendar__date {
   margin: 0 0 4px;
   font-size: 13px;
@@ -217,5 +239,49 @@ function getRepresentativeMenu(day) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Generating UI */
+.generating-state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-grow: 1;
+  justify-content: center;
+}
+
+.generating-text {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+  text-align: center;
+  animation: pulse-text 1.5s infinite ease-in-out;
+}
+
+.generating-gauge {
+  width: 100%;
+  height: 6px;
+  background-color: #e5e7eb;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.generating-gauge__fill {
+  height: 100%;
+  background-color: #3b82f6;
+  width: 0%;
+  border-radius: 99px;
+  animation: fill-gauge 2s infinite ease-in-out;
+}
+
+@keyframes fill-gauge {
+  0% { width: 0%; }
+  50% { width: 80%; }
+  100% { width: 95%; }
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 </style>

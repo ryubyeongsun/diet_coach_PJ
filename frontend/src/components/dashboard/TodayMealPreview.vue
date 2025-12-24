@@ -7,9 +7,9 @@
       </button>
     </div>
 
-    <div v-if="loading" class="state-msg">
-      <div class="spinner"></div> 식단 불러오는 중...
-    </div>
+      <div v-if="isLoading" class="state-msg">
+        <div class="spinner"></div> 남남코치가 식단 불러오는 중... 🥑
+      </div>
 
     <div v-else-if="!hasData" class="state-msg empty">
       <div class="cute-mascot">🥑</div>
