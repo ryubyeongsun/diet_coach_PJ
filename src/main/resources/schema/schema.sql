@@ -71,6 +71,7 @@ CREATE TABLE meal_plan_days (
     plan_date DATE NOT NULL,
     day_index INT NOT NULL,
     total_calories INT NOT NULL DEFAULT 0,
+    is_stamped BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_meal_plan_days_meal_plan

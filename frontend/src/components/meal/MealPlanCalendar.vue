@@ -51,6 +51,11 @@
             {{ getRepresentativeMenu(day) }}
           </p>
         </div>
+
+        <!-- 도장 (성공 시) -->
+        <div v-if="day.isStamped" class="calendar__stamp-wrapper">
+          <img src="@/assets/seal.png" alt="완료 도장" class="calendar__stamp" />
+        </div>
       </button>
     </div>
   </div>
@@ -283,5 +288,34 @@ function getRepresentativeMenu(day) {
 @keyframes pulse-text {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+/* Stamp Effect */
+.calendar__stamp-wrapper {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.calendar__stamp {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  opacity: 0.9;
+  animation: stamp-effect 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes stamp-effect {
+  0% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
 }
 </style>

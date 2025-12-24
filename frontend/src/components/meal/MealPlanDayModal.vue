@@ -91,7 +91,16 @@
       </div>
 
       <footer class="modal-card__footer">
-        <NnButton block @click="closeModal">닫기</NnButton>
+        <NnButton 
+          v-if="detail && !detail.isStamped" 
+          variant="primary" 
+          block 
+          @click="handleStamp"
+          style="margin-bottom: 8px;"
+        >
+          오늘 식단 완료! 💯
+        </NnButton>
+        <NnButton block variant="secondary" @click="closeModal">닫기</NnButton>
       </footer>
     </div>
   </div>
@@ -113,7 +122,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["update:modelValue"]);
+const emit = defineEmits(["update:modelValue", "stamp"]);
 
 const isLoading = ref(false);
 const isRegenerating = ref(false);
@@ -198,6 +207,11 @@ async function handleReplaceMeal(mealTime) {
   } finally {
     replacingMeal.value = null;
   }
+}
+
+function handleStamp() {
+  emit("stamp", props.dayId);
+  closeModal();
 }
 
 watch(

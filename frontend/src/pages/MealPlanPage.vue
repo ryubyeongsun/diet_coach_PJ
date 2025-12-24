@@ -74,7 +74,11 @@
       </div>
     </NnCard>
 
-    <MealPlanDayModal v-model="isDayModalOpen" :day-id="selectedDayId" />
+    <MealPlanDayModal 
+      v-model="isDayModalOpen" 
+      :day-id="selectedDayId" 
+      @stamp="handleStamp"
+    />
   </div>
 </template>
 
@@ -88,7 +92,7 @@ import MealPlanCalendar from "../components/meal/MealPlanCalendar.vue";
 import MealPlanCreatePanel from "../components/meal/MealPlanCreatePanel.vue";
 import MealPlanDayModal from "../components/meal/MealPlanDayModal.vue";
 
-import { fetchLatestMealPlan, createMealPlan } from "../api/mealPlanApi";
+import { fetchLatestMealPlan, createMealPlan, stampMealPlanDay } from "../api/mealPlanApi";
 import { getCurrentUser } from "@/utils/auth.js";
 import { getDashboardSummary, getDashboardTrend } from "../api/dashboardApi.js";
 
@@ -145,6 +149,24 @@ function onClickGoShopping() {
     path: "/shopping",
     query: { planId: overview.value.mealPlanId },
   });
+}
+
+async function handleStamp(dayId) {
+  if (!overview.value || !overview.value.days) return;
+  
+  try {
+    // 1. 백엔드 DB 저장
+    await stampMealPlanDay(dayId);
+    
+    // 2. 로컬 상태 업데이트 (애니메이션 트리거)
+    const day = overview.value.days.find(d => d.dayId === dayId);
+    if (day) {
+      day.isStamped = true;
+    }
+  } catch (err) {
+    console.error("Failed to stamp day:", err);
+    alert("도장 찍기에 실패했습니다. 다시 시도해 주세요.");
+  }
 }
 
 // 식단 완성 여부 확인 (모든 날짜의 칼로리가 0보다 큰지)
