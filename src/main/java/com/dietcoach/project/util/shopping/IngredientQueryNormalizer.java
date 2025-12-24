@@ -75,6 +75,11 @@ public class IngredientQueryNormalizer {
         if (SYNONYM_MAP.containsKey(joined)) {
             return SYNONYM_MAP.get(joined);
         }
+        
+        // PRD Update: Force "Food" context to exclude non-food items (tools, pots, etc.)
+        if (!joined.contains("식품")) {
+            return joined + " 식품";
+        }
 
         return joined;
     }

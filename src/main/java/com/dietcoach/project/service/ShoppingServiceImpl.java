@@ -16,6 +16,7 @@ import com.dietcoach.project.dto.ShoppingProductResponse;
 import com.dietcoach.project.dto.ShoppingProductsResponse;
 import com.dietcoach.project.dto.meal.ShoppingListResponse;
 import com.dietcoach.project.util.shopping.IngredientQueryNormalizer;
+import com.dietcoach.project.service.shopping.AiProductReranker;
 import com.dietcoach.project.service.shopping.ProductScorer;
 
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class ShoppingServiceImpl implements ShoppingService {
     private final ShoppingCategoryService categoryService;
     private final IngredientQueryNormalizer queryNormalizer;
     private final ProductScorer productScorer;
+    private final AiProductReranker aiReranker;
 
     @Override
     @Transactional(readOnly = true)
@@ -75,11 +77,31 @@ public class ShoppingServiceImpl implements ShoppingService {
         // Log Top 5 candidates for debugging
         logSearchTopN(ingredientName, products, 5);
 
-        // 4. Score & Select
-        ShoppingProduct best = productScorer.selectBest(products, ingredientName, allocatedBudget);
+        // 4. Score & Filter (Top 10) for AI
+        List<ShoppingProduct> topCandidates = productScorer.selectTopN(products, ingredientName, allocatedBudget, 10);
+        
+        ShoppingProduct best = null;
+        String reason = "NO_MATCH";
+
+        if (!topCandidates.isEmpty()) {
+            // 5. AI Rerank (Parallel-Ready)
+            try {
+                ShoppingProduct aiSelected = aiReranker.rerank(ingredientName, allocatedBudget, topCandidates);
+                if (aiSelected != null) {
+                    best = aiSelected;
+                    reason = "AI_SELECTED";
+                } else {
+                    // Fallback to top scorer
+                    best = topCandidates.get(0);
+                    reason = "AI_FAIL_FALLBACK";
+                }
+            } catch (Exception e) {
+                 best = topCandidates.get(0);
+                 reason = "AI_ERROR_FALLBACK";
+            }
+        }
         
         ShoppingListResponse.ProductCard card = toCard(best);
-        String reason = (best != null) ? "SCORER_SELECTED" : "NO_MATCH";
         
         logSelected(ingredientName, best, card, reason, allocatedBudget);
 

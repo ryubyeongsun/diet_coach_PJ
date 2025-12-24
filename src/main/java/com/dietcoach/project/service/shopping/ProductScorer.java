@@ -28,13 +28,32 @@ public class ProductScorer {
 
     private static final List<String> NON_FOOD_TOKENS = List.of(
             "case", "storage", "container", "toy", "tool", "machine", "decor",
-            "용기", "보관", "케이스", "도구", "장난감", "모형", "인테리어"
+            "용기", "보관", "케이스", "도구", "장난감", "모형", "인테리어",
+            "그릇", "접시", "냄비", "뚝배기", "컵", "팬", "수세미", "주방", "용품", "식기",
+            "메이커", "머신", "몰드", "틀", "채반", "거름망", "장갑", "행주", "세제", "비누",
+            "찜기", "슬라이서", "다지기", "칼", "도마", "국자", "뒤집개"
     );
 
     // Tokens that suggest a very large quantity
     private static final List<String> HUGE_QUANTITY_TOKENS = List.of(
             "10kg", "20kg", "100개", "50개", "대량", "말통"
     );
+
+    public List<ShoppingProduct> selectTopN(List<ShoppingProduct> candidates, String ingredientName, int allocatedBudget, int n) {
+        if (candidates == null || candidates.isEmpty()) {
+            return List.of();
+        }
+
+        String normalizedIngredient = normalize(ingredientName);
+
+        return candidates.stream()
+                .map(p -> scoreProduct(p, normalizedIngredient, allocatedBudget))
+                .filter(sp -> sp.score > -2000) // Hard Drop Threshold
+                .sorted(Comparator.comparingDouble(ScoredProduct::getFinalScore).reversed()) // Descending score
+                .limit(n)
+                .map(sp -> sp.product)
+                .toList();
+    }
 
     public ShoppingProduct selectBest(List<ShoppingProduct> candidates, String ingredientName, int allocatedBudget) {
         if (candidates == null || candidates.isEmpty()) {

@@ -75,10 +75,11 @@
           <li v-for="item in cartItems" :key="item.productCode" class="item-row">
             <div class="item-left">
               <span class="item-name">{{ item.name }}</span>
+              <span v-if="item.recommendedCount > 1" class="qty-badge">{{ item.recommendedCount }}개</span>
               <a v-if="item.productUrl" :href="item.productUrl" target="_blank" class="item-link">🔗</a>
             </div>
             <div class="item-right">
-              <span class="item-price">{{ (item.price * item.quantity).toLocaleString() }}원</span>
+              <span class="item-price">{{ (item.price * (item.recommendedCount || 1)).toLocaleString() }}원</span>
               <button class="remove-btn" @click="removeItem(item.productCode)">×</button>
             </div>
           </li>
@@ -98,9 +99,10 @@
             <div class="item-left">
               <span class="status-badge">구매완료</span>
               <span class="item-name">{{ item.name }}</span>
+              <span v-if="item.recommendedCount > 1" class="qty-badge">{{ item.recommendedCount }}개</span>
             </div>
             <div class="item-right">
-              <span class="item-price">{{ item.price.toLocaleString() }}원</span>
+              <span class="item-price">{{ (item.price * (item.recommendedCount || 1)).toLocaleString() }}원</span>
               <button class="remove-btn" @click="removePurchasedItem(index)">×</button>
             </div>
           </li>
@@ -125,7 +127,7 @@ const isEditingBudget = ref(false);
 // 지출 예정 금액 (장바구니)
 const totalCartAmount = computed(() => {
   return cartItems.value.reduce(
-    (total, item) => total + item.price * item.quantity,
+    (total, item) => total + item.price * (item.recommendedCount || 1),
     0,
   );
 });
@@ -133,7 +135,7 @@ const totalCartAmount = computed(() => {
 // 실제 지출 금액 (구매 확정)
 const totalPurchasedAmount = computed(() => {
   return purchasedItems.value.reduce(
-    (total, item) => total + item.price * (item.quantity || 1),
+    (total, item) => total + item.price * (item.recommendedCount || 1),
     0,
   );
 });
@@ -365,6 +367,16 @@ function removePurchasedItem(index) {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
+}
+
+.qty-badge {
+  background-color: #ecfdf5;
+  color: #059669;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #10b981;
 }
 
 .item-link {
