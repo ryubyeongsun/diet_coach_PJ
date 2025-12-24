@@ -73,7 +73,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     // =========================
     // A2 캐시: ingredientName(lower) -> CachedProduct
     // =========================
-    private final Map<String, CachedProduct> productCache = new HashMap<>();
+    private final Map<String, CachedProduct> productCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private static class CachedProduct {
         final ShoppingListResponse.ProductCard product;
@@ -668,36 +668,57 @@ public class MealPlanServiceImpl implements MealPlanService {
         }
         if (totalWeight <= 0) totalWeight = 1.0;
 
-        List<ShoppingListResponse.ShoppingItem> items = new ArrayList<>();
+        // Parallel Processing for faster shopping list generation (Search + AI)
+        double finalTotalWeight = totalWeight; // effectively final for lambda
+        List<ShoppingListResponse.ShoppingItem> items = ingredients.parallelStream()
+            .map(ing -> {
+                String ingredientName = safeTrim(ing.getIngredientName());
+                if (ingredientName.isEmpty()) return null;
 
-        for (MealPlanIngredientResponse ing : ingredients) {
-            String ingredientName = safeTrim(ing.getIngredientName());
-            if (ingredientName.isEmpty()) continue;
+                Long totalGram = toLongSafe(ing.getTotalGram());
+                if (totalGram == null || totalGram <= 0) return null;
 
-            Long totalGram = toLongSafe(ing.getTotalGram());
-            if (totalGram == null || totalGram <= 0) continue;
+                Integer totalCalories = toIntSafe(ing.getTotalCalories());
+                
+                // Calculate Allocated Budget
+                double weight = weightMap.getOrDefault(ingredientName, 1.0);
+                int allocated = (int) (rangeBudget * (weight / finalTotalWeight));
+                
+                // Clamp (Min 2k, Max 30k)
+                if (allocated < 2000) allocated = 2000;
+                if (allocated > 30000) allocated = 30000;
 
-            Integer totalCalories = toIntSafe(ing.getTotalCalories());
-            
-            // Calculate Allocated Budget
-            double weight = weightMap.getOrDefault(ingredientName, 1.0);
-            int allocated = (int) (rangeBudget * (weight / totalWeight));
-            
-            // Clamp (Min 2k, Max 30k)
-            if (allocated < 2000) allocated = 2000;
-            if (allocated > 30000) allocated = 30000;
+                ProductLookup lookup = getRepresentativeProductCached(ingredientName, allocated);
 
-            ProductLookup lookup = getRepresentativeProductCached(ingredientName, allocated);
+                // Calculate recommended purchase count (PRD 6.3)
+                Integer packageGram = 0;
+                Integer recommendedCount = 1; // Default 1
 
-            items.add(ShoppingListResponse.ShoppingItem.builder()
-                    .ingredientName(ingredientName)
-                    .totalGram(totalGram)
-                    .totalCalories(totalCalories)
-                    .daysCount(ing.getDaysCount())
-                    .product(lookup.product)
-                    .source(lookup.source)
-                    .build());
-        }
+                if (lookup.product != null && lookup.product.getPackageGram() != null && lookup.product.getPackageGram() > 0) {
+                     packageGram = lookup.product.getPackageGram();
+                     // ceil(totalGram / packageGram)
+                     recommendedCount = (int) Math.ceil((double) totalGram / packageGram);
+                }
+
+                // PRD 8. Logging
+                if (lookup.product != null) {
+                    log.info("[SHOPPING_ITEM] ingredient={} product=\"{}\" budget={} totalGram={} pkgGram={} recCount={} source={}", 
+                            ingredientName, lookup.product.getProductName(), allocated, totalGram, packageGram, recommendedCount, lookup.source);
+                }
+
+                return ShoppingListResponse.ShoppingItem.builder()
+                        .ingredientName(ingredientName)
+                        .totalGram(totalGram)
+                        .totalCalories(totalCalories)
+                        .daysCount(ing.getDaysCount())
+                        .product(lookup.product)
+                        .source(lookup.source)
+                        .packageGram(packageGram)
+                        .recommendedCount(recommendedCount)
+                        .build();
+            })
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toList());
 
         String overallSource = items.stream().anyMatch(i -> "REAL".equals(i.getSource())) ? "REAL" : "MOCK";
         String normalizedRange = (range == null || range.isBlank()) ? "MONTH" : range.trim().toUpperCase();

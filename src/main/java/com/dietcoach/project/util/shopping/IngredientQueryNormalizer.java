@@ -29,7 +29,12 @@ public class IngredientQueryNormalizer {
         SYNONYM_MAP.put("감자", "감자");
         SYNONYM_MAP.put("양파", "양파");
         SYNONYM_MAP.put("마늘", "마늘");
-        // Add more common ingredients if needed
+        
+        // PRD Updates
+        SYNONYM_MAP.put("사사미", "닭가슴살");
+        SYNONYM_MAP.put("쌀밥", "쌀밥 즉석밥 식품");
+        SYNONYM_MAP.put("우유", "우유 식품");
+        SYNONYM_MAP.put("토마토", "토마토 신선식품");
     }
 
     public String normalize(String ingredientName) {
@@ -69,6 +74,11 @@ public class IngredientQueryNormalizer {
         // Check exact match synonym
         if (SYNONYM_MAP.containsKey(joined)) {
             return SYNONYM_MAP.get(joined);
+        }
+        
+        // PRD Update: Force "Food" context to exclude non-food items (tools, pots, etc.)
+        if (!joined.contains("식품")) {
+            return joined + " 식품";
         }
 
         return joined;

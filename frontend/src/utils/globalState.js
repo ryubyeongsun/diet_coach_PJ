@@ -47,16 +47,18 @@ export function addToCart(product) {
   );
 
   if (existingItem) {
-    existingItem.quantity = 1; 
+    existingItem.recommendedCount = product.recommendedCount || 1;
   } else {
     globalState.cart.push({
       productCode: product.externalId,
       name: product.title || product.name,
-      ingredientName: product.ingredientName, // Added
+      ingredientName: product.ingredientName,
       price: product.price,
       imageUrl: product.imageUrl,
       productUrl: product.productUrl,
       quantity: 1,
+      recommendedCount: product.recommendedCount || 1,
+      packageGram: product.packageGram || 0
     });
   }
 }

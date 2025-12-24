@@ -119,7 +119,10 @@
                   <div class="item-details">
                     <div class="ingredient-row">
                       <span class="ingredient-name">{{ item.ingredientName }}</span>
-                      <span class="price">{{ item.price.toLocaleString() }}원</span>
+                      <div class="price-container">
+                        <span v-if="item.recommendedCount > 1" class="rec-count">{{ item.recommendedCount }}개</span>
+                        <span class="price">{{ item.price.toLocaleString() }}원</span>
+                      </div>
                     </div>
                     <a 
                       v-if="item.productUrl" 
@@ -275,7 +278,9 @@ const sortedSelectedItems = computed(() => {
       ingredientName: item.ingredientName || item.name,
       name: item.name,
       price: item.price,
-      productUrl: item.productUrl
+      productUrl: item.productUrl,
+      recommendedCount: item.recommendedCount || 1,
+      packageGram: item.packageGram || 0
     }));
 });
 
@@ -293,7 +298,9 @@ function toggleCheck(item) {
       ingredientName: item.ingredientName, // Important: Pass ingredient name
       price: item.product.price,
       imageUrl: item.product.imageUrl,
-      productUrl: item.product.productUrl
+      productUrl: item.product.productUrl,
+      recommendedCount: item.recommendedCount || 1, // 추천 개수 저장
+      packageGram: item.packageGram || 0 // 상품 용량 저장
     } : {
       externalId: key,
       name: item.ingredientName, // Product name fallback
@@ -731,6 +738,22 @@ onMounted(async () => {
   text-overflow: ellipsis;
   flex: 1;
   padding-right: 8px;
+}
+
+.price-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.rec-count {
+  background-color: #d1fae5;
+  color: #065f46;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 
 .selected-items li .price {
