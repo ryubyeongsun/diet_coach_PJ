@@ -13,21 +13,27 @@ import java.util.Locale;
 @Component
 public class ProductScorer {
 
-    // Blacklist / Penalty Tokens
-    private static final List<String> BLACKLIST_TOKENS = List.of(
+    // PRD 4.1 Hard Exclusion Rules (Pet / Non-Food)
+    private static final List<String> PET_BLACKLIST = List.of(
+            "강아지", "애견", "반려", "개껌", "간식", "사료", 
+            "캣", "고양이", "펫", "트릿", "덴탈", "스틱", "츄"
+    );
+
+    // Existing blacklist (Packaging/Bulk words that are not ingredients)
+    private static final List<String> NON_INGREDIENT_TOKENS = List.of(
             "box", "set", "bundle", "gift", "random", "package",
-            "박스", "상자", "세트", "선물", "대용량", "묶음", "랜덤", "구성", "패키지",
-            "업소용", "식자재"
+            "박스", "상자", "세트", "선물", "랜덤", "구성", "패키지",
+            "업소용", "식자재", "화분", "모종", "씨앗"
     );
 
     private static final List<String> NON_FOOD_TOKENS = List.of(
             "case", "storage", "container", "toy", "tool", "machine", "decor",
-            "용기", "보관", "케이스", "도구", "장난감", "모형", "인테리어", "씨앗", "묘목", "재배", "화분"
+            "용기", "보관", "케이스", "도구", "장난감", "모형", "인테리어"
     );
 
     // Tokens that suggest a very large quantity
     private static final List<String> HUGE_QUANTITY_TOKENS = List.of(
-            "10kg", "20kg", "100개", "50개", "대량"
+            "10kg", "20kg", "100개", "50개", "대량", "말통"
     );
 
     public ShoppingProduct selectBest(List<ShoppingProduct> candidates, String ingredientName, int allocatedBudget) {
@@ -40,7 +46,7 @@ public class ProductScorer {
 
         ScoredProduct best = candidates.stream()
                 .map(p -> scoreProduct(p, normalizedIngredient, allocatedBudget))
-                .filter(sp -> sp.score > -1000) // Filter out hard fails
+                .filter(sp -> sp.score > -2000) // Hard Drop Threshold
                 .max(Comparator.comparingDouble(ScoredProduct::getFinalScore))
                 .orElse(null);
 
@@ -62,32 +68,33 @@ public class ProductScorer {
         }
 
         String title = p.getTitle();
+        String category = (p.getCategoryName() != null) ? p.getCategoryName() : "";
         String normalizedTitle = normalize(title);
+        String normalizedCategory = normalize(category);
+        
+        // 1. HARD DROP: Pet Food / Blacklist (Check Title AND Category)
+        if (containsAny(normalizedTitle, PET_BLACKLIST) || containsAny(normalizedCategory, PET_BLACKLIST)) {
+            return new ScoredProduct(p, -5000, "DROP_PET");
+        }
+        if (containsAny(normalizedTitle, NON_FOOD_TOKENS)) { // Category check for non-food might be too broad (e.g. 'Kitchen')
+             return new ScoredProduct(p, -5000, "DROP_NONFOOD");
+        }
+
         double score = 0;
         StringBuilder reason = new StringBuilder();
 
-        // 1. Budget Fit Score
+        // 2. Budget Fit Score
         double budgetFit = 0;
         if (p.getPrice() <= allocatedBudget) {
-            // Price is within budget. Higher price (closer to budget) is slightly better to avoid very cheap/low quality items,
-            // but we also want to save money. 
-            // Strategy: Close to budget is good (utilizing budget), but not strictly.
-            // Let's maximize 'closeness' to budget from below? 
-            // Or just "Pass". 
-            // PRD: "If <= budget: + (1 - (budget - price)/budget) * 50" -> Higher price (closer to budget) gets more points.
-            // This favors higher quality items within budget.
             double ratio = (double) p.getPrice() / allocatedBudget; // 0.0 ~ 1.0
             budgetFit = ratio * 50; 
             reason.append(String.format("BudgetIn(%.2f)+%.1f ", ratio, budgetFit));
         } else {
-            // Price exceeds budget. Penalize.
-            // PRD: "- (price - budget)/budget * 80"
             double overRatio = (double) (p.getPrice() - allocatedBudget) / allocatedBudget;
             double penalty = overRatio * 80;
             budgetFit = -penalty;
             reason.append(String.format("BudgetOver(%.2f)-%.1f ", overRatio, penalty));
             
-            // Extreme over budget (e.g. > 3x) -> Huge penalty
             if (overRatio > 2.0) {
                 score -= 100;
                 reason.append("HugeOver-100 ");
@@ -95,28 +102,35 @@ public class ProductScorer {
         }
         score += budgetFit;
 
-        // 2. Keyword Penalty (Blacklist)
-        if (containsAny(normalizedTitle, BLACKLIST_TOKENS)) {
-            score -= 200;
-            reason.append("Blacklist-200 ");
-        }
-        if (containsAny(normalizedTitle, NON_FOOD_TOKENS)) {
-            score -= 300; // Stronger penalty for non-food
-            reason.append("NonFood-300 ");
-        }
-        if (containsAny(normalizedTitle, HUGE_QUANTITY_TOKENS)) {
-            score -= 50;
-            reason.append("HugeQty-50 ");
+        // 3. Ingredient Relevance
+        if (containsAny(normalizedTitle, NON_INGREDIENT_TOKENS)) {
+            score -= 100;
+            reason.append("NonIng-100 ");
         }
 
-        // 3. Exact Match Bonus
+        // 4. Quantity Check
+        // If > 10kg, penalty (unless ingredient implies bulk like rice?)
+        // Rice usually 4kg, 10kg, 20kg.
+        // Chicken 10kg is 'Business use'.
+        // We use explicit tokens or parsed weight if reliable.
+        if (containsAny(normalizedTitle, HUGE_QUANTITY_TOKENS)) {
+            score -= 50;
+            reason.append("HugeQtyToken-50 ");
+        }
+        
+        // Check parsed weight if available
+        if (p.getGramPerUnit() != null && p.getGramPerUnit() >= 10000) {
+             score -= 50;
+             reason.append("Over10kg-50 ");
+        }
+
+        // 5. Exact Match Bonus
         if (normalizedTitle.contains(ingredientName)) {
             score += 30;
             reason.append("ExactMatch+30 ");
         }
         
-        // 4. Very Low Price Penalty (Quality Check)
-        // If price is < 10% of allocated budget (and allocated budget is reasonable, e.g. > 2000), it might be trash or accessory
+        // 6. Very Low Price Penalty (Quality Check)
         if (allocatedBudget > 2000 && p.getPrice() < allocatedBudget * 0.1) {
             score -= 30;
             reason.append("TooCheap-30 ");

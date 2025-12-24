@@ -27,6 +27,8 @@ public class ShoppingListResponse {
         private Integer daysCount;
         private ProductCard product;
         private String source; // REAL|MOCK
+        private Integer packageGram;      // Parsed package weight
+        private Integer recommendedCount; // Calculated purchase count
     }
 
     @Getter @Setter
@@ -37,5 +39,6 @@ public class ShoppingListResponse {
         private Long price;
         private String imageUrl;
         private String productUrl;
+        private Integer packageGram; // Internal carrier for weight
     }
 }

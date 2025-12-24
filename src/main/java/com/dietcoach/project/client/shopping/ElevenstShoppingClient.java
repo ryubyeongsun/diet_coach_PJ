@@ -16,11 +16,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.w3c.dom.*;
-import org.xml.sax.InputSource;
+import com.dietcoach.project.util.shopping.ProductWeightParser;
+import java.io.StringReader;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.StringReader;
+import org.w3c.dom.*;
+import org.xml.sax.InputSource;
 
 @Slf4j
 @Component
@@ -28,6 +29,7 @@ import java.io.StringReader;
 public class ElevenstShoppingClient implements ShoppingClient {
 
     private final RestTemplate restTemplate;
+    private final ProductWeightParser weightParser;
 
     @Value("${elevenst.api.base-url}")
     private String baseUrl;
@@ -186,6 +188,9 @@ public class ElevenstShoppingClient implements ShoppingClient {
                 try {
                     if (salePriceStr != null) price = Integer.parseInt(salePriceStr.trim());
                 } catch (Exception ex) {}
+
+                // Parse weight
+                int weight = weightParser.parseWeightInGrams(productName);
     
                 result.add(ShoppingProduct.builder()
                         .externalId(productCode)
@@ -196,6 +201,7 @@ public class ElevenstShoppingClient implements ShoppingClient {
                         .mallName((sellerNick != null) ? sellerNick : "11st")
                         .categoryCode(dispNo)
                         .categoryName(dispNm)
+                        .gramPerUnit((double) weight)
                         .build());
             }
             return result;

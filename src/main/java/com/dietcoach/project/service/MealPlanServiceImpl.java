@@ -689,6 +689,16 @@ public class MealPlanServiceImpl implements MealPlanService {
 
             ProductLookup lookup = getRepresentativeProductCached(ingredientName, allocated);
 
+            // Calculate recommended purchase count (PRD 6.3)
+            Integer packageGram = 0;
+            Integer recommendedCount = 1; // Default 1
+
+            if (lookup.product != null && lookup.product.getPackageGram() != null && lookup.product.getPackageGram() > 0) {
+                 packageGram = lookup.product.getPackageGram();
+                 // ceil(totalGram / packageGram)
+                 recommendedCount = (int) Math.ceil((double) totalGram / packageGram);
+            }
+
             items.add(ShoppingListResponse.ShoppingItem.builder()
                     .ingredientName(ingredientName)
                     .totalGram(totalGram)
@@ -696,6 +706,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     .daysCount(ing.getDaysCount())
                     .product(lookup.product)
                     .source(lookup.source)
+                    .packageGram(packageGram)
+                    .recommendedCount(recommendedCount)
                     .build());
         }
 

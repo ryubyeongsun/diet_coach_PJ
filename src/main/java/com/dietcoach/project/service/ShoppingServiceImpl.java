@@ -153,6 +153,7 @@ public class ShoppingServiceImpl implements ShoppingService {
                 .price(Long.valueOf(product.getPrice()))
                 .imageUrl(product.getImageUrl())
                 .productUrl(product.getProductUrl())
+                .packageGram((product.getGramPerUnit() != null) ? product.getGramPerUnit().intValue() : 0)
                 .build();
     }
 
