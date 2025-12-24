@@ -26,6 +26,7 @@ public class MealPlanDaySummaryResponse {
     private String label;        // "아·점·저 균형식" 같은 요약 문구
     private String memo;         // "AI" | "TEMPLATE"
     private String representativeMenu; // 대표 메뉴 (칼로리 가장 높은 음식)
+    private Boolean isStamped;   // 도장 찍힘 여부
 
     public static MealPlanDaySummaryResponse from(
             MealPlanDay day,
@@ -59,6 +60,7 @@ public class MealPlanDaySummaryResponse {
                 .label(label)
                 .memo(memo)
                 .representativeMenu(representativeMenu)
+                .isStamped(day.getIsStamped() != null && day.getIsStamped())
                 .build();
     }
 }

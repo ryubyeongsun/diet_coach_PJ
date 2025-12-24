@@ -41,7 +41,17 @@
               type="password"
               placeholder="비밀번호"
               required
+              :class="{ 'input-error': password.length > 0 && !isPasswordValid }"
             />
+            <p 
+              class="guide-text" 
+              :class="{ 
+                'valid': isPasswordValid && password.length > 0, 
+                'invalid': !isPasswordValid && password.length > 0 
+              }"
+            >
+              * 8자 이상, 영문/숫자/특수문자 포함
+            </p>
           </div>
           <div class="input-group">
             <NnInput
@@ -68,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { useRouter } from "vue-router";
 import { signup, login, fetchMe } from "@/api/authApi.js";
 import { saveAuth } from "@/utils/auth.js";
@@ -83,6 +93,13 @@ const passwordConfirm = ref("");
 const errorMessage = ref("");
 const isLoading = ref(false);
 
+// 비밀번호 규칙: 영문, 숫자, 특수문자 포함, 8자 이상
+const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[!@#$%^&*?_]).{8,}$/;
+
+const isPasswordValid = computed(() => {
+  return passwordRegex.test(password.value);
+});
+
 watch([password, passwordConfirm], () => {
   if (password.value !== passwordConfirm.value && passwordConfirm.value) {
     errorMessage.value = "비밀번호가 일치하지 않습니다.";
@@ -92,6 +109,10 @@ watch([password, passwordConfirm], () => {
 });
 
 async function handleSignup() {
+  if (!isPasswordValid.value) {
+    errorMessage.value = "비밀번호 규칙을 확인해 주세요.";
+    return;
+  }
   if (password.value !== passwordConfirm.value) {
     errorMessage.value = "비밀번호가 일치하지 않습니다.";
     return;
@@ -256,6 +277,26 @@ async function handleSignup() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Error Style for Input */
+.input-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
+}
+
+.guide-text {
+  font-size: 12px;
+  margin-top: 4px;
+  margin-left: 4px;
+  color: #6b7280;
+  transition: color 0.2s;
+}
+.guide-text.invalid {
+  color: #ef4444;
+}
+.guide-text.valid {
+  color: #22c55e;
 }
 
 .submit-btn {
