@@ -11,10 +11,9 @@
       </div>
       <p class="rate-text">{{ achievementRate.toFixed(1) }}% 달성</p>
     </div>
-    <div v-else class="placeholder">
-      <p class="placeholder-text">아직 오늘 식단이 없어요.<br/>식단을 생성하면 칼로리가 계산돼요!</p>
-    </div>
-  </div>
+          <div v-else class="placeholder">
+            <p class="placeholder-text">앗! 아직 오늘 식단이 없어요. 🍱<br/>식단을 생성하면 칼로리가 슝~ 계산돼요! ✨</p>
+          </div>  </div>
 </template>
 
 <script setup>
