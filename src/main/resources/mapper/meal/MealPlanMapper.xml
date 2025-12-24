@@ -10,8 +10,8 @@
     </insert>
 
     <insert id="insertMealPlanDay" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO meal_plan_days (meal_plan_id, plan_date, day_index, total_calories)
-        VALUES (#{mealPlanId}, #{planDate}, #{dayIndex}, #{totalCalories})
+        INSERT INTO meal_plan_days (meal_plan_id, plan_date, day_index, total_calories, is_stamped)
+        VALUES (#{mealPlanId}, #{planDate}, #{dayIndex}, #{totalCalories}, #{isStamped})
     </insert>
 
     <insert id="insertMealItem" useGeneratedKeys="true" keyProperty="id">
@@ -75,6 +75,10 @@
 
     <update id="updateMealPlanDayTotalCalories">
         UPDATE meal_plan_days SET total_calories = #{totalCalories} WHERE id = #{dayId}
+    </update>
+
+    <update id="updateMealPlanDayStamp">
+        UPDATE meal_plan_days SET is_stamped = #{isStamped} WHERE id = #{dayId}
     </update>
 
     <delete id="deleteMealItemsByDayId">

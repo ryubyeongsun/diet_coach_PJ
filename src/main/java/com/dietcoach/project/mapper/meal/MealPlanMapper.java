@@ -27,6 +27,7 @@ public interface MealPlanMapper {
     Integer sumMealItemCaloriesByDayId(@Param("mealPlanDayId") Long mealPlanDayId);
     int updateMealPlanDayTotalCalories(@Param("dayId") Long dayId,
             @Param("totalCalories") Integer totalCalories);
+    int updateMealPlanDayStamp(@Param("dayId") Long dayId, @Param("isStamped") boolean isStamped);
     int deleteMealItemsByDayId(@Param("mealPlanDayId") Long mealPlanDayId);
     int deleteMealItemsByDayIdAndMealTime(@Param("mealPlanDayId") Long mealPlanDayId, @Param("mealTime") String mealTime);
     List<MealPlanIngredientResponse> findIngredientsForPlanInRange(

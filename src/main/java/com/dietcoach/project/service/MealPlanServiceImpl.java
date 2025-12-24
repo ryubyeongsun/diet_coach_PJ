@@ -171,6 +171,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                     .planDate(startDate.plusDays(i))
                     .dayIndex(i + 1)
                     .totalCalories(0)
+                    .isStamped(false)
                     .build();
             mealPlanMapper.insertMealPlanDay(day);
             allDays.add(day);
@@ -1069,9 +1070,21 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .dayId(day.getId())
                 .date(day.getPlanDate().toString())
                 .totalCalories(day.getTotalCalories())
+                .isStamped(day.getIsStamped() != null && day.getIsStamped())
                 .items(flatItems)
                 .meals(meals)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void stampDay(Long dayId) {
+        MealPlanDay day = mealPlanMapper.findMealPlanDayById(dayId);
+        if (day == null) throw new BusinessException("존재하지 않는 날짜입니다. id=" + dayId);
+
+        day.setIsStamped(true);
+        mealPlanMapper.updateMealPlanDayStamp(dayId, true);
+        log.info("[MealPlan] stampDay dayId={}", dayId);
     }
     
     private int compareMealTimes(String t1, String t2) {

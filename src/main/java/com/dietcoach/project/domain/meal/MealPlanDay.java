@@ -18,6 +18,7 @@ public class MealPlanDay {
     private LocalDate planDate;
     private Integer dayIndex;
     private Integer totalCalories;
+    private Boolean isStamped;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
