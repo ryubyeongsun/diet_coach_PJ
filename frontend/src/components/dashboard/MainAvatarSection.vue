@@ -53,17 +53,15 @@ const props = defineProps({
   summary: Object,
   trend: Object,
   latestWeight: Number,
+  userHeight: Number,
 });
 
 // Calculate BMI and Level
 const bmi = computed(() => 
-  calculateBmi(props.latestWeight, getCurrentUser()?.height)
+  calculateBmi(props.latestWeight, props.userHeight)
 );
 
 const level = computed(() => {
-  if (props.summary?.characterLevel) {
-    return props.summary.characterLevel;
-  }
   if (bmi.value > 0) {
     return getCharacterLevel(bmi.value);
   }

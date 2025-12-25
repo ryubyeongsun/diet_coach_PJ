@@ -80,8 +80,7 @@
 <script setup>
 import { ref, watch, computed } from "vue";
 import { useRouter } from "vue-router";
-import { signup, login, fetchMe } from "@/api/authApi.js";
-import { saveAuth } from "@/utils/auth.js";
+import { signup } from "@/api/authApi.js";
 import NnInput from "@/components/common/NnInput.vue";
 import NnButton from "@/components/common/NnButton.vue";
 
@@ -134,23 +133,8 @@ async function handleSignup() {
     });
 
     if (response.success) {
-      // 자동 로그인
-      const loginResponse = await login({
-        email: email.value,
-        password: password.value,
-      });
-
-      if (loginResponse.data && loginResponse.data.accessToken) {
-        const token = loginResponse.data.accessToken;
-        saveAuth(token, null);
-        const meResponse = await fetchMe();
-        const user = meResponse.data;
-        saveAuth(token, user);
-        await router.push("/profile/setup");
-      } else {
-        alert("회원가입은 완료되었으나 자동 로그인에 실패했습니다.");
-        await router.push("/login");
-      }
+      alert("회원가입이 완료되었습니다. 로그인해 주세요.");
+      await router.push("/login");
     } else {
       errorMessage.value = response.message || "회원가입 실패";
     }

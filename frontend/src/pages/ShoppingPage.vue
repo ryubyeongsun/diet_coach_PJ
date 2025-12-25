@@ -212,6 +212,7 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { format } from "date-fns";
 import { fetchShoppingList } from "../api/shoppingApi.js";
 import { fetchLatestMealPlan } from "../api/mealPlanApi.js";
 import { getCurrentUser } from "../utils/auth";
@@ -457,7 +458,7 @@ async function loadShoppingList() {
   error.value = "";
 
   try {
-    const dateParam = range.value === "TODAY" ? (selectedDate.value || new Date().toISOString().slice(0, 10)) : null;
+    const dateParam = range.value === "TODAY" ? (selectedDate.value || format(new Date(), 'yyyy-MM-dd')) : null;
     const response = await fetchShoppingList(planId.value, range.value, dateParam);
     shoppingData.value = response;
   } catch (err) {
@@ -478,7 +479,7 @@ async function loadShoppingList() {
 function setRange(newRange) {
   range.value = newRange;
   if (newRange === "TODAY" && !selectedDate.value) {
-    selectedDate.value = new Date().toISOString().slice(0, 10);
+    selectedDate.value = format(new Date(), 'yyyy-MM-dd');
   }
   router.replace({
     query: {
@@ -520,7 +521,7 @@ onMounted(async () => {
   if (typeof queryDate === "string" && queryDate) {
     selectedDate.value = queryDate;
   } else {
-    selectedDate.value = new Date().toISOString().slice(0, 10);
+    selectedDate.value = format(new Date(), 'yyyy-MM-dd');
   }
 
   if (id && !isNaN(id)) {

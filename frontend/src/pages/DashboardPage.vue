@@ -9,7 +9,12 @@
     <div v-else class="dashboard-grid-layout">
       <!-- 1. Center Character Area -->
       <main class="character-area">
-        <MainAvatarSection :summary="summaryData" :trend="trendData" :latest-weight="latestWeight" />
+        <MainAvatarSection 
+          :summary="summaryData" 
+          :trend="trendData" 
+          :latest-weight="latestWeight" 
+          :user-height="userHeight"
+        />
       </main>
 
       <!-- 2. Right Stats Area -->
@@ -50,6 +55,8 @@ const trendDateRange = ref({
   from: format(subDays(new Date(), 29), "yyyy-MM-dd"),
   to: format(new Date(), "yyyy-MM-dd"),
 });
+
+const userHeight = computed(() => currentUser.value?.height);
 
 const latestWeight = computed(() => {
   if (summaryData.value?.latestWeight) {

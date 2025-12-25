@@ -44,18 +44,18 @@ const props = defineProps({
   }
 });
 
-// 기존 프로젝트 bmi.js 로직에 맞춘 레벨 구간 정의
-// LV1: < 17
-// LV2: 17 ~ 18.5
-// LV3: 18.5 ~ 23 (정상)
-// LV4: 23 ~ 25
-// LV5: >= 25
+// BMI 레벨 구간 정의 (한국/아시아태평양 기준)
+// LV1: < 18.5 (마름)
+// LV2: 18.5 ~ 23 (정상)
+// LV3: 23 ~ 25 (과체중)
+// LV4: 25 ~ 30 (비만)
+// LV5: >= 30 (고도비만)
 const levels = [
-  { level: 1, status: '마름+', minBmi: 0, maxBmi: 17.0 },
-  { level: 2, status: '마름', minBmi: 17.0, maxBmi: 18.5 },
-  { level: 3, status: '정상', minBmi: 18.5, maxBmi: 23.0 },
-  { level: 4, status: '통통', minBmi: 23.0, maxBmi: 25.0 },
-  { level: 5, status: '비만', minBmi: 25.0, maxBmi: 100 }
+  { level: 1, status: '마름', minBmi: 0, maxBmi: 18.5 },
+  { level: 2, status: '정상', minBmi: 18.5, maxBmi: 23.0 },
+  { level: 3, status: '과체중', minBmi: 23.0, maxBmi: 25.0 },
+  { level: 4, status: '비만', minBmi: 25.0, maxBmi: 30.0 },
+  { level: 5, status: '고도비만', minBmi: 30.0, maxBmi: 100 }
 ];
 
 const currentLevel = computed(() => props.level);
