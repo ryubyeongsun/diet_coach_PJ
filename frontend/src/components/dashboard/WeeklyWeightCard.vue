@@ -41,10 +41,24 @@ const weightDataPoints = computed(() => {
 const hasEnoughData = computed(() => weightDataPoints.value.length >= 2);
 
 const weightChange = computed(() => {
-  if (!hasEnoughData.value) return 0;
-  const first = weightDataPoints.value[0].weight;
-  const last = weightDataPoints.value[weightDataPoints.value.length - 1].weight;
-  return last - first;
+  const points = weightDataPoints.value;
+  if (points.length < 2) return 0;
+
+  const last = points[points.length - 1];
+  const lastDate = new Date(last.date);
+  const oneWeekAgo = new Date(lastDate);
+  oneWeekAgo.setDate(lastDate.getDate() - 7);
+
+  // 1. 최근 7일 내 가장 오래된 기록 찾기
+  const startOfWeek = points.find(p => new Date(p.date) >= oneWeekAgo);
+
+  // 2. 7일 내 기록이 '최신 기록' 하나뿐이라면 -> 바로 이전 기록(7일 넘어도)과 비교
+  if (!startOfWeek || startOfWeek === last) {
+    const prev = points[points.length - 2];
+    return last.weight - prev.weight;
+  }
+
+  return last.weight - startOfWeek.weight;
 });
 
 const weightChangeText = computed(() => {

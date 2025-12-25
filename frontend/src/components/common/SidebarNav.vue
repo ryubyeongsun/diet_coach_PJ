@@ -19,6 +19,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { format } from 'date-fns';
 import { fetchLatestMealPlan } from '../../api/mealPlanApi';
 import { getCurrentUser } from '../../utils/auth';
 
@@ -41,7 +42,7 @@ async function navigate(path) {
     return;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = format(new Date(), 'yyyy-MM-dd');
   const user = getCurrentUser();
   if (!user || !user.id) {
     router.push({ path: '/shopping', query: { range: 'TODAY', date: today } });

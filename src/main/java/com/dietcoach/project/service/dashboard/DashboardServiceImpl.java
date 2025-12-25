@@ -54,25 +54,30 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 3) 최신 식단 플랜 조회 (식단 기간 클리핑)
         MealPlan latestPlan = mealPlanMapper.findLatestMealPlanByUserId(userId);
-        if (latestPlan == null) {
-            // 식단 자체가 없으면 -> hasData=false, 빈 리스트 (500 금지)
-            return DashboardTrendResponse.builder()
-                    .hasData(false)
-                    .fromDate(from.toString())
-                    .toDate(to.toString())
-                    .dayTrends(List.of())
-                    .build();
+        
+        LocalDate clippedFrom;
+        LocalDate clippedTo;
+        Integer targetCalories;
+
+        if (latestPlan != null) {
+            LocalDate planStart = latestPlan.getStartDate();
+            LocalDate planEnd = latestPlan.getEndDate();
+
+            // 요청 기간을 식단 기간으로 클리핑
+            clippedFrom = (from.isBefore(planStart)) ? planStart : from;
+            clippedTo = (to.isAfter(planEnd)) ? planEnd : to;
+            
+            // targetCalories 우선순위: users.target_calories -> meal_plans.target_calories_per_day
+            targetCalories = (userTarget != null) ? userTarget : latestPlan.getTargetCaloriesPerDay();
+        } else {
+            // 식단이 없으면 요청 기간 그대로 사용
+            clippedFrom = from;
+            clippedTo = to;
+            targetCalories = (userTarget != null) ? userTarget : 0;
         }
 
-        LocalDate planStart = latestPlan.getStartDate();
-        LocalDate planEnd = latestPlan.getEndDate();
-
-        // 요청 기간을 식단 기간으로 클리핑
-        LocalDate clippedFrom = (from.isBefore(planStart)) ? planStart : from;
-        LocalDate clippedTo = (to.isAfter(planEnd)) ? planEnd : to;
-
-        // 식단 기간과 완전히 불일치하면 -> 빈 응답
-        if (clippedFrom.isAfter(clippedTo)) {
+        // 식단 기간과 완전히 불일치하면 -> 빈 응답 (단, 식단이 있을 때만 체크)
+        if (latestPlan != null && clippedFrom.isAfter(clippedTo)) {
             return DashboardTrendResponse.builder()
                     .hasData(false)
                     .fromDate(clippedFrom.toString())
@@ -81,10 +86,8 @@ public class DashboardServiceImpl implements DashboardService {
                     .build();
         }
 
-        // targetCalories 우선순위: users.target_calories -> meal_plans.target_calories_per_day
-        Integer targetCalories = (userTarget != null) ? userTarget : latestPlan.getTargetCaloriesPerDay();
-
         // 4) 칼로리/체중 조회
+        // 식단이 없으면 caloriesRows는 빈 리스트가 될 것임 (Mapper 쿼리가 JOIN을 사용하므로)
         List<DashboardMapper.DayCaloriesRow> caloriesRows =
                 dashboardMapper.findDayCalories(userId, clippedFrom, clippedTo);
 
@@ -100,13 +103,16 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 5) date 기준 merge (칼로리/체중 중 하나만 있어도 포함)
         Map<LocalDate, DayTrend> map = new HashMap<>();
+        
+        // Final effective target calories for lambda
+        final Integer effectiveTarget = targetCalories;
 
         for (DashboardMapper.DayCaloriesRow r : caloriesRows) {
             System.out.println("DEBUG: Processing caloriesRow: " + r.getDate() + ", " + r.getTotalCalories());
             if (r.getDate() == null) continue;
             map.computeIfAbsent(r.getDate(), d -> DayTrend.builder()
                             .date(d.toString())
-                            .targetCalories(targetCalories)
+                            .targetCalories(effectiveTarget)
                             .build())
                     .setTotalCalories(r.getTotalCalories());
             System.out.println("DEBUG: Map entry after caloriesRow: " + map.get(r.getDate()));
@@ -118,7 +124,7 @@ public class DashboardServiceImpl implements DashboardService {
             if (r.getDate() == null) continue;
             map.computeIfAbsent(r.getDate(), d -> DayTrend.builder()
                             .date(d.toString())
-                            .targetCalories(targetCalories)
+                            .targetCalories(effectiveTarget)
                             .build())
                     .setWeight(r.getWeight());
         }

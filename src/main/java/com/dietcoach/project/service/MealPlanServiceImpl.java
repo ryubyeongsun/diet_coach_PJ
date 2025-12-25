@@ -1030,49 +1030,76 @@ public class MealPlanServiceImpl implements MealPlanService {
     @Transactional(readOnly = true)
     public DashboardSummaryResponse getDashboardSummary(Long userId) {
         MealPlan latestPlan = mealPlanMapper.findLatestMealPlanByUserId(userId);
-        if (latestPlan == null) throw new BusinessException("해당 사용자의 최근 식단 플랜이 없습니다.");
+        // Plan can be null if user hasn't created one yet.
+        // We still want to return weight info.
 
-        List<MealPlanDay> days = mealPlanMapper.findMealPlanDaysByPlanId(latestPlan.getId());
-        if (days == null || days.isEmpty()) throw new BusinessException("해당 플랜의 날짜가 없습니다. planId=" + latestPlan.getId());
-
-        int totalCalories = days.stream().mapToInt(MealPlanDay::getTotalCalories).sum();
-        int averageCalories = (int) Math.round(totalCalories / (double) days.size());
-
-        int targetPerDay = latestPlan.getTargetCaloriesPerDay();
-        int achievementRate = (int) Math.round(totalCalories / (double) (targetPerDay * days.size()) * 100.0);
-
-        // Calculate consumed calories for TODAY
-        LocalDate today = LocalDate.now();
-        MealPlanDay todayDay = days.stream()
-                .filter(d -> d.getPlanDate().equals(today))
-                .findFirst()
-                .orElse(null);
+        int totalCalories = 0;
+        int averageCalories = 0;
+        int targetPerDay = 0;
+        int achievementRate = 0;
+        
+        LocalDate startDate = null;
+        LocalDate endDate = null;
+        int totalDays = 0;
+        Long planId = null;
 
         Integer consumedCalories = 0;
-        Integer todayTargetCalories = targetPerDay;
+        Integer todayTargetCalories = 0;
         Integer todayAchievementRate = 0;
+        Long todayDayId = null;
 
-        if (todayDay != null) {
-            // Check intakes
-            List<MealIntake> intakes = mealIntakeMapper.findConsumedByDayId(userId, todayDay.getId());
-            log.info("[Dashboard] todayDayId={} intakes.size={}", todayDay.getId(), intakes.size());
-            
-            Set<String> consumedMealTimes = intakes.stream()
-                    .map(MealIntake::getMealTime)
-                    .collect(Collectors.toSet());
-            
-            // Get items for today to sum consumed calories
-            List<MealItem> todayItems = mealPlanMapper.findMealItemsByDayId(todayDay.getId());
-            
-            consumedCalories = todayItems.stream()
-                    .filter(item -> consumedMealTimes.contains(item.getMealTime()))
-                    .mapToInt(MealItem::getCalories)
-                    .sum();
+        if (latestPlan != null) {
+            planId = latestPlan.getId();
+            startDate = latestPlan.getStartDate();
+            endDate = latestPlan.getEndDate();
+            totalDays = latestPlan.getTotalDays();
+            targetPerDay = latestPlan.getTargetCaloriesPerDay();
+
+            List<MealPlanDay> days = mealPlanMapper.findMealPlanDaysByPlanId(latestPlan.getId());
+            if (days != null && !days.isEmpty()) {
+                totalCalories = days.stream().mapToInt(MealPlanDay::getTotalCalories).sum();
+                averageCalories = (int) Math.round(totalCalories / (double) days.size());
+                if (targetPerDay > 0) {
+                    achievementRate = (int) Math.round(totalCalories / (double) (targetPerDay * days.size()) * 100.0);
+                }
+
+                // Calculate consumed calories for TODAY
+                LocalDate today = LocalDate.now();
+                MealPlanDay todayDay = days.stream()
+                        .filter(d -> d.getPlanDate().equals(today))
+                        .findFirst()
+                        .orElse(null);
+
+                if (todayDay != null) {
+                    todayDayId = todayDay.getId();
+                    // Check intakes
+                    List<MealIntake> intakes = mealIntakeMapper.findConsumedByDayId(userId, todayDay.getId());
                     
-            todayTargetCalories = todayDay.getTotalCalories() > 0 ? todayDay.getTotalCalories() : targetPerDay;
-            
-            if (todayTargetCalories > 0) {
-                todayAchievementRate = (int) Math.round((double) consumedCalories / todayTargetCalories * 100);
+                    Set<String> consumedMealTimes = intakes.stream()
+                            .map(MealIntake::getMealTime)
+                            .collect(Collectors.toSet());
+                    
+                    // Get items for today to sum consumed calories
+                    List<MealItem> todayItems = mealPlanMapper.findMealItemsByDayId(todayDay.getId());
+                    
+                    consumedCalories = todayItems.stream()
+                            .filter(item -> consumedMealTimes.contains(item.getMealTime()))
+                            .mapToInt(MealItem::getCalories)
+                            .sum();
+                            
+                    todayTargetCalories = todayDay.getTotalCalories() > 0 ? todayDay.getTotalCalories() : targetPerDay;
+                    
+                    if (todayTargetCalories > 0) {
+                        todayAchievementRate = (int) Math.round((double) consumedCalories / todayTargetCalories * 100);
+                    }
+                }
+            }
+        } else {
+            // Fallback for user with no plan: Use User's target calories if available
+            User user = userMapper.findById(userId);
+            if (user != null && user.getTargetCalories() != null) {
+                targetPerDay = (int) Math.round(user.getTargetCalories());
+                todayTargetCalories = targetPerDay;
             }
         }
 
@@ -1090,11 +1117,11 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         return DashboardSummaryResponse.builder()
                 .userId(userId)
-                .recentMealPlanId(latestPlan.getId())
-                .todayDayId(todayDay != null ? todayDay.getId() : null)
-                .startDate(latestPlan.getStartDate())
-                .endDate(latestPlan.getEndDate())
-                .totalDays(latestPlan.getTotalDays())
+                .recentMealPlanId(planId)
+                .todayDayId(todayDayId)
+                .startDate(startDate)
+                .endDate(endDate)
+                .totalDays(totalDays)
                 .targetCaloriesPerDay(targetPerDay)
                 .averageCalories(averageCalories)
                 .achievementRate(achievementRate)

@@ -29,11 +29,11 @@ let loader = null;
 
 // Mapping for levels (Color/Size fallback if GLB missing)
 const LEVEL_CONFIG = {
-  1: { color: 0x87CEEB, scaleX: 0.6, label: "매우 마름" },
-  2: { color: 0xFFD700, scaleX: 0.8, label: "마름" },
-  3: { color: 0x90EE90, scaleX: 1.0, label: "정상" },
-  4: { color: 0xFFA07A, scaleX: 1.3, label: "통통" },
-  5: { color: 0xFF6347, scaleX: 1.6, label: "비만" },
+  1: { color: 0x87CEEB, scaleX: 0.7, label: "마름" },
+  2: { color: 0x90EE90, scaleX: 1.0, label: "정상" },
+  3: { color: 0xFFD700, scaleX: 1.2, label: "과체중" },
+  4: { color: 0xFFA07A, scaleX: 1.4, label: "비만" },
+  5: { color: 0xFF6347, scaleX: 1.7, label: "고도비만" },
 };
 
 const initThree = () => {
