@@ -4,6 +4,7 @@ import { ref, computed, watch } from "vue";
 import { getCurrentUser, clearAuth } from "./utils/auth";
 import { globalState, setWeightModalOpen } from "./utils/globalState";
 import WeightRecordModal from "./components/common/WeightRecordModal.vue";
+import SidebarNav from "./components/common/SidebarNav.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -101,63 +102,7 @@ const handleWeightSaved = () => {
     <div class="layout__body">
       <!-- 왼쪽 사이드바 -->
       <aside class="layout__sidebar">
-        <nav class="sidebar-nav">
-          <div class="sidebar-nav__section">메뉴</div>
-
-          <button
-            class="sidebar-nav__item"
-            :class="{
-              'sidebar-nav__item--active':
-                route.path === '/' || route.path.startsWith('/dashboard'),
-            }"
-            @click="go('/dashboard')"
-          >
-            📊 대시보드
-          </button>
-          <button
-            class="sidebar-nav__item"
-            :class="{
-              'sidebar-nav__item--active': route.path.startsWith('/meal-plans'),
-            }"
-            @click="go('/meal-plans')"
-          >
-            🍱 식단 관리
-          </button>
-          <button
-            class="sidebar-nav__item"
-            :class="{
-              'sidebar-nav__item--active':
-                route.path.startsWith('/shopping') ||
-                route.path.startsWith('/cart'),
-            }"
-            @click="go('/shopping')"
-          >
-            🛒 재료 쇼핑
-          </button>
-          <button
-            class="sidebar-nav__item"
-            :class="{
-              'sidebar-nav__item--active': route.path.startsWith('/weights'),
-            }"
-            @click="go('/weights')"
-          >
-            ⚖️ 체중 기록
-          </button>
-          <button class="sidebar-nav__item" disabled>
-            💪 운동 기록 (준비중)
-          </button>
-
-          <div class="sidebar-nav__section sidebar-nav__section--sub">
-            오늘의 식단
-          </div>
-          <div class="sidebar-meal">
-            <div class="sidebar-meal__thumb">🍛</div>
-            <div class="sidebar-meal__info">
-              <div class="sidebar-meal__title">닭가슴살 샐러드</div>
-              <div class="sidebar-meal__cal">420 kcal</div>
-            </div>
-          </div>
-        </nav>
+        <SidebarNav />
       </aside>
 
       <!-- 메인 컨텐츠 -->
@@ -324,91 +269,8 @@ const handleWeightSaved = () => {
 
 /* 사이드바 */
 .layout__sidebar {
-  width: 220px;
-  min-width: 200px;
-}
-
-.sidebar-nav {
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 18px;
-  padding: 16px 14px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sidebar-nav__section {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
-  margin-bottom: 4px;
-}
-
-.sidebar-nav__section--sub {
-  margin-top: 8px;
-}
-
-.sidebar-nav__item {
-  width: 100%;
-  text-align: left;
-  border-radius: 999px;
-  border: none;
-  background: transparent;
-  padding: 8px 10px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-}
-
-.sidebar-nav__item:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.sidebar-nav__item:not(:disabled):hover {
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.sidebar-nav__item--active {
-  background: #d1fae5;
-  color: #065f46;
-  font-weight: 700;
-}
-
-.sidebar-meal {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 12px;
-  background: #f9fafb;
-}
-
-.sidebar-meal__thumb {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background: #fee2e2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sidebar-meal__info {
-  font-size: 12px;
-}
-
-.sidebar-meal__title {
-  font-weight: 600;
-  color: #111827;
-}
-
-.sidebar-meal__cal {
-  color: #6b7280;
+  width: 240px; /* Increased to match SidebarNav width */
+  min-width: 240px;
 }
 
 /* 메인 영역 */
