@@ -54,11 +54,14 @@ const initThree = () => {
   renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
+  renderer.outputColorSpace = THREE.SRGBColorSpace; // PRD 4.1
+  renderer.toneMapping = THREE.NoToneMapping;     // PRD 4.1
+  renderer.toneMappingExposure = 1.0;             // PRD 4.1
   canvasContainer.value.appendChild(renderer.domElement);
   
   // --- Add Floor Shadow ---
   const planeGeometry = new THREE.PlaneGeometry(10, 10);
-  const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.2 }); // Soft shadow
+  const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.1 }); // PRD 4.4: Adjusted opacity
   const plane = new THREE.Mesh(planeGeometry, planeMaterial);
   plane.rotation.x = -Math.PI / 2;
   plane.position.y = -1.5; // Match character's lowest Y position
@@ -85,11 +88,16 @@ const initThree = () => {
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.9); // Increased intensity slightly
   scene.add(ambientLight);
 
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7); // PRD 4.3: Add HemisphereLight
+  scene.add(hemiLight);
+
   const dirLight = new THREE.DirectionalLight(0xffffff, 1);
   dirLight.position.set(5, 10, 7);
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.width = 1024;
   dirLight.shadow.mapSize.height = 1024;
+  dirLight.shadow.bias = -0.0001;      // PRD 4.4
+  dirLight.shadow.normalBias = 0.02;   // PRD 4.4
   scene.add(dirLight);
 
   // 6. Loader
@@ -121,6 +129,22 @@ const loadCharacter = (level) => {
     (gltf) => {
       currentModel = gltf.scene;
       currentModel.scale.set(1, 1, 1);
+      
+      // PRD 4.2: Texture Color Space Correction
+      currentModel.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          
+          if (child.material) {
+            // Ensure textures are treated as sRGB
+            if (child.material.map) child.material.map.colorSpace = THREE.SRGBColorSpace;
+            if (child.material.emissiveMap) child.material.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+            child.material.needsUpdate = true;
+          }
+        }
+      });
+
       const box = new THREE.Box3().setFromObject(currentModel);
       const center = box.getCenter(new THREE.Vector3());
       currentModel.position.x += currentModel.position.x - center.x;

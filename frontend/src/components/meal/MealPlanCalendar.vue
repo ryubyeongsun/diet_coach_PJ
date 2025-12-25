@@ -1,9 +1,9 @@
 <template>
   <div class="calendar">
     <!-- 상단 달성률 게이지 -->
-    <div v-if="days.length > 0 && targetCalories > 0" class="calendar__progress-section">
+    <div v-if="days.length > 0" class="calendar__progress-section">
       <div class="progress-info">
-        <span class="progress-label">이번 달 목표 달성률</span>
+        <span class="progress-label">이번 달 식단 실천 진행도</span>
         <span class="progress-percent">{{ monthlyAchievementRate }}%</span>
       </div>
       <div class="progress-bar-bg">
@@ -12,6 +12,7 @@
           :style="{ width: Math.min(monthlyAchievementRate, 100) + '%' }"
         ></div>
       </div>
+      <p class="motivation-text">{{ motivationMessage }}</p>
     </div>
 
     <!-- 데이터 없을 때 -->
@@ -79,14 +80,20 @@ const emit = defineEmits(["click-day"]);
 
 const weekday = ["일", "월", "화", "수", "목", "금", "토"];
 
-// 월간 달성률 계산
+// 월간 실천 달성률 계산 (스탬프 기준)
 const monthlyAchievementRate = computed(() => {
-  if (!props.days.length || !props.targetCalories) return 0;
+  if (!props.days.length) return 0;
   
-  const totalCal = props.days.reduce((sum, day) => sum + (day.totalCalories || 0), 0);
-  const totalTarget = props.targetCalories * props.days.length;
-  
-  return Math.round((totalCal / totalTarget) * 100);
+  const stampedCount = props.days.filter(day => day.isStamped).length;
+  return Math.round((stampedCount / props.days.length) * 100);
+});
+
+// 달성률에 따른 동적 메시지
+const motivationMessage = computed(() => {
+  const rate = monthlyAchievementRate.value;
+  if (rate >= 100) return "완벽합니다! 이번 달 목표를 달성하셨어요! 🎉";
+  if (rate >= 80) return "거의 다 왔어요! 조금만 더 힘내세요! 💪";
+  return "오늘의 첫 식단 기록을 시작해볼까요? 🚀";
 });
 
 function formatDate(isoString) {
@@ -159,6 +166,14 @@ function getRepresentativeMenu(day) {
   background-color: #3b82f6; /* Blue-500 */
   border-radius: 4px;
   transition: width 0.3s ease;
+}
+
+.motivation-text {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+  text-align: right;
 }
 
 .calendar__empty {
