@@ -92,15 +92,15 @@
 
       <footer class="modal-card__footer">
         <NnButton 
-          v-if="detail && !detail.isStamped" 
-          variant="primary" 
+          v-if="detail" 
+          :variant="detail.isStamped ? 'secondary' : 'primary'" 
           block 
           @click="handleStamp"
           style="margin-bottom: 8px;"
         >
-          오늘 식단 완료! 💯
+          {{ detail.isStamped ? "식단 완료 취소하기 ↩️" : "오늘 식단 완료! 💯" }}
         </NnButton>
-        <NnButton block variant="secondary" @click="closeModal">닫기</NnButton>
+        <NnButton block variant="outline" @click="closeModal">닫기</NnButton>
       </footer>
     </div>
   </div>
@@ -210,8 +210,13 @@ async function handleReplaceMeal(mealTime) {
 }
 
 function handleStamp() {
-  emit("stamp", props.dayId);
-  closeModal();
+  if (detail.value) {
+    // 1. 로컬 상태 즉시 반전 (피드백)
+    detail.value.isStamped = !detail.value.isStamped;
+    
+    // 2. 부모에게 이벤트 전달 (DB 저장 및 통계 갱신 요청)
+    emit("stamp", props.dayId);
+  }
 }
 
 watch(

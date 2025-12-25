@@ -7,7 +7,7 @@ import http from "./http";
  * @param {object} params - 조회 기간
  * @param {string} params.from - 시작일 (YYYY-MM-DD)
  * @param {string} params.to - 종료일 (YYYY-MM-DD)
- * @returns {Promise<object>} - 체중 기록 리스트
+ * @returns {Promise<Array>} - 체중 기록 리스트
  */
 export async function getWeights(userId, { from, to }) {
   const res = await http.get(`/users/${userId}/weights`, {
@@ -32,9 +32,10 @@ export async function upsertWeight(userId, payload) {
 /**
  * 특정 체중 기록을 삭제합니다.
  * @param {number} userId - 사용자 ID
- * @param {number} recordId - 삭제할 기록의 ID
+ * @param {string} recordDate - 삭제할 기록의 날짜 (YYYY-MM-DD)
  * @returns {Promise<void>}
  */
-export async function deleteWeight(userId, recordId) {
-  await http.delete(`/users/${userId}/weights/${recordId}`);
+export async function deleteWeight(userId, recordDate) {
+  // Backend expects /api/users/{userId}/weights/{recordDate}
+  await http.delete(`/users/${userId}/weights/${recordDate}`);
 }

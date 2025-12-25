@@ -1082,9 +1082,10 @@ public class MealPlanServiceImpl implements MealPlanService {
         MealPlanDay day = mealPlanMapper.findMealPlanDayById(dayId);
         if (day == null) throw new BusinessException("존재하지 않는 날짜입니다. id=" + dayId);
 
-        day.setIsStamped(true);
-        mealPlanMapper.updateMealPlanDayStamp(dayId, true);
-        log.info("[MealPlan] stampDay dayId={}", dayId);
+        boolean newState = !(day.getIsStamped() != null && day.getIsStamped());
+        day.setIsStamped(newState);
+        mealPlanMapper.updateMealPlanDayStamp(dayId, newState);
+        log.info("[MealPlan] stampDay toggle dayId={} newState={}", dayId, newState);
     }
     
     private int compareMealTimes(String t1, String t2) {

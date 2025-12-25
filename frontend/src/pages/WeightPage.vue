@@ -1,294 +1,194 @@
 <template>
-  <div class="page">
-    <header class="page__header">
-      <h1>체중 기록</h1>
-      <p>일일 체중 변화를 기록하고 차트로 확인해 보세요.</p>
-    </header>
-
-    <div v-if="error" class="error-banner">
-      <p>{{ error }}</p>
+  <div class="weight-record-page">
+    <div class="page-header">
+      <h1 class="page-title">체중 기록</h1>
+      <p class="page-description">매일 체중을 기록하고 목표를 향해 나아가세요.</p>
     </div>
-
-    <div v-if="loading && weights.length === 0" class="loading-spinner">
-      <p>데이터를 불러오는 중입니다...</p>
-    </div>
-
-    <div v-else class="weight-layout">
-      <!-- Left column is now for today's input -->
-      <div class="card">
-        <h2>오늘의 체중 ({{ todayDate }})</h2>
-        <form @submit.prevent="handleSaveWeight" class="input-form">
-          <NnInput
-            v-model.number="inputWeight"
-            type="number"
-            step="0.1"
-            placeholder="예: 75.2"
-          />
-          <NnButton type="submit" :disabled="isSaving">
-            {{ isSaving ? "저장 중..." : "저장" }}
-          </NnButton>
-        </form>
-        <p v-if="saveError" class="error-text">{{ saveError }}</p>
+    
+    <div class="content-wrapper">
+      <!-- 좌측: 입력 + 통계 -->
+      <div class="left-panel">
+        <WeightInputCard @weight-saved="handleDataChange" />
+        <WeeklyStats 
+          :weekly-data="weeklyData" 
+          :goal-weight="currentUser?.targetWeight || 70"
+        />
       </div>
-
-      <!-- Right column is now for the calendar -->
-      <div class="card calendar-area">
-        <div class="calendar-header">
-          <NnButton @click="goToPreviousMonth" variant="secondary">&lt;</NnButton>
-          <h2>{{ year }}년 {{ month }}월</h2>
-          <NnButton @click="goToNextMonth" variant="secondary">&gt;</NnButton>
-          <NnButton @click="goToToday" class="today-btn">오늘</NnButton>
-        </div>
+      
+      <!-- 우측: 달력 -->
+      <div class="right-panel">
         <WeightCalendar 
-          :year="year"
-          :month="month"
-          :records="weights"
-          @click-day="handleDayClick"
+          :records="monthlyRecords"
+          :year="currentYear"
+          :month="currentMonth"
+          @day-selected="handleDaySelected"
+          @prev-month="prevMonth"
+          @next-month="nextMonth"
         />
       </div>
     </div>
     
-    <WeightEditModal 
-      :is-open="isEditModalOpen"
-      :record="selectedDay?.record"
-      :date="selectedDay?.date"
-      @close="handleModalClose"
-      @updated="handleRecordUpdated"
-      @deleted="handleRecordDeleted"
+    <!-- 수정/삭제 모달 -->
+    <WeightEditModal
+      :is-open="isModalOpen"
+      :selected-date="selectedDate"
+      :current-weight="selectedWeight"
+      @close="closeModal" 
+      @updated="handleDataChange" 
+      @deleted="handleDataChange"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
-import { getWeights, upsertWeight, deleteWeight } from "../api/weightApi.js";
-import { getCurrentUser } from "../utils/auth.js";
-import {
-  format,
-  subMonths,
-  addMonths,
-  startOfMonth,
-  endOfMonth,
-  getYear,
-  getMonth,
-} from "date-fns";
-import NnInput from "../components/common/NnInput.vue";
-import NnButton from "../components/common/NnButton.vue";
-import WeightCalendar from "../components/weight/WeightCalendar.vue";
-import WeightEditModal from "../components/weight/WeightEditModal.vue";
+import { ref, computed, onMounted, watch } from 'vue';
+import { getWeights } from '../api/weightApi';
+import { getCurrentUser } from '../utils/auth';
+import { format, startOfMonth, endOfMonth, subDays, addMonths, subMonths } from 'date-fns';
 
-// --- STATE ---
+import WeightInputCard from '../components/weight/WeightInputCard.vue';
+import WeeklyStats from '../components/weight/WeeklyStats.vue';
+import WeightCalendar from '../components/weight/WeightCalendar.vue';
+import WeightEditModal from '../components/weight/WeightEditModal.vue';
+
 const currentUser = ref(getCurrentUser());
-const weights = ref([]);
-const loading = ref(false);
-const error = ref("");
+const monthlyRecords = ref([]);
+const weeklyData = ref([]);
 
-// Month navigation state
+// Calendar State
 const currentDate = ref(new Date());
+const currentYear = computed(() => currentDate.value.getFullYear());
+const currentMonth = computed(() => currentDate.value.getMonth() + 1);
 
-// Today's weight input state
-const inputWeight = ref(null);
-const isSaving = ref(false);
-const saveError = ref("");
+// Modal State
+const isModalOpen = ref(false);
+const selectedDate = ref('');
+const selectedWeight = ref(0);
 
-// Edit Modal state
-const isEditModalOpen = ref(false);
-const selectedDay = ref(null); // Will hold { date, record }
+async function loadData() {
+  if (!currentUser.value) return;
 
-// --- COMPUTED ---
-const year = computed(() => getYear(currentDate.value));
-const month = computed(() => getMonth(currentDate.value) + 1);
-
-const todayDate = computed(() => format(new Date(), "yyyy-MM-dd"));
-
-// --- METHODS ---
-async function fetchWeights() {
-  if (!currentUser.value?.id) {
-    error.value = "사용자 정보를 찾을 수 없습니다.";
-    return;
-  }
-  loading.value = true;
-  error.value = "";
+  // 1. Fetch Monthly Data (for Calendar)
+  const monthStart = startOfMonth(currentDate.value);
+  const monthEnd = endOfMonth(currentDate.value);
+  
   try {
-    const range = {
-      from: format(startOfMonth(currentDate.value), "yyyy-MM-dd"),
-      to: format(endOfMonth(currentDate.value), "yyyy-MM-dd"),
-    };
-    weights.value = await getWeights(currentUser.value.id, range);
-  } catch (err) {
-    console.error("Error fetching weight data:", err);
-    error.value = "체중 기록을 불러오는 데 실패했습니다.";
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function handleSaveWeight() {
-  if (!inputWeight.value || inputWeight.value <= 0) {
-    saveError.value = "올바른 체중을 입력해주세요.";
-    return;
-  }
-  if (!currentUser.value?.id) {
-    saveError.value = "사용자 정보가 없습니다.";
-    return;
-  }
-  isSaving.value = true;
-  saveError.value = "";
-  try {
-    await upsertWeight(currentUser.value.id, {
-      recordDate: todayDate.value,
-      weight: inputWeight.value,
+    const records = await getWeights(currentUser.value.id, {
+      from: format(monthStart, 'yyyy-MM-dd'),
+      to: format(monthEnd, 'yyyy-MM-dd')
     });
-    await fetchWeights();
-    alert("체중이 저장되었습니다!");
-    inputWeight.value = null; // Reset input
-  } catch (err) {
-    console.error("Error saving weight:", err);
-    saveError.value = "체중 저장에 실패했습니다. 다시 시도해주세요.";
-  } finally {
-    isSaving.value = false;
+    monthlyRecords.value = records;
+  } catch (error) {
+    console.error("Failed to load monthly records", error);
+  }
+
+  // 2. Fetch Weekly Data (for Stats - Last 7 days)
+  const weekEnd = new Date();
+  const weekStart = subDays(weekEnd, 6);
+  
+  try {
+    const records = await getWeights(currentUser.value.id, {
+      from: format(weekStart, 'yyyy-MM-dd'),
+      to: format(weekEnd, 'yyyy-MM-dd')
+    });
+    // Add display labels and reverse to have chronological order (Oldest -> Newest)
+    weeklyData.value = records.map(r => ({
+      ...r,
+      dateLabel: format(new Date(r.recordDate), 'MM/dd')
+    })).reverse();
+  } catch (error) {
+    console.error("Failed to load weekly records", error);
   }
 }
 
-function goToPreviousMonth() {
+function handleDataChange() {
+  loadData();
+}
+
+function handleDaySelected(day) {
+  selectedDate.value = day.dateStr;
+  selectedWeight.value = day.weight || 0; // 0 if new entry
+  isModalOpen.value = true;
+}
+
+function closeModal() {
+  isModalOpen.value = false;
+  selectedDate.value = '';
+  selectedWeight.value = 0;
+}
+
+function prevMonth() {
   currentDate.value = subMonths(currentDate.value, 1);
 }
 
-function goToNextMonth() {
+function nextMonth() {
   currentDate.value = addMonths(currentDate.value, 1);
 }
 
-function goToToday() {
-  currentDate.value = new Date();
-}
+watch(currentDate, loadData);
 
-function handleDayClick(day) {
-  selectedDay.value = day;
-  isEditModalOpen.value = true;
-}
-
-function handleModalClose() {
-  isEditModalOpen.value = false;
-  selectedDay.value = null;
-}
-
-async function handleRecordUpdated() {
-  handleModalClose();
-  await fetchWeights();
-  alert("체중이 저장/수정되었습니다.");
-}
-
-async function handleRecordDeleted() {
-  handleModalClose();
-  await fetchWeights();
-  alert("기록이 삭제되었습니다.");
-}
-
-
-// --- WATCHERS ---
-watch(currentDate, fetchWeights);
-
-// --- LIFECYCLE ---
 onMounted(() => {
-  fetchWeights();
+  loadData();
 });
 </script>
 
-
-
-
 <style scoped>
-.page {
-  max-width: 1200px;
+.weight-record-page {
+  min-height: 100vh;
+  /* background: linear-gradient(135deg, #E8F5E9 0%, #F1F8E9 100%); */
+  padding: 24px;
+}
+
+.page-header {
+  margin-bottom: 32px;
+}
+
+.page-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #2E7D32;
+  margin-bottom: 8px;
+  margin-top: 0;
+}
+
+.page-description {
+  font-size: 16px;
+  color: #558B2F;
+  margin: 0;
+}
+
+.content-wrapper {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 24px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 20px 16px;
+}
+
+.left-panel,
+.right-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
-.page__header {
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
+@media (max-width: 1024px) {
+  .content-wrapper {
+    grid-template-columns: 1fr;
+  }
 }
 
-.page__header h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.page__header p {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.error-banner {
-  background-color: #fef2f2;
-  color: #dc2626;
-  padding: 1rem;
-  border-radius: 8px;
-}
-
-.error-text {
-  font-size: 12px;
-  color: #dc2626;
-  margin-top: 4px;
-}
-
-.input-form {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.loading-spinner {
-  text-align: center;
-  padding: 40px;
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.weight-layout {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 20px;
-  align-items: start;
-}
-
-.card {
-  background-color: #ffffff;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.card h2 {
-  margin-top: 0;
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 16px;
-}
-
-.calendar-area {
-  grid-column: 2 / 3;
-}
-
-.calendar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.calendar-header h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.today-btn {
-  margin-left: 16px;
+@media (max-width: 768px) {
+  .weight-record-page {
+    padding: 16px;
+  }
+  
+  .page-title {
+    font-size: 24px;
+  }
+  
+  .page-description {
+    font-size: 14px;
+  }
 }
 </style>

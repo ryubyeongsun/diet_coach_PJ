@@ -155,17 +155,15 @@ async function handleStamp(dayId) {
   if (!overview.value || !overview.value.days) return;
   
   try {
-    // 1. 백엔드 DB 저장
+    // 1. 백엔드 DB 저장 (토글)
     await stampMealPlanDay(dayId);
     
-    // 2. 로컬 상태 업데이트 (애니메이션 트리거)
-    const day = overview.value.days.find(d => d.dayId === dayId);
-    if (day) {
-      day.isStamped = true;
-    }
+    // 2. 서버 데이터 다시 불러오기 (UI 자동 갱신 및 통계 재계산)
+    await loadLatest();
+    
   } catch (err) {
     console.error("Failed to stamp day:", err);
-    alert("도장 찍기에 실패했습니다. 다시 시도해 주세요.");
+    alert("작업에 실패했습니다. 다시 시도해 주세요.");
   }
 }
 
