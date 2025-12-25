@@ -37,6 +37,18 @@
         <!-- 왼쪽: 메인 리스트 영역 -->
         <div class="shopping-main">
           
+          <!-- 전체 선택 헤더 -->
+          <div class="list-control-header">
+            <label class="select-all-label">
+              <input 
+                type="checkbox" 
+                :checked="allSelected" 
+                @change="toggleAll"
+              />
+              <span>전체 선택 ({{ selectedCount }}/{{ sortedShoppingItems.length }})</span>
+            </label>
+          </div>
+
           <!-- 예산 초과 경고 배너 -->
           <div v-if="isOverBudget" class="budget-warning">
             <div class="warning-icon">⚠️</div>
@@ -263,6 +275,54 @@ const sortedShoppingItems = computed(() => {
     return 0;
   });
 });
+
+// 전체 선택 상태 계산
+const allSelected = computed(() => {
+  const items = sortedShoppingItems.value;
+  if (items.length === 0) return false;
+  return items.every(item => isItemInCart(item));
+});
+
+// 선택된 개수 계산
+const selectedCount = computed(() => {
+  return sortedShoppingItems.value.filter(item => isItemInCart(item)).length;
+});
+
+// 전체 선택 토글
+const toggleAll = () => {
+  const items = sortedShoppingItems.value;
+  const isAll = allSelected.value; // 현재 모두 선택되어 있다면 -> 모두 해제
+
+  items.forEach(item => {
+    const key = getItemKey(item);
+    if (isAll) {
+      // 이미 담겨있다면 제거
+      if (isItemInCart(item)) removeFromCart(key);
+    } else {
+      // 안 담겨있다면 추가
+      if (!isItemInCart(item)) {
+        const productToAdd = item.product ? {
+          externalId: item.product.externalId || key,
+          name: item.product.productName,
+          ingredientName: item.ingredientName,
+          price: item.product.price,
+          imageUrl: item.product.imageUrl,
+          productUrl: item.product.productUrl,
+          recommendedCount: item.recommendedCount || 1,
+          packageGram: item.packageGram || 0
+        } : {
+          externalId: key,
+          name: item.ingredientName,
+          ingredientName: item.ingredientName,
+          price: 0, 
+          imageUrl: '', 
+          productUrl: ''
+        };
+        addToCart(productToAdd);
+      }
+    }
+  });
+};
 
 // Selected items list (from Global Cart)
 const selectedTotalPrice = computed(() => {
@@ -890,6 +950,32 @@ onMounted(async () => {
 .list-leave-to {
   opacity: 0;
   transform: translateY(10px);
+}
+
+/* --- List Control Header --- */
+.list-control-header {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.select-all-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
+}
+
+.select-all-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #10b981;
 }
 
 @media (max-width: 900px) {
