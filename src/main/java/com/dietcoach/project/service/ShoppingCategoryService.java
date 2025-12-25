@@ -17,7 +17,8 @@ public class ShoppingCategoryService {
     private final Map<String, String> KEYWORD_TO_CAT_MAP = new HashMap<>();
     
     private static final List<String> BANNED_CATEGORY_KEYWORDS = List.of(
-        "선물세트", "반려동물", "강아지", "고양이", "펫", "사료", 
+        "선물세트", "박스", "box", "세트", "묶음", "대용량",
+        "반려동물", "강아지", "고양이", "펫", "사료", 
         "다이어트", "보조식품", "건강기능", 
         "주류", "무알콜", "비알콜", 
         "가구", "인테리어", "생활용품", "주방용품", "그릇", "냄비", "조리도구",
@@ -96,8 +97,9 @@ public class ShoppingCategoryService {
      */
     public boolean isValidProductTitle(String title) {
         if (title == null || title.isBlank()) return false;
+        String normalized = title.toLowerCase(Locale.ROOT);
         for (String banned : BANNED_CATEGORY_KEYWORDS) {
-            if (title.contains(banned)) return false;
+            if (normalized.contains(banned.toLowerCase(Locale.ROOT))) return false;
         }
         return true;
     }

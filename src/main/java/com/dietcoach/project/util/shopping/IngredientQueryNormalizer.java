@@ -14,7 +14,8 @@ public class IngredientQueryNormalizer {
     // Remove these tokens from query string
     private static final Set<String> REMOVE_TOKENS = Set.of(
             "냉동", "냉장", "국산", "국내산", "수입", "친환경", "유기농", "무농약",
-            "세척", "손질", "슬라이스", "다진", "자른", "통", "껍질", "벗긴"
+            "세척", "손질", "슬라이스", "다진", "자른", "통", "껍질", "벗긴",
+            "박스", "세트", "묶음", "대용량", "선물세트"
     );
 
     // Synonym map for better search results

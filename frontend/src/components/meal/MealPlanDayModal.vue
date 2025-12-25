@@ -75,8 +75,6 @@
                 <div class="item__info">
                   <div class="item__name-row">
                     <span class="item__name">{{ item.foodName }}</span>
-                    <!-- High Protein 배지 -->
-                    <span v-if="item.isHighProtein" class="badge-protein">High Protein</span>
                   </div>
                   <span v-if="item.memo" class="item__memo">{{ item.memo }}</span>
                 </div>
@@ -100,6 +98,15 @@
         >
           {{ detail.isStamped ? "식단 완료 취소하기 ↩️" : "오늘 식단 완료! 💯" }}
         </NnButton>
+        <NnButton
+          v-if="detail && planId"
+          block
+          variant="outline"
+          @click="handleGoShopping"
+          style="margin-bottom: 8px;"
+        >
+          오늘 장보기 🛒
+        </NnButton>
         <NnButton block variant="outline" @click="closeModal">닫기</NnButton>
       </footer>
     </div>
@@ -108,6 +115,7 @@
 
 <script setup>
 import { ref, watch, computed } from "vue";
+import { useRouter } from "vue-router";
 import { fetchDayDetail, regenerateDay, replaceMeal } from "../../api/mealPlanApi";
 import NnButton from "../common/NnButton.vue";
 
@@ -120,6 +128,10 @@ const props = defineProps({
     type: Number,
     default: null,
   },
+  planId: {
+    type: Number,
+    default: null,
+  },
 });
 
 const emit = defineEmits(["update:modelValue", "stamp"]);
@@ -129,6 +141,7 @@ const isRegenerating = ref(false);
 const replacingMeal = ref(null);
 const errorMessage = ref("");
 const detail = ref(null);
+const router = useRouter();
 
 const MEAL_TIME_MAP = {
   BREAKFAST: "아침",
@@ -217,6 +230,14 @@ function handleStamp() {
     // 2. 부모에게 이벤트 전달 (DB 저장 및 통계 갱신 요청)
     emit("stamp", props.dayId);
   }
+}
+
+function handleGoShopping() {
+  if (!props.planId || !detail.value || !detail.value.date) return;
+  router.push({
+    path: "/shopping",
+    query: { planId: props.planId, range: "TODAY", date: detail.value.date },
+  });
 }
 
 watch(
@@ -477,17 +498,6 @@ function formatDate(isoString) {
   font-weight: 500;
   color: #111827;
   font-size: 15px;
-}
-
-/* High Protein Badge */
-.badge-protein {
-  font-size: 10px;
-  font-weight: 700;
-  color: #2563eb;
-  background-color: #dbeafe;
-  padding: 2px 6px;
-  border-radius: 99px;
-  text-transform: uppercase;
 }
 
 .item__memo {

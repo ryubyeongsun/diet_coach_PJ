@@ -40,12 +40,12 @@
       </div>
 
       <div v-if="item.product" class="product-details">
-        <div class="product-title" :title="item.product.title">
-          {{ item.product.title }}
+        <div class="product-title" :title="item.product.productName || item.product.title">
+          {{ item.product.productName || item.product.title }}
         </div>
         <div class="price-row">
           <span class="price">{{ item.product.price.toLocaleString() }}원</span>
-          <span class="mall">{{ item.product.mallName }}</span>
+          <span v-if="item.product.mallName" class="mall">{{ item.product.mallName }}</span>
         </div>
         
         <!-- 추천 구매 개수 배지 추가 (PRD 요구사항) -->
@@ -53,25 +53,41 @@
           <span class="rec-badge">추천: {{ item.recommendedCount }}개</span>
           <span class="pkg-info" v-if="item.packageGram">{{ item.packageGram }}g/팩</span>
         </div>
+
       </div>
       
-      <div v-else class="empty-state">
-        <span class="no-product-text">상품 정보 없음</span>
-      </div>
+    <div v-else class="empty-state">
+      <span class="no-product-text">상품 정보 없음</span>
+      <a
+        class="manual-search"
+        :href="buildSearchUrl(item.ingredientName)"
+        target="_blank"
+        @click.stop
+      >
+        11번가에서 검색
+      </a>
     </div>
+  </div>
 
     <!-- 링크 버튼 -->
-    <div class="action-area" v-if="item.product">
-       <a 
-          v-if="item.product.productUrl"
-          :href="item.product.productUrl"
-          target="_blank"
-          class="add-cart-btn" 
-          title="상품 보러가기"
-          @click.stop
-        >
-          🔗
-        </a>
+    <div class="action-area">
+      <a 
+        v-if="item.product && item.product.productUrl"
+        :href="item.product.productUrl"
+        target="_blank"
+        class="buy-btn"
+        @click.stop
+      >
+        11번가 구매
+      </a>
+      <a
+        :href="buildSearchUrl(item.ingredientName)"
+        target="_blank"
+        class="buy-btn outline"
+        @click.stop
+      >
+        11번가 검색
+      </a>
     </div>
   </div>
 </template>
@@ -83,6 +99,11 @@ defineProps({
   isPurchased: { type: Boolean, default: false }
 });
 defineEmits(['toggle']);
+
+const buildSearchUrl = (ingredientName) => {
+  if (!ingredientName) return "https://search.11st.co.kr/Search.tmall";
+  return `https://search.11st.co.kr/Search.tmall?kwd=${encodeURIComponent(ingredientName)}`;
+};
 </script>
 
 <style scoped>
@@ -166,6 +187,44 @@ defineEmits(['toggle']);
   color: #6b7280;
 }
 
-.action-area { padding: 0 16px; }
-.add-cart-btn { width: 36px; height: 36px; border-radius: 50%; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.manual-search {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  text-decoration: none;
+  background-color: #eff6ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #bfdbfe;
+}
+
+.action-area {
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.buy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  background-color: #e11d48;
+  border-radius: 6px;
+  text-decoration: none;
+}
+.buy-btn.outline {
+  color: #e11d48;
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
+}
 </style>

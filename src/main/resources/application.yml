@@ -38,3 +38,7 @@ server:
   servlet:
     session:
       timeout: 60m
+
+mealplan:
+  budget:
+    base-cost-per-100g: 500

@@ -77,6 +77,7 @@
     <MealPlanDayModal 
       v-model="isDayModalOpen" 
       :day-id="selectedDayId" 
+      :plan-id="overview?.mealPlanId"
       @stamp="handleStamp"
     />
   </div>

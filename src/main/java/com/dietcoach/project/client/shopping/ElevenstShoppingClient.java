@@ -189,6 +189,10 @@ public class ElevenstShoppingClient implements ShoppingClient {
                     if (salePriceStr != null) price = Integer.parseInt(salePriceStr.trim());
                 } catch (Exception ex) {}
 
+                if ((detailPageUrl == null || detailPageUrl.isBlank()) && productCode != null && !productCode.isBlank()) {
+                    detailPageUrl = "https://www.11st.co.kr/products/" + productCode;
+                }
+
                 // Parse weight
                 int weight = weightParser.parseWeightInGrams(productName);
     
