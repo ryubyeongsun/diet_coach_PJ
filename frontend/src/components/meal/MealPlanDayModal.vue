@@ -75,8 +75,6 @@
                 <div class="item__info">
                   <div class="item__name-row">
                     <span class="item__name">{{ item.foodName }}</span>
-                    <!-- High Protein 배지 -->
-                    <span v-if="item.isHighProtein" class="badge-protein">High Protein</span>
                   </div>
                   <span v-if="item.memo" class="item__memo">{{ item.memo }}</span>
                 </div>
@@ -477,17 +475,6 @@ function formatDate(isoString) {
   font-weight: 500;
   color: #111827;
   font-size: 15px;
-}
-
-/* High Protein Badge */
-.badge-protein {
-  font-size: 10px;
-  font-weight: 700;
-  color: #2563eb;
-  background-color: #dbeafe;
-  padding: 2px 6px;
-  border-radius: 99px;
-  text-transform: uppercase;
 }
 
 .item__memo {

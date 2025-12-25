@@ -41,25 +41,23 @@
         <!-- 통계 대시보드 UI -->
         <div class="stat-board">
           <div class="stat-card">
-            <span class="stat-card__label">기간 / 목표</span>
+            <span class="stat-card__label">일일 권장 칼로리</span>
             <p class="stat-card__value">
-              <strong>{{ overview.totalDays }}</strong
-              >일 ·
               <strong>{{ overview.targetCaloriesPerDay }}</strong>
               <span class="stat-card__unit">kcal</span>
             </p>
           </div>
           <div class="stat-card">
-            <span class="stat-card__label">평균 섭취량</span>
+            <span class="stat-card__label">식단 평균 칼로리</span>
             <p class="stat-card__value">
               <strong>{{ avgCalories }}</strong>
               <span class="stat-card__unit">kcal</span>
             </p>
           </div>
           <div class="stat-card">
-            <span class="stat-card__label">목표 달성률</span>
+            <span class="stat-card__label">AI 설계 정확도</span>
             <p class="stat-card__value">
-              <strong>{{ achievementRate }}</strong>
+              <strong>{{ planAccuracy }}</strong>
               <span class="stat-card__unit">%</span>
             </p>
           </div>
@@ -125,7 +123,7 @@ const avgCalories = computed(() => {
   return Math.round(total / overview.value.days.length);
 });
 
-const achievementRate = computed(() => {
+const planAccuracy = computed(() => {
   if (
     !overview.value ||
     !overview.value.targetCaloriesPerDay ||
@@ -134,6 +132,9 @@ const achievementRate = computed(() => {
     return 0;
   }
   const rate = (avgCalories.value / overview.value.targetCaloriesPerDay) * 100;
+  // 정확도는 100%에 가까울수록 좋으므로, 100%를 넘어가면 역수로 계산하거나 그대로 둘 수 있음.
+  // 여기서는 단순히 비율을 보여주되, 사용자가 오해하지 않도록 라벨이 변경되었음.
+  // 다만 "정확도"라면 100에서 차이를 빼는게 맞을 수도 있지만, 기존 로직(단순 비율) 유지를 요청받음.
   return Math.round(rate);
 });
 

@@ -4,29 +4,40 @@
     <div class="floating-shape shape-1"></div>
     <div class="floating-shape shape-2"></div>
 
-    <!-- 말풍선 영역 -->
-    <div class="speech-bubble-container">
-      <div class="bubble bubble-left" v-html="coachMessage"></div>
-      <div class="bubble bubble-right">
-        <template v-if="goalRemaining > 0">목표까지 {{ goalRemaining.toFixed(1) }}kg!</template>
-        <template v-else>목표 달성! 🎉</template>
+    <!-- 메인 컨텐츠 영역 (좌: 게이지 / 우: 캐릭터) -->
+    <div class="avatar-content-row">
+      <!-- 1. 좌측: BMI 게이지 -->
+      <div class="gauge-area">
+        <BmiGauge :bmi="bmi" :level="level" />
       </div>
-    </div>
 
-    <!-- 캐릭터 영역 -->
-    <div class="character-wrapper">
-      <div class="canvas-placeholder">
-        <Character3D :level="level" />
+      <!-- 2. 중앙: 캐릭터 및 정보 -->
+      <div class="character-center-area">
+        <!-- 말풍선 영역 -->
+        <div class="speech-bubble-container">
+          <div class="bubble bubble-left" v-html="coachMessage"></div>
+          <div class="bubble bubble-right">
+            <template v-if="goalRemaining > 0">목표까지 {{ goalRemaining.toFixed(1) }}kg!</template>
+            <template v-else>목표 달성! 🎉</template>
+          </div>
+        </div>
+
+        <!-- 캐릭터 영역 -->
+        <div class="character-wrapper">
+          <div class="canvas-placeholder">
+            <Character3D :level="level" />
+          </div>
+          <div class="character-shadow"></div>
+        </div>
+
+        <!-- 상태 배지 -->
+        <div class="status-badge">LV.{{ level }}</div>
+        
+        <!-- 달성률 텍스트 -->
+        <div class="achievement-text">
+          목표 체중 달성률: <strong>{{ achievementRate }}%</strong>
+        </div>
       </div>
-      <div class="character-shadow"></div>
-    </div>
-
-    <!-- 상태 배지 -->
-    <div class="status-badge">LV.{{ level }}</div>
-    
-    <!-- 달성률 텍스트 -->
-    <div class="achievement-text">
-      목표 체중 달성률: <strong>{{ achievementRate }}%</strong>
     </div>
   </section>
 </template>
@@ -34,6 +45,7 @@
 <script setup>
 import { computed } from 'vue';
 import Character3D from './Character3D.vue';
+import BmiGauge from './BmiGauge.vue';
 import { getCurrentUser } from '../../utils/auth';
 import { calculateBmi, getCharacterLevel } from '../../utils/bmi';
 
@@ -124,7 +136,30 @@ const coachMessage = computed(() => {
   align-items: center;
   justify-content: center;
   min-height: 700px;
-  padding-top: 80px; /* 전체적으로 하단으로 이동 */
+  padding-top: 40px; /* 패딩 조정 */
+}
+
+/* 레이아웃 래퍼 */
+.avatar-content-row {
+  display: flex;
+  align-items: center; /* 수직 중앙 정렬 */
+  justify-content: center;
+  gap: 40px; /* 게이지와 캐릭터 사이 간격 */
+  width: 100%;
+  max-width: 1000px;
+  z-index: 5;
+}
+
+.gauge-area {
+  flex-shrink: 0; /* 크기 줄어들지 않도록 */
+  margin-top: 60px; /* 캐릭터와 시각적 밸런스를 맞추기 위해 약간 내림 */
+}
+
+.character-center-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
 }
 
 /* 말풍선 스타일 */
@@ -143,13 +178,13 @@ const coachMessage = computed(() => {
   animation: float-bubble 4s ease-in-out infinite;
 }
 .bubble-left { 
-    top: 5%; /* 더 아래로 조정 */
-    left: -5%; 
+    top: 5%; 
+    left: -15%; /* 왼쪽으로 더 이동 */
     animation-delay: 0s;
 }
 .bubble-right { 
-    top: 10%; /* 더 아래로 조정 */
-    right: -5%; 
+    top: 10%; 
+    right: -15%; /* 오른쪽으로 더 이동 */
     animation-delay: 2s;
 }
 
