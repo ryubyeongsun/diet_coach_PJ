@@ -19,6 +19,8 @@
 <script setup>
 import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { fetchLatestMealPlan } from '../../api/mealPlanApi';
+import { getCurrentUser } from '../../utils/auth';
 
 const router = useRouter();
 const route = useRoute();
@@ -33,8 +35,32 @@ const menuItems = [
   { name: '프로필 설정', path: '/profile/edit', icon: '⚙️' },
 ];
 
-function navigate(path) {
-  router.push(path);
+async function navigate(path) {
+  if (path !== '/shopping') {
+    router.push(path);
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const user = getCurrentUser();
+  if (!user || !user.id) {
+    router.push({ path: '/shopping', query: { range: 'TODAY', date: today } });
+    return;
+  }
+
+  try {
+    const plan = await fetchLatestMealPlan(user.id);
+    if (plan && plan.mealPlanId) {
+      router.push({
+        path: '/shopping',
+        query: { planId: plan.mealPlanId, range: 'TODAY', date: today },
+      });
+      return;
+    }
+  } catch (err) {
+    // Fallback to shopping page without planId
+  }
+  router.push({ path: '/shopping', query: { range: 'TODAY', date: today } });
 }
 </script>
 

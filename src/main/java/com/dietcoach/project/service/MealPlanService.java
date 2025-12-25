@@ -11,7 +11,7 @@ public interface MealPlanService {
     List<MealPlanIngredientResponse> getIngredientsForPlan(Long planId);
     DashboardSummaryResponse getDashboardSummary(Long userId);
     MealPlanDayDetailResponse getDayDetail(Long dayId);
-    ShoppingListResponse getShoppingList(Long planId, String range);
+    ShoppingListResponse getShoppingList(Long planId, String range, java.time.LocalDate date);
 
     // A4: 하루 재생성
     MealPlanDayDetailResponse regenerateDay(Long dayId);

@@ -96,11 +96,12 @@ public class MealPlanController {
     public ApiResponse<MealPlanDayDetailResponse> getDayDetail(@PathVariable Long dayId) {
         return ApiResponse.success(mealPlanService.getDayDetail(dayId));
     }
-    @GetMapping("/meal-plans/{planId}/shopping-list")
+    @GetMapping("/meal-plans/{planId}/shopping")
     public ApiResponse<ShoppingListResponse> getShopping(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long planId,
-            @RequestParam(defaultValue = "MONTH") String range
+            @RequestParam(defaultValue = "MONTH") String range,
+            @RequestParam(required = false) java.time.LocalDate date
     ) {
         String traceId = UUID.randomUUID().toString().replace("-", "");
         traceId = traceId.substring(0, Math.min(8, traceId.length()));
@@ -109,7 +110,7 @@ public class MealPlanController {
         log.info("[SHOPPING_LIST][{}] START planId={} userId={} range={}",
                 traceId, planId, userId, range);
         try {
-            ShoppingListResponse response = mealPlanService.getShoppingList(planId, range);
+            ShoppingListResponse response = mealPlanService.getShoppingList(planId, range, date);
             int itemCount = response.getItems() == null ? 0 : response.getItems().size();
             log.info("[SHOPPING_LIST][{}] END planId={} ingredients={} items={} source={} startDate={} endDate={} tookMs={}",
                     traceId,
@@ -124,6 +125,15 @@ public class MealPlanController {
         } finally {
             MDC.remove("traceId");
         }
+    }
+
+    @GetMapping("/meal-plans/{planId}/shopping-list")
+    public ApiResponse<ShoppingListResponse> getShoppingLegacy(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long planId,
+            @RequestParam(defaultValue = "MONTH") String range
+    ) {
+        return getShopping(userId, planId, range, null);
     }
 
     /**

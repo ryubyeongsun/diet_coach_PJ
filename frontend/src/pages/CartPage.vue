@@ -113,8 +113,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
-import { globalState, removeFromCart } from "../utils/globalState";
+import { ref, computed, onMounted } from "vue";
+import { globalState, removeFromCart, syncStorageForUser } from "../utils/globalState";
+import { fetchLatestMealPlan } from "../api/mealPlanApi";
+import { getCurrentUser } from "../utils/auth";
 import NnButton from "../components/common/NnButton.vue";
 
 const cartItems = computed(() => globalState.cart);
@@ -123,6 +125,8 @@ const purchasedItems = computed(() => globalState.purchasedItems);
 // 기본 예산 (로컬 상태)
 const monthlyBudget = ref(500000); 
 const isEditingBudget = ref(false);
+const isBudgetLoaded = ref(false);
+const BUDGET_STORAGE_KEY = "nncoach_budget";
 
 // 지출 예정 금액 (장바구니)
 const totalCartAmount = computed(() => {
@@ -153,6 +157,9 @@ const usagePercentage = computed(() => {
 
 function toggleBudgetEdit() {
   isEditingBudget.value = !isEditingBudget.value;
+  if (!isEditingBudget.value) {
+    saveBudget();
+  }
 }
 
 function removeItem(productCode) {
@@ -164,6 +171,39 @@ function removePurchasedItem(index) {
   if (confirm("이 구매 기록을 삭제하시겠습니까?")) {
     globalState.purchasedItems.splice(index, 1);
   }
+}
+
+onMounted(async () => {
+  syncStorageForUser();
+  const user = getCurrentUser();
+  if (!user || !user.id || isBudgetLoaded.value) return;
+  try {
+    const saved = loadBudget(user.id);
+    if (saved != null) {
+      monthlyBudget.value = saved;
+    }
+    const plan = await fetchLatestMealPlan(user.id);
+    if (plan && plan.monthlyBudget != null) {
+      monthlyBudget.value = plan.monthlyBudget;
+      saveBudget();
+      isBudgetLoaded.value = true;
+    }
+  } catch (err) {
+    console.error("Failed to load budget from meal plan:", err);
+  }
+});
+
+function loadBudget(userId) {
+  const raw = localStorage.getItem(`${BUDGET_STORAGE_KEY}_${userId}`);
+  if (!raw) return null;
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : null;
+}
+
+function saveBudget() {
+  const user = getCurrentUser();
+  if (!user || !user.id) return;
+  localStorage.setItem(`${BUDGET_STORAGE_KEY}_${user.id}`, String(monthlyBudget.value));
 }
 </script>
 

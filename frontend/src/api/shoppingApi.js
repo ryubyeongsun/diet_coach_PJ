@@ -23,9 +23,11 @@ export async function getRecommendations(ingredient, neededGram) {
  * @param {'TODAY' | 'WEEK' | 'MONTH'} range - 조회 기간
  * @returns {Promise<object>} - 장보기 리스트 응답 데이터
  */
-export async function fetchShoppingList(planId, range) {
-  const res = await http.get(`/meal-plans/${planId}/shopping-list`, {
-    params: { range },
+export async function fetchShoppingList(planId, range, date) {
+  const params = { range };
+  if (date) params.date = date;
+  const res = await http.get(`/meal-plans/${planId}/shopping`, {
+    params,
   });
   return res.data ?? res;
 }

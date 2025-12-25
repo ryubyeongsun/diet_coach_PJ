@@ -141,7 +141,6 @@ public class DietAiClient {
         - Goal Type: %s
         - Diet Theme: %s
         - Meals Per Day: %s (Ratio: Breakfast 30%% / Lunch 40%% / Dinner 30%%)
-        - Monthly Budget: %s KRW (Daily Limit: approx. 16,000 KRW)
         - Preferences: %s
         - Allergies: %s
         
@@ -175,7 +174,7 @@ public class DietAiClient {
                   "menuName": "Korean Menu Name",
                   "reasoning": "Explain why this fits the theme and budget",
                   "ingredients": [
-                    {"name": "Korean Name", "grams": 0, "kcal": 0, "costTier": "Low/Mid/High"}
+                    {"name": "Korean Name", "grams": 0, "kcal": 0}
                   ]
                 }
               ]
@@ -191,7 +190,6 @@ public class DietAiClient {
                 goalType,
                 themeInfo,
                 payload.get("mealsPerDay"),
-                payload.get("monthlyBudget"),
                 payload.get("preferences"),
                 payload.get("allergies"),
                 themeInfo,
