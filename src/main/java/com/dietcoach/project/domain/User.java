@@ -28,6 +28,7 @@ public class User {
 
     private Double height; // cm
     private Double weight; // kg
+    private Double targetWeight; // kg
 
     private ActivityLevel activityLevel;
     private GoalType goalType;
@@ -39,4 +40,10 @@ public class User {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    public boolean isProfileCompleted() {
+        return gender != null
+                && height != null
+                && activityLevel != null
+                && goalType != null;
+    }
 }

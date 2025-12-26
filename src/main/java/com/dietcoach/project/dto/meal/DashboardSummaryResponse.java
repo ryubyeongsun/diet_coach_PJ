@@ -1,0 +1,37 @@
+package com.dietcoach.project.dto.meal;
+
+import java.time.LocalDate;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * 대시보드 상단 카드용 요약 DTO
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class DashboardSummaryResponse {
+
+    private Long userId;
+    private Long recentMealPlanId;
+    private Long todayDayId; // Added for TodayMealPreview
+
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private int totalDays;
+    private Double latestWeight;
+    private Double weightChange7Days;
+    private Boolean hasWeightRecords;
+    private int targetCaloriesPerDay;
+    private int averageCalories;
+    private int achievementRate; // %
+    
+    // Intake fields
+    private Integer consumedCalories;
+    private Integer todayTargetCalories;
+    private Integer todayAchievementRate;
+}

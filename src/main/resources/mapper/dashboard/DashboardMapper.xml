@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dietcoach.project.mapper.dashboard.DashboardMapper">
+
+    <!-- 날짜별 섭취 칼로리 (meal_plan_days.total_calories) -->
+    <select id="findDayCalories" resultType="com.dietcoach.project.mapper.dashboard.DashboardMapper$DayCaloriesRow">
+        SELECT
+            mpd.plan_date AS date,
+            mpd.total_calories AS totalCalories
+        FROM meal_plan_days mpd
+        JOIN meal_plans mp ON mpd.meal_plan_id = mp.id
+        WHERE mp.user_id = #{userId}
+          AND mpd.plan_date &gt;= #{from}
+          AND mpd.plan_date &lt;= #{to}
+        ORDER BY mpd.plan_date ASC
+    </select>
+
+    <!-- 날짜별 체중 (weight_records.weight) -->
+    <select id="findWeights" resultType="com.dietcoach.project.mapper.dashboard.DashboardMapper$DayWeightRow">
+        SELECT
+            wr.record_date AS date,
+            wr.weight AS weight
+        FROM weight_records wr
+        WHERE wr.user_id = #{userId}
+          AND wr.record_date &gt;= #{from}
+          AND wr.record_date &lt;= #{to}
+        ORDER BY wr.record_date ASC
+    </select>
+
+</mapper>

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dietcoach.project.mapper.meal.MealPlanMapper">
+
+    <insert id="insertMealPlan" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meal_plans (user_id, start_date, end_date, total_days, target_calories_per_day, monthly_budget, meals_per_day, preferences, allergies)
+        VALUES (#{userId}, #{startDate}, #{endDate}, #{totalDays}, #{targetCaloriesPerDay}, #{monthlyBudget}, #{mealsPerDay}, #{preferences}, #{allergies})
+    </insert>
+
+    <insert id="insertMealPlanDay" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meal_plan_days (meal_plan_id, plan_date, day_index, total_calories, is_stamped)
+        VALUES (#{mealPlanId}, #{planDate}, #{dayIndex}, #{totalCalories}, #{isStamped})
+    </insert>
+
+    <insert id="insertMealItem" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meal_items (meal_plan_day_id, meal_time, food_name, calories, grams, carbs, protein, fat, is_high_protein, memo)
+        VALUES (#{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{grams}, #{carbs}, #{protein}, #{fat}, #{isHighProtein}, #{memo})
+    </insert>
+
+    <select id="findMealPlanById" resultType="com.dietcoach.project.domain.meal.MealPlan">
+        SELECT * FROM meal_plans WHERE id = #{id}
+    </select>
+
+    <select id="findMealPlanDaysByPlanId" resultType="com.dietcoach.project.domain.meal.MealPlanDay">
+        SELECT * FROM meal_plan_days WHERE meal_plan_id = #{mealPlanId} ORDER BY day_index ASC
+    </select>
+
+    <select id="findMealItemsByDayId" resultType="com.dietcoach.project.domain.meal.MealItem">
+        SELECT * FROM meal_items WHERE meal_plan_day_id = #{mealPlanDayId} ORDER BY meal_time
+    </select>
+
+    <select id="findMealPlanDayById" resultType="com.dietcoach.project.domain.meal.MealPlanDay">
+        SELECT * FROM meal_plan_days WHERE id = #{dayId}
+    </select>
+
+    <select id="findLatestMealPlanByUserId" resultType="com.dietcoach.project.domain.meal.MealPlan">
+        SELECT * FROM meal_plans WHERE user_id = #{userId} ORDER BY start_date DESC, id DESC LIMIT 1
+    </select>
+
+    <select id="findIngredientsForPlan" resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">
+        SELECT
+            mi.food_name AS ingredientName,
+            SUM(mi.grams) AS totalGram,
+            SUM(mi.calories) AS totalCalories,
+            COUNT(DISTINCT mi.meal_plan_day_id) AS daysCount
+        FROM meal_items mi
+        WHERE mi.meal_plan_day_id IN (
+            SELECT id FROM meal_plan_days WHERE meal_plan_id = #{planId}
+        )
+        GROUP BY mi.food_name
+        HAVING SUM(mi.grams) > 0
+        ORDER BY totalGram DESC
+    </select>
+
+    <select id="findIngredientsForPlanInRange" resultType="com.dietcoach.project.dto.meal.MealPlanIngredientResponse">
+        SELECT
+            mi.food_name AS ingredientName,
+            SUM(mi.grams) AS totalGram,
+            SUM(mi.calories) AS totalCalories,
+            COUNT(DISTINCT mi.meal_plan_day_id) AS daysCount
+        FROM meal_items mi
+        JOIN meal_plan_days d ON mi.meal_plan_day_id = d.id
+        WHERE d.meal_plan_id = #{planId}
+          AND d.plan_date BETWEEN #{fromDate} AND #{toDate}
+        GROUP BY mi.food_name
+        HAVING SUM(mi.grams) > 0
+        ORDER BY totalGram DESC
+    </select>
+
+    <select id="sumMealItemCaloriesByDayId" resultType="java.lang.Integer">
+        SELECT SUM(calories) FROM meal_items WHERE meal_plan_day_id = #{mealPlanDayId}
+    </select>
+
+    <update id="updateMealPlanDayTotalCalories">
+        UPDATE meal_plan_days SET total_calories = #{totalCalories} WHERE id = #{dayId}
+    </update>
+
+    <update id="updateMealPlanDayStamp">
+        UPDATE meal_plan_days SET is_stamped = #{isStamped} WHERE id = #{dayId}
+    </update>
+
+    <delete id="deleteMealItemsByDayId">
+        DELETE FROM meal_items WHERE meal_plan_day_id = #{mealPlanDayId}
+    </delete>
+
+    <delete id="deleteMealItemsByDayIdAndMealTime">
+        DELETE FROM meal_items WHERE meal_plan_day_id = #{mealPlanDayId} AND UPPER(meal_time) = UPPER(#{mealTime})
+    </delete>
+
+</mapper>

@@ -1,5 +1,6 @@
 package com.dietcoach.project.service;
 
+import com.dietcoach.project.dto.UserProfileUpdateRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,7 @@ public class UserServiceImpl implements UserService {
                 .birthDate(request.getBirthDate())
                 .height(request.getHeight())
                 .weight(request.getWeight())
+                .targetWeight(request.getTargetWeight())
                 .activityLevel(request.getActivityLevel())
                 .goalType(request.getGoalType())
                 .build();
@@ -77,6 +79,7 @@ public class UserServiceImpl implements UserService {
                 .birthDate(user.getBirthDate())
                 .height(user.getHeight())
                 .weight(user.getWeight())
+                .targetWeight(user.getTargetWeight())
                 .activityLevel(user.getActivityLevel())
                 .goalType(user.getGoalType())
                 .bmr(user.getBmr())
@@ -84,19 +87,57 @@ public class UserServiceImpl implements UserService {
                 .targetCalories(user.getTargetCalories())
                 .build();
     }
-@Override
-@Transactional(readOnly = true)
-public TdeeResponse getUserTdee(Long userId) {
-    User user = userMapper.findById(userId);
-    if (user == null) {
-        throw new BusinessException("존재하지 않는 사용자입니다.");
+
+    @Override
+    public UserProfileResponse updateUserProfile(Long userId, UserProfileUpdateRequest request) {
+        // 1. 유저 조회
+        User user = userMapper.findById(userId);
+        if (user == null) {
+            throw new BusinessException("존재하지 않는 사용자입니다.");
+        }
+
+        // 2. 프로필 정보 업데이트
+        user.setGender(request.getGender());
+        user.setBirthDate(request.getBirthDate());
+        user.setHeight(request.getHeight());
+        user.setWeight(request.getWeight());
+        user.setTargetWeight(request.getTargetWeight());
+        user.setActivityLevel(request.getActivityLevel());
+        user.setGoalType(request.getGoalType());
+
+        // 3. TDEE 재계산
+        TdeeCalculator.TdeeResult result = TdeeCalculator.calculate(
+                user.getGender(),
+                user.getBirthDate(),
+                user.getHeight(),
+                user.getWeight(),
+                user.getActivityLevel(),
+                user.getGoalType()
+        );
+
+        user.setBmr(result.getBmr());
+        user.setTdee(result.getTdee());
+        user.setTargetCalories(result.getTargetCalories());
+
+        // 4. DB 업데이트
+        userMapper.updateUserProfile(user);
+
+        // 5. 업데이트된 정보 반환
+        return getUserProfile(userId);
     }
 
-    return TdeeResponse.builder()
-            .bmr(user.getBmr())
-            .tdee(user.getTdee())
-            .targetCalories(user.getTargetCalories())
-            .build();
-}
+    @Override
+    @Transactional(readOnly = true)
+    public TdeeResponse getUserTdee(Long userId) {
+        User user = userMapper.findById(userId);
+        if (user == null) {
+            throw new BusinessException("존재하지 않는 사용자입니다.");
+        }
 
+        return TdeeResponse.builder()
+                .bmr(user.getBmr() != null ? user.getBmr() : 0.0)
+                .tdee(user.getTdee() != null ? user.getTdee() : 0.0)
+                .targetCalories(user.getTargetCalories() != null ? user.getTargetCalories() : 0.0)
+                .build();
+    }
 }

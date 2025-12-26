@@ -1,5 +1,9 @@
 package com.dietcoach.project.controller;
 
+import com.dietcoach.project.dto.UserProfileUpdateRequest;
+import com.dietcoach.project.dto.weight.BodyStatusResponse;
+import com.dietcoach.project.service.WeightRecordService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 public class UserController {
 
     private final UserService userService;
+    private final WeightRecordService weightRecordService;
 
     /**
      * 회원 + 프로필 + TDEE 생성
@@ -36,9 +41,23 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(profile));
     }
 
-@GetMapping("/{id}/tdee")
-public ResponseEntity<ApiResponse<TdeeResponse>> getUserTdee(@PathVariable Long id) {
-    TdeeResponse tdee = userService.getUserTdee(id);
-    return ResponseEntity.ok(ApiResponse.success(tdee));
-}
+    /**
+     * 프로필 수정
+     */
+    @PutMapping("/{id}/profile")
+    public ApiResponse<UserProfileResponse> updateUserProfile(@PathVariable Long id, @RequestBody @Valid UserProfileUpdateRequest request) {
+        UserProfileResponse updatedProfile = userService.updateUserProfile(id, request);
+        return ApiResponse.success("프로필 업데이트 완료", updatedProfile);
+    }
+
+    @GetMapping("/{id}/tdee")
+    public ResponseEntity<ApiResponse<TdeeResponse>> getUserTdee(@PathVariable Long id) {
+        TdeeResponse tdee = userService.getUserTdee(id);
+        return ResponseEntity.ok(ApiResponse.success(tdee));
+    }
+
+    @GetMapping("/{id}/body-status")
+    public ApiResponse<BodyStatusResponse> getUserBodyStatus(@PathVariable Long id) {
+        return ApiResponse.success(weightRecordService.getBodyStatus(id));
+    }
 }

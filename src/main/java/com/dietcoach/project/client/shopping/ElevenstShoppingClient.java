@@ -4,6 +4,7 @@ import com.dietcoach.project.domain.ShoppingProduct;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -14,27 +15,21 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
 
+import com.dietcoach.project.util.shopping.ProductWeightParser;
+import java.io.StringReader;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.StringReader;
+import org.w3c.dom.*;
+import org.xml.sax.InputSource;
 
-/**
- * 11번가 쇼핑 클라이언트 구현.
- * - 1순위: 실제 11번가 OPEN API 호출
- * - 실패 시: 메모리 mock 데이터로 fallback
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ElevenstShoppingClient implements ShoppingClient {
 
     private final RestTemplate restTemplate;
+    private final ProductWeightParser weightParser;
 
     @Value("${elevenst.api.base-url}")
     private String baseUrl;
@@ -42,9 +37,9 @@ public class ElevenstShoppingClient implements ShoppingClient {
     @Value("${elevenst.api.key}")
     private String apiKey;
 
-    /**
-     * 개발용 mock 데이터 (실 API 실패 시 fallback 용도)
-     */
+    @Value("${shopping.elevenst.useMockWhenError:true}")
+    private boolean useMockWhenError;
+
     private final List<ShoppingProduct> mockProducts = new ArrayList<>();
 
     @PostConstruct
@@ -82,154 +77,150 @@ public class ElevenstShoppingClient implements ShoppingClient {
         log.info("Initialized {} mock shopping products", mockProducts.size());
     }
 
-    @Override
-    public List<ShoppingProduct> searchProducts(String keyword, int page, int size) {
-        // 1순위: 실제 11번가 API 호출
-        try {
-            List<ShoppingProduct> real = callRealApi(keyword, page, size);
-            if (!real.isEmpty()) {
-                return real;
-            }
-        } catch (Exception e) {
-            log.warn("11st real API call failed, falling back to mock. reason={}", e.getMessage());
+        @Override
+        public ShoppingClientResult searchProducts(String keyword, int page, int size) {
+            return searchProducts(keyword, page, size, null);
         }
-
-        // 2순위: 실패 시 mock 데이터로 fallback
-        return searchFromMock(keyword, page, size);
-    }
-
-    /**
-     * 실제 11번가 ProductSearch API 호출 
-     */
-    private List<ShoppingProduct> callRealApi(String keyword, int page, int size) {
-        URI uri = UriComponentsBuilder
-                .fromHttpUrl(baseUrl)
-                .queryParam("key", apiKey)
-                .queryParam("apiCode", "ProductSearch")
-                .queryParam("keyword", keyword)
-                .queryParam("pageSize", size)
-                .queryParam("pageNum", page)
-                .build()
-                .encode(StandardCharsets.UTF_8)
-                .toUri();
-
-        log.info("[11st] Calling API: {}", uri);
-
-        String response = restTemplate.getForObject(uri, String.class);
-        log.debug("[11st] Raw response: {}", response);
-
-        if (response == null || response.isBlank()) {
-            log.warn("[11st] Empty response");
-            return List.of();
-        }
-
-        try {
-            return parseProductsFromXml(response);
-        } catch (Exception e) {
-            log.error("[11st] Failed to parse XML response", e);
-            return List.of(); // 파싱 실패 시 상위에서 mock fallback
-        }
-    }
-
-    /**
-     * 기존 mock 데이터 기반 검색 (실 API 실패 시 사용)
-     */
-    private List<ShoppingProduct> searchFromMock(String keyword, int page, int size) {
-        List<ShoppingProduct> filtered = mockProducts.stream()
-                .filter(p -> p.getTitle() != null && p.getTitle().contains(keyword))
-                .collect(Collectors.toList());
-
-        int fromIndex = Math.max(0, (page - 1) * size);
-        int toIndex = Math.min(filtered.size(), fromIndex + size);
-
-        if (fromIndex >= filtered.size()) {
-            return List.of();
-        }
-
-        return filtered.subList(fromIndex, toIndex);
-    }
     
-    /**
-     * 11번가 ProductSearch XML 응답을 ShoppingProduct 리스트로 변환.
-     */
-    private List<ShoppingProduct> parseProductsFromXml(String xml) throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-
-        // XXE 공격 방지용 기본 옵션 (습관처럼 넣어두면 좋음)
-        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        factory.setExpandEntityReferences(false);
-
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        InputSource is = new InputSource(new StringReader(xml));
-        Document doc = builder.parse(is);
-        doc.getDocumentElement().normalize();
-
-        NodeList productNodes = doc.getElementsByTagName("Product");
-
-        List<ShoppingProduct> result = new ArrayList<>();
-
-        for (int i = 0; i < productNodes.getLength(); i++) {
-            Node node = productNodes.item(i);
-            if (node.getNodeType() != Node.ELEMENT_NODE) {
-                continue;
-            }
-
-            Element e = (Element) node;
-
-            String productCode = getTagValue(e, "ProductCode");
-            String productName = getTagValue(e, "ProductName");
-            String productPriceStr = getTagValue(e, "ProductPrice");
-            String salePriceStr = getTagValue(e, "SalePrice");
-            String imageUrl = getTagValue(e, "ProductImage");
-            String detailPageUrl = getTagValue(e, "DetailPageUrl");
-            String sellerNick = getTagValue(e, "SellerNick");
-
-            // 가격은 SalePrice 우선, 없으면 ProductPrice 사용
-            int price = 0;
+        /**
+         * ✅ 카테고리 타겟팅 검색 지원
+         */
+        public ShoppingClientResult searchProducts(String keyword, int page, int size, String dispCtgrNo) {
+            String traceId = currentTraceId();
             try {
-                if (salePriceStr != null && !salePriceStr.isBlank()) {
-                    price = Integer.parseInt(salePriceStr.trim());
-                } else if (productPriceStr != null && !productPriceStr.isBlank()) {
-                    price = Integer.parseInt(productPriceStr.trim());
+                long startMs = System.currentTimeMillis();
+                List<ShoppingProduct> real = callRealApi(keyword, page, size, dispCtgrNo);
+                if (real != null && !real.isEmpty()) {
+                    log.info("[SHOPPING_CLIENT][{}] REAL keyword=\"{}\" cat={} responseCount={} tookMs={}",
+                            traceId, keyword, dispCtgrNo, real.size(), System.currentTimeMillis() - startMs);
+                    return ShoppingClientResult.builder()
+                            .products(real)
+                            .source("REAL")
+                            .build();
                 }
-            } catch (NumberFormatException ex) {
-                log.warn("[11st] Cannot parse price: salePrice={}, productPrice={}", salePriceStr, productPriceStr);
+            } catch (Exception e) {
+                log.warn("[SHOPPING_CLIENT][{}] REAL_FAIL keyword=\"{}\" ex={} fallback={}",
+                        traceId, keyword, e.getClass().getSimpleName(), useMockWhenError);
+                if (!useMockWhenError) throw e;
             }
-
-            // 현재 11번가 응답에는 중량 정보(gram)는 없으므로 null로 둠
-            // (나중에 상품명 파싱해서 '1kg', '500g' 추출하는 로직을 추가해도 됨)
-            Double gramPerUnit = null;
-
-            ShoppingProduct product = ShoppingProduct.builder()
-                    .externalId(productCode)
-                    .title(productName)
-                    .price(price)
-                    .gramPerUnit(gramPerUnit)
-                    .imageUrl(imageUrl)
-                    .productUrl(detailPageUrl)
-                    .mallName(sellerNick != null && !sellerNick.isBlank() ? sellerNick : "11st")
+    
+            List<ShoppingProduct> mock = searchFromMock(keyword, page, size);
+            return ShoppingClientResult.builder()
+                    .products(mock)
+                    .source("MOCK")
                     .build();
-
-            result.add(product);
         }
+    
+        private List<ShoppingProduct> callRealApi(String keyword, int page, int size, String dispCtgrNo) {
+            UriComponentsBuilder builder = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl)
+                    .queryParam("key", apiKey)
+                    .queryParam("apiCode", "ProductSearch")
+                    .queryParam("keyword", keyword)
+                    .queryParam("pageSize", size)
+                    .queryParam("pageNum", page);
+            
+                    // ✅ 카테고리 번호가 있으면 파라미터 추가
+                    if (dispCtgrNo != null && !dispCtgrNo.isBlank()) {
+                        builder.queryParam("dispCtgrNo", dispCtgrNo);
+                    }
+            
+                    URI uri = builder.build().encode(StandardCharsets.UTF_8).toUri();            log.debug("[11st] Request URI: {}", uri);
+    
+            String response = restTemplate.getForObject(uri, String.class);
+            if (response == null || response.isBlank()) return List.of();
+    
+            try {
+                return parseProductsFromXml(response);
+            } catch (Exception e) {
+                log.error("[11st] Failed to parse XML response", e);
+                return List.of();
+            }
+        }
+    
+        private List<ShoppingProduct> searchFromMock(String keyword, int page, int size) {
+            List<ShoppingProduct> filtered = mockProducts.stream()
+                    .filter(p -> p.getTitle() != null && p.getTitle().contains(keyword))
+                    .collect(Collectors.toList());
+    
+            int fromIndex = Math.max(0, (page - 1) * size);
+            int toIndex = Math.min(filtered.size(), fromIndex + size);
+    
+            if (fromIndex >= filtered.size()) return List.of();
+            return filtered.subList(fromIndex, toIndex);
+        }
+    
+        private List<ShoppingProduct> parseProductsFromXml(String xml) throws Exception {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            InputSource is = new InputSource(new StringReader(xml));
+            Document doc = builder.parse(is);
+            doc.getDocumentElement().normalize();
+    
+            NodeList productNodes = doc.getElementsByTagName("Product");
+            List<ShoppingProduct> result = new ArrayList<>();
+    
+            for (int i = 0; i < productNodes.getLength(); i++) {
+                Node node = productNodes.item(i);
+                if (node.getNodeType() != Node.ELEMENT_NODE) continue;
+    
+                Element e = (Element) node;
+    
+                String productCode = getTagValue(e, "ProductCode");
+                String productName = getTagValue(e, "ProductName");
+                String salePriceStr = getTagValue(e, "SalePrice");
+                if (salePriceStr == null) salePriceStr = getTagValue(e, "ProductPrice");
+                String imageUrl = getTagValue(e, "ProductImage");
+                if (imageUrl == null) imageUrl = getTagValue(e, "ProductImage300");
+                String detailPageUrl = getTagValue(e, "DetailPageUrl");
+                String sellerNick = getTagValue(e, "SellerNick");
+    
+                // ✅ 카테고리 정보 파싱 (멀티 태그 지원)
+                String dispNo = getTagValue(e, "CategoryCode");
+                if (dispNo == null) dispNo = getTagValue(e, "DispatchDispNo");
+                if (dispNo == null) dispNo = getTagValue(e, "DispNo");
+    
+                String dispNm = getTagValue(e, "CategoryName");
+                if (dispNm == null) dispNm = getTagValue(e, "DispatchDispNm");
+                if (dispNm == null) dispNm = getTagValue(e, "DispNm");
+    
+                int price = 0;
+                try {
+                    if (salePriceStr != null) price = Integer.parseInt(salePriceStr.trim());
+                } catch (Exception ex) {}
 
-        log.info("[11st] Parsed {} products from XML", result.size());
-        return result;
-    }
+                if ((detailPageUrl == null || detailPageUrl.isBlank()) && productCode != null && !productCode.isBlank()) {
+                    detailPageUrl = "https://www.11st.co.kr/products/" + productCode;
+                }
 
-    /**
-     * XML Element에서 특정 태그의 텍스트 값 가져오기.
-     */
+                // Parse weight
+                int weight = weightParser.parseWeightInGrams(productName);
+    
+                result.add(ShoppingProduct.builder()
+                        .externalId(productCode)
+                        .title(productName)
+                        .price(price)
+                        .imageUrl(imageUrl)
+                        .productUrl(detailPageUrl)
+                        .mallName((sellerNick != null) ? sellerNick : "11st")
+                        .categoryCode(dispNo)
+                        .categoryName(dispNm)
+                        .gramPerUnit((double) weight)
+                        .build());
+            }
+            return result;
+        }
     private String getTagValue(Element parent, String tagName) {
         NodeList list = parent.getElementsByTagName(tagName);
         if (list.getLength() == 0) return null;
-
         Node node = list.item(0);
         if (node == null) return null;
-
         Node child = node.getFirstChild();
         return (child != null) ? child.getNodeValue() : null;
+    }
+
+    private String currentTraceId() {
+        String traceId = MDC.get("traceId");
+        return (traceId == null || traceId.isBlank()) ? "no-trace" : traceId;
     }
 }

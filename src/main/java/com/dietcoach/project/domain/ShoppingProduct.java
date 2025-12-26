@@ -48,4 +48,14 @@ public class ShoppingProduct {
      * Marketplace name (e.g. 11st, Coupang, etc.)
      */
     private String mallName;
+
+    /**
+     * Category code (DispatchDispNo) for whitelist validation.
+     */
+    private String categoryCode;
+
+    /**
+     * Category name (DispatchDispNm) for keyword filtering.
+     */
+    private String categoryName;
 }

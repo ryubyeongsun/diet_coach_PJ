@@ -2,8 +2,8 @@ package com.dietcoach.project.domain;
 
 public enum ActivityLevel {
     SEDENTARY,
-    LIGHT,
+    LIGHTLY_ACTIVE,
     MODERATE,
-    ACTIVE,
-    VERY_ACTIVE
+    VERY_ACTIVE,
+    SUPER_ACTIVE
 }

@@ -1,21 +1,19 @@
 package com.dietcoach.project.service;
 
-import com.dietcoach.project.dto.ShoppingProductResponse;
+import com.dietcoach.project.dto.ShoppingProductsResponse;
+import com.dietcoach.project.dto.meal.ShoppingListResponse;
 
-import java.util.List;
-
-/**
- * Business layer for shopping search and ingredient-based recommendations.
- */
 public interface ShoppingService {
 
-    /**
-     * Performs a keyword based product search.
-     */
-    List<ShoppingProductResponse> search(String keyword, Integer page, Integer size);
+    // ✅ 기존 유지
+    ShoppingProductsResponse search(String keyword, int page, int size);
 
-    /**
-     * Recommends products for a given ingredient and required gram amount.
-     */
-    List<ShoppingProductResponse> recommend(String ingredient, Integer neededGram);
+    // ✅ A2 추가: 재료명(keyword)로 대표상품 1개만 뽑기
+    SearchOneResult searchOne(String keyword, int allocatedBudget, Long totalGram);
+
+    // ✅ 실구매 결과 기반 단가 추정 (원/100g)
+    Integer getEstimatedCostPer100g(String ingredientName);
+
+    // ✅ MealPlanServiceImpl에서 그대로 사용
+    record SearchOneResult(ShoppingListResponse.ProductCard product, String source) {}
 }

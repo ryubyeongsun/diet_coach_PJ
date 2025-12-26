@@ -1,0 +1,34 @@
+{
+<<<<<<< Updated upstream
+  "hash": "1bd2dcc2",
+  "configHash": "e24c761e",
+  "lockfileHash": "a9d1452c",
+  "browserHash": "4913c514",
+  "optimized": {
+    "vue": {
+      "src": "../../node_modules/vue/dist/vue.runtime.esm-bundler.js",
+      "file": "vue.js",
+      "fileHash": "bca0455b",
+      "needsInterop": false
+    },
+    "vue-router": {
+      "src": "../../node_modules/vue-router/dist/vue-router.mjs",
+      "file": "vue-router.js",
+      "fileHash": "37a7d166",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-VYFZJ6WO": {
+      "file": "chunk-VYFZJ6WO.js"
+    }
+  }
+=======
+  "hash": "fee3b669",
+  "configHash": "cec196b0",
+  "lockfileHash": "0e24ae0f",
+  "browserHash": "f82228da",
+  "optimized": {},
+  "chunks": {}
+>>>>>>> Stashed changes
+}

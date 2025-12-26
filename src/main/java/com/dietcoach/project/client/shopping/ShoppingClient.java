@@ -1,22 +1,12 @@
 package com.dietcoach.project.client.shopping;
 
-import com.dietcoach.project.domain.ShoppingProduct;
-
-import java.util.List;
-
-/**
- * Abstraction over external shopping APIs (11st, Coupang, etc.).
- *
- * Implementation can be replaced without changing service layer.
- */
 public interface ShoppingClient {
-
+    ShoppingClientResult searchProducts(String keyword, int page, int size);
+    
     /**
-     * Searches products by keyword.
-     *
-     * @param keyword search term such as ingredient name.
-     * @param page    page index starting from 1.
-     * @param size    page size.
+     * ✅ 카테고리 타겟팅 검색 지원을 위한 오버로딩
      */
-    List<ShoppingProduct> searchProducts(String keyword, int page, int size);
+    default ShoppingClientResult searchProducts(String keyword, int page, int size, String dispCtgrNo) {
+        return searchProducts(keyword, page, size);
+    }
 }
