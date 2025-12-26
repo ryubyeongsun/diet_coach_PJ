@@ -6,32 +6,35 @@
     <div v-else-if="error" class="error-banner">
       <p>{{ error }}</p>
     </div>
-    <div v-else class="dashboard-re-layout">
-      <div class="dashboard-main-content">
-        <!-- 1. 캐릭터 메인 영역 -->
-        <div class="character-area">
-          <CharacterMain :summary="summaryData" :trend="trendData" :latest-weight="latestWeight" />
-        </div>
+    <div v-else class="dashboard-grid-layout">
+      <!-- 1. Center Character Area -->
+      <main class="character-area">
+        <MainAvatarSection 
+          :summary="summaryData" 
+          :trend="trendData" 
+          :latest-weight="latestWeight" 
+          :user-height="userHeight"
+        />
+      </main>
 
-        <!-- 2. 우측 요약 카드 영역 -->
-        <div class="side-summary-area">
-          <TodayIntakeCard :summary="summaryData" />
-          <WeeklyWeightCard :trend="trendData" />
-          <SystemTodoCard :summary="summaryData" />
-        </div>
-      </div>
+      <!-- 2. Right Stats Area -->
+      <aside class="stats-area">
+        <TodayIntakeCard :summary="summaryData" />
+        <WeeklyWeightCard :trend="trendData" />
+        <SystemTodoCard :summary="summaryData" />
+      </aside>
 
-      <!-- 3. 하단 보조 영역 -->
-      <div class="bottom-aux-area">
+      <!-- 3. Bottom Aux Area -->
+      <section class="bottom-area">
         <TodayMealPreview :summary="summaryData" @update="fetchDashboardData" />
-      </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from "vue";
-import CharacterMain from "../components/dashboard/CharacterMain.vue";
+import MainAvatarSection from "../components/dashboard/MainAvatarSection.vue";
 import TodayIntakeCard from "../components/dashboard/TodayIntakeCard.vue";
 import WeeklyWeightCard from "../components/dashboard/WeeklyWeightCard.vue";
 import SystemTodoCard from "../components/dashboard/SystemTodoCard.vue";
@@ -53,6 +56,8 @@ const trendDateRange = ref({
   to: format(new Date(), "yyyy-MM-dd"),
 });
 
+const userHeight = computed(() => currentUser.value?.height);
+
 const latestWeight = computed(() => {
   if (summaryData.value?.latestWeight) {
     return summaryData.value.latestWeight;
@@ -72,7 +77,6 @@ async function fetchDashboardData() {
   error.value = "";
   
   try {
-    // We'll handle individual failures to allow partial dashboard display
     const results = await Promise.allSettled([
       getDashboardSummary(),
       getDashboardTrend({
@@ -84,9 +88,6 @@ async function fetchDashboardData() {
 
     if (results[0].status === 'fulfilled') {
       summaryData.value = results[0].value;
-    } else {
-      console.warn("Summary data not found or failed:", results[0].reason);
-      // If it's a 404, it just means no meal plan yet, which is fine.
     }
 
     if (results[1].status === 'fulfilled') {
@@ -105,19 +106,6 @@ async function fetchDashboardData() {
   }
 }
 
-// This function can be used later if we add date controls back
-async function fetchTrendData() {
-  if (!currentUser.value?.id) return;
-  try {
-    trendData.value = await getDashboardTrend({
-      userId: currentUser.value.id,
-      ...trendDateRange.value,
-    });
-  } catch (err) {
-    console.error("Failed to fetch trend data:", err);
-  }
-}
-
 onMounted(() => {
   fetchDashboardData();
 });
@@ -125,34 +113,60 @@ onMounted(() => {
 
 <style scoped>
 .dashboard-page {
+  /* Global background for dashboard */
+  background: transparent; /* App.vue handles background */
+  min-height: 100%;
+  padding: 0; /* Remove padding as layout provides it */
+  box-sizing: border-box;
+}
+
+.dashboard-grid-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px; /* Sidebar removed from grid */
+  grid-template-rows: auto auto; /* Main row + Bottom row */
+  gap: 32px;
   max-width: 1400px;
-  padding: 24px 32px;
   margin: 0 auto;
 }
 
-.dashboard-main-content {
-  display: flex;
-  gap: 32px;
-  align-items: flex-start;
-  justify-content: center; /* Center the content */
-}
-
 .character-area {
-  flex: 2; /* Takes up more space */
-  min-width: 500px; /* Prevents it from getting too small */
+  grid-column: 1 / 2;
+  grid-row: 1 / 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.side-summary-area {
-  flex: 1;
-  max-width: 400px; /* Fixed max width */
-  min-width: 350px; /* Prevents it from getting too small */
+.stats-area {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 20px;
 }
 
-.bottom-aux-area {
-  margin-top: 32px; /* Space between main content and bottom */
+.bottom-area {
+  grid-column: 1 / 3; /* Span full width */
+  grid-row: 2 / 3;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 1024px) {
+  .dashboard-grid-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto; /* Main, Stats, Bottom */
+  }
+  .character-area {
+    grid-column: 1 / 2;
+  }
+  .stats-area {
+    grid-column: 1 / 2;
+    grid-row: 2 / 3;
+  }
+  .bottom-area {
+    grid-column: 1 / 2;
+    grid-row: 3 / 4;
+  }
 }
 
 .loading-spinner, .error-banner {
@@ -168,21 +182,5 @@ onMounted(() => {
   color: #dc2626;
   font-weight: 600;
   padding: 40px;
-}
-
-@media (max-width: 1024px) {
-  .dashboard-page {
-    padding: 24px;
-  }
-  .dashboard-main-content {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .character-area,
-  .side-summary-area {
-    min-width: 100%;
-    max-width: 100%;
-    flex: 1;
-  }
 }
 </style>

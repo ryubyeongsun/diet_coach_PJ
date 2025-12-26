@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,6 +58,10 @@ public class MealPlanServiceImpl implements MealPlanService {
     // A2 캐시 TTL 1시간
     private static final Duration PRODUCT_CACHE_TTL = Duration.ofHours(1);
     private static final int SHOPPING_SEARCH_TOP_N = 5;
+    @Value("${mealplan.budget.base-cost-per-100g:500}")
+    private int budgetBaseCostPer100g;
+    private static final double SHOPPING_MAX_ITEM_OVER = 1.25;
+    private static final double SHOPPING_MAX_TOTAL_OVER = 1.15;
 
     private final UserMapper userMapper;
     private final MealPlanMapper mealPlanMapper;
@@ -384,7 +389,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                     calculateAndSetNutrients(item);
                     scaledItems.add(item);
                 }
-                return scaledItems;
+                result = scaledItems;
             }
         }
 
@@ -444,6 +449,26 @@ public class MealPlanServiceImpl implements MealPlanService {
         }
         // 2) 없으면 기본값 (추후 고도화 가능)
         return 100;
+    }
+
+    private double getPriceMultiplier(String ingredientName) {
+        String n = normalizeName(ingredientName).replace(" ", "");
+        
+        // Tier 1: Meat/Fish (Expensive) -> x3.0
+        if (containsAny(n, "소고기", "beef", "연어", "salmon", "삼겹살", "pork", "돼지", "갈비", "mackerel", "고등어", "steak", "스테이크", "meat", "고기")) {
+            return 3.0;
+        }
+        if (containsAny(n, "닭가슴살", "chicken", "breast", "새우", "shrimp", "참치", "tuna", "오징어", "squid", "fish", "생선", "낙지", "쭈꾸미", "명태", "동태")) {
+            return 2.5; // Slightly cheaper protein
+        }
+        
+        // Tier 2: Dairy/Nuts/Processed (Medium) -> x1.5
+        if (containsAny(n, "milk", "cheese", "yogurt", "butter", "oil", "nut", "almond", "walnut", "치즈", "우유", "요거트", "버터", "오일", "견과", "아몬드", "호두", "계란", "달걀", "egg")) {
+            return 1.5;
+        }
+        
+        // Tier 3: Grains/Veg/Sauce (Cheap) -> x1.0 (Base)
+        return 1.0;
     }
 
     private void calculateAndSetNutrients(MealItem item) {
@@ -627,11 +652,11 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     @Override
     @Transactional(readOnly = true)
-    public ShoppingListResponse getShoppingList(Long planId, String range) {
+    public ShoppingListResponse getShoppingList(Long planId, String range, LocalDate date) {
         MealPlan plan = mealPlanMapper.findMealPlanById(planId);
         if (plan == null) throw new BusinessException("존재하지 않는 식단 플랜입니다. id=" + planId);
 
-        RangeWindow w = resolveRange(plan, range);
+        RangeWindow w = resolveRange(plan, range, date);
 
         boolean useRange = range != null && !range.isBlank() && !"MONTH".equalsIgnoreCase(range);
         List<MealPlanIngredientResponse> ingredients = useRange
@@ -642,28 +667,36 @@ public class MealPlanServiceImpl implements MealPlanService {
         log.info("[SHOPPING_LIST][{}] INGREDIENT_SUMMARY top10={}", traceId, buildIngredientSummary(ingredients));
 
         // A2-R4 Budget Allocation
-        int planMonthlyBudget = (plan.getMonthlyBudget() != null && plan.getMonthlyBudget() > 0) 
+        int planMonthlyBudget = (plan.getMonthlyBudget() != null && plan.getMonthlyBudget() > 0)
                 ? plan.getMonthlyBudget().intValue() : 300000;
-        
-        double rangeFraction = 1.0;
-        if ("WEEK".equalsIgnoreCase(range)) rangeFraction = 7.0 / 30.0;
-        else if ("TODAY".equalsIgnoreCase(range)) rangeFraction = 1.0 / 30.0;
-        
-        int rangeBudget = (int) (planMonthlyBudget * rangeFraction);
+        int totalDays = plan.getTotalDays() > 0 ? plan.getTotalDays() : DEFAULT_PLAN_DAYS;
+        int dailyBudget = (int) Math.round(planMonthlyBudget / (double) totalDays);
+        int rangeDays = (int) java.time.temporal.ChronoUnit.DAYS.between(w.from, w.to) + 1;
+        int rangeBudget = dailyBudget * Math.max(1, rangeDays);
 
-        // Calculate Weights & Total
+        // Calculate Weights & Total (estimated cost based)
         double totalWeight = 0.0;
         Map<String, Double> weightMap = new HashMap<>();
         for (MealPlanIngredientResponse ing : ingredients) {
              String name = safeTrim(ing.getIngredientName());
              if (name.isEmpty()) continue;
              
-             double weight = 1.0;
-             if (ing.getDaysCount() != null && ing.getDaysCount() > 0) {
-                 weight = ing.getDaysCount() * 10.0; // Day count has high priority
-             } else if (toLongSafe(ing.getTotalGram()) != null) {
-                 weight = toLongSafe(ing.getTotalGram()) / 100.0; // 100g = 1 point
-             }
+             // Base Weight on Quantity (Grams)
+             Long gram = toLongSafe(ing.getTotalGram());
+             if (gram == null || gram <= 0) gram = 300L; // Default fallback
+             
+             // 100g = 1 point
+             double baseWeight = gram / 100.0;
+
+             Integer estCostPer100g = shoppingService.getEstimatedCostPer100g(name);
+             double priceMultiplier = getPriceMultiplier(name);
+             double unitCost = (estCostPer100g != null && estCostPer100g > 0)
+                     ? estCostPer100g
+                     : (budgetBaseCostPer100g * priceMultiplier);
+             
+             // Final Weight = Quantity * EstimatedUnitCost
+             double weight = baseWeight * unitCost;
+
              weightMap.put(name, weight);
              totalWeight += weight;
         }
@@ -685,20 +718,24 @@ public class MealPlanServiceImpl implements MealPlanService {
                 double weight = weightMap.getOrDefault(ingredientName, 1.0);
                 int allocated = (int) (rangeBudget * (weight / finalTotalWeight));
                 
-                // Clamp (Min 2k, Max 30k)
-                if (allocated < 2000) allocated = 2000;
-                if (allocated > 30000) allocated = 30000;
+                // Clamp (Relaxed: Min 1k, Max 50k)
+                if (allocated < 1000) allocated = 1000;
+                if (allocated > 50000) allocated = 50000;
 
-                ProductLookup lookup = getRepresentativeProductCached(ingredientName, allocated);
+                ProductLookup lookup = getRepresentativeProductCached(ingredientName, allocated, totalGram);
 
                 // Calculate recommended purchase count (PRD 6.3)
                 Integer packageGram = 0;
                 Integer recommendedCount = 1; // Default 1
+                Long unitPrice = null;
 
                 if (lookup.product != null && lookup.product.getPackageGram() != null && lookup.product.getPackageGram() > 0) {
                      packageGram = lookup.product.getPackageGram();
                      // ceil(totalGram / packageGram)
                      recommendedCount = (int) Math.ceil((double) totalGram / packageGram);
+                }
+                if (lookup.product != null && lookup.product.getPrice() != null) {
+                    unitPrice = lookup.product.getPrice();
                 }
 
                 // PRD 8. Logging
@@ -721,8 +758,23 @@ public class MealPlanServiceImpl implements MealPlanService {
             .filter(java.util.Objects::nonNull)
             .collect(Collectors.toList());
 
-        String overallSource = items.stream().anyMatch(i -> "REAL".equals(i.getSource())) ? "REAL" : "MOCK";
+        items = filterItemsToBudget(items, rangeBudget);
+        long estimatedTotal = estimateTotalCost(items, rangeBudget);
+
         String normalizedRange = (range == null || range.isBlank()) ? "MONTH" : range.trim().toUpperCase();
+        String warningMessage = null;
+        boolean purchaseRecommended = true;
+        if ("MONTH".equalsIgnoreCase(normalizedRange)) {
+            warningMessage = "월 단위 장보기는 참고용입니다. 실제 구매는 하루 단위를 권장합니다.";
+            purchaseRecommended = false;
+        } else if ("WEEK".equalsIgnoreCase(normalizedRange)) {
+            warningMessage = "주 단위 장보기는 참고용입니다. 실제 구매는 하루 단위를 권장합니다.";
+            purchaseRecommended = false;
+        } else if (estimatedTotal > rangeBudget) {
+            warningMessage = "최소 가격 상품으로 구성했지만, 오늘 식단 기준 예산을 초과했습니다.";
+        }
+
+        String overallSource = items.stream().anyMatch(i -> "REAL".equals(i.getSource())) ? "REAL" : "MOCK";
 
         return ShoppingListResponse.builder()
                 .planId(planId)
@@ -730,10 +782,63 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .startDate(w.from)
                 .endDate(w.to)
                 .budget((long) rangeBudget) // ✅ Set the calculated range budget
+                .estimatedTotal(estimatedTotal)
+                .warningMessage(warningMessage)
+                .purchaseRecommended(purchaseRecommended)
                 .source(overallSource)
                 .items(items)
                 .build();
     }
+
+    private List<ShoppingListResponse.ShoppingItem> filterItemsToBudget(
+            List<ShoppingListResponse.ShoppingItem> items,
+            int rangeBudget
+    ) {
+        if (items == null || items.isEmpty() || rangeBudget <= 0) return items;
+
+        long total = estimateTotalCost(items, rangeBudget);
+        long cap = Math.round(rangeBudget * SHOPPING_MAX_TOTAL_OVER);
+        if (total <= cap) return items;
+
+        List<ShoppingListResponse.ShoppingItem> filtered = new ArrayList<>(items);
+        filtered.sort((a, b) -> Long.compare(estimateItemCost(b, rangeBudget), estimateItemCost(a, rangeBudget)));
+
+        for (int i = 0; i < filtered.size() && total > cap; i++) {
+            ShoppingListResponse.ShoppingItem item = filtered.get(i);
+            long cost = estimateItemCost(item, rangeBudget);
+            if (cost <= 0) continue;
+            total -= cost;
+            filtered.set(i, null);
+        }
+
+        List<ShoppingListResponse.ShoppingItem> result = filtered.stream()
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        log.info("[SHOPPING_LIST] filter_to_budget total={} cap={} kept={}", total, cap, result.size());
+        return result;
+    }
+
+    private long estimateTotalCost(List<ShoppingListResponse.ShoppingItem> items, int rangeBudget) {
+        long total = 0;
+        for (ShoppingListResponse.ShoppingItem item : items) {
+            total += estimateItemCost(item, rangeBudget);
+        }
+        return total;
+    }
+
+    private long estimateItemCost(ShoppingListResponse.ShoppingItem item, int rangeBudget) {
+        if (item == null) return 0;
+        if (item.getProduct() != null && item.getProduct().getPrice() != null && item.getPackageGram() != null && item.getPackageGram() > 0) {
+            int count = (item.getRecommendedCount() == null) ? 0 : item.getRecommendedCount();
+            return item.getProduct().getPrice() * count;
+        }
+        if (item.getTotalGram() == null || item.getTotalGram() <= 0) return 0;
+        double multiplier = getPriceMultiplier(item.getIngredientName());
+        double unitCost = budgetBaseCostPer100g * multiplier;
+        return Math.round((item.getTotalGram() / 100.0) * unitCost);
+    }
+
 
     private static class ProductLookup {
         final ShoppingListResponse.ProductCard product;
@@ -744,14 +849,18 @@ public class MealPlanServiceImpl implements MealPlanService {
         }
     }
 
-    private ProductLookup getRepresentativeProductCached(String ingredientName, int allocatedBudget) {
+    private ProductLookup getRepresentativeProductCached(String ingredientName, int allocatedBudget, Long totalGram) {
         String traceId = currentTraceId();
         
-        // A2-R5 Cache Key Improvement: ingredient + priceBucket
+        // A2-R5 Cache Key Improvement: ingredient + priceBucket + gramBucket
         // Bucket size: 2000 KRW
         int bucket = (allocatedBudget / 2000) * 2000;
+        
+        // Gram Bucket: Round to nearest 100g (e.g., 150 -> 200, 1020 -> 1000) to avoid cache fragmentation
+        long gramBucket = (totalGram == null) ? 0 : (Math.round(totalGram / 100.0) * 100);
+        
         String normalizedName = normalizeCacheKey(ingredientName);
-        String key = normalizedName + ":" + bucket;
+        String key = normalizedName + ":" + bucket + ":" + gramBucket;
 
         if (normalizedName.isEmpty()) {
             return new ProductLookup(null, "MOCK");
@@ -767,14 +876,13 @@ public class MealPlanServiceImpl implements MealPlanService {
                  log.info("[SHOPPING_LIST][{}] CACHE_INVALIDATED ingredient={} reason=BANNED_KEYWORD", traceId, ingredientName);
             }
         }
-        log.info("[SHOPPING_LIST][{}] CACHE_MISS ingredient={} key={} budget={}", traceId, ingredientName, key, allocatedBudget);
+        log.info("[SHOPPING_LIST][{}] CACHE_MISS ingredient={} key={} budget={} gram={}", traceId, ingredientName, key, allocatedBudget, totalGram);
 
         ShoppingListResponse.ProductCard product = null;
         String source = "MOCK";
-
         try {
-            // A2-R3 Call with allocatedBudget
-            ShoppingService.SearchOneResult r = shoppingService.searchOne(ingredientName, allocatedBudget);
+            // A2-R3 Call with allocatedBudget AND totalGram
+            ShoppingService.SearchOneResult r = shoppingService.searchOne(ingredientName, allocatedBudget, totalGram);
             if (r != null) {
                 product = r.product();
                 source = normalizeSource(r.source());
@@ -860,13 +968,17 @@ public class MealPlanServiceImpl implements MealPlanService {
         RangeWindow(LocalDate f, LocalDate t) { from = f; to = t; }
     }
 
-    private RangeWindow resolveRange(MealPlan plan, String range) {
+    private RangeWindow resolveRange(MealPlan plan, String range, LocalDate date) {
         LocalDate today = LocalDate.now();
         String r = (range == null ? "MONTH" : range.toUpperCase());
+        LocalDate anchor = date != null ? date : today;
 
         return switch (r) {
-            case "TODAY" -> new RangeWindow(today, today);
-            case "WEEK" -> new RangeWindow(today, today.plusDays(6));
+            case "TODAY" -> {
+                if (date == null) throw new BusinessException("TODAY 범위는 date 파라미터가 필요합니다.");
+                yield new RangeWindow(anchor, anchor);
+            }
+            case "WEEK" -> new RangeWindow(anchor, anchor.plusDays(6));
             default -> new RangeWindow(plan.getStartDate(), plan.getEndDate());
         };
     }
@@ -918,49 +1030,76 @@ public class MealPlanServiceImpl implements MealPlanService {
     @Transactional(readOnly = true)
     public DashboardSummaryResponse getDashboardSummary(Long userId) {
         MealPlan latestPlan = mealPlanMapper.findLatestMealPlanByUserId(userId);
-        if (latestPlan == null) throw new BusinessException("해당 사용자의 최근 식단 플랜이 없습니다.");
+        // Plan can be null if user hasn't created one yet.
+        // We still want to return weight info.
 
-        List<MealPlanDay> days = mealPlanMapper.findMealPlanDaysByPlanId(latestPlan.getId());
-        if (days == null || days.isEmpty()) throw new BusinessException("해당 플랜의 날짜가 없습니다. planId=" + latestPlan.getId());
-
-        int totalCalories = days.stream().mapToInt(MealPlanDay::getTotalCalories).sum();
-        int averageCalories = (int) Math.round(totalCalories / (double) days.size());
-
-        int targetPerDay = latestPlan.getTargetCaloriesPerDay();
-        int achievementRate = (int) Math.round(totalCalories / (double) (targetPerDay * days.size()) * 100.0);
-
-        // Calculate consumed calories for TODAY
-        LocalDate today = LocalDate.now();
-        MealPlanDay todayDay = days.stream()
-                .filter(d -> d.getPlanDate().equals(today))
-                .findFirst()
-                .orElse(null);
+        int totalCalories = 0;
+        int averageCalories = 0;
+        int targetPerDay = 0;
+        int achievementRate = 0;
+        
+        LocalDate startDate = null;
+        LocalDate endDate = null;
+        int totalDays = 0;
+        Long planId = null;
 
         Integer consumedCalories = 0;
-        Integer todayTargetCalories = targetPerDay;
+        Integer todayTargetCalories = 0;
         Integer todayAchievementRate = 0;
+        Long todayDayId = null;
 
-        if (todayDay != null) {
-            // Check intakes
-            List<MealIntake> intakes = mealIntakeMapper.findConsumedByDayId(userId, todayDay.getId());
-            log.info("[Dashboard] todayDayId={} intakes.size={}", todayDay.getId(), intakes.size());
-            
-            Set<String> consumedMealTimes = intakes.stream()
-                    .map(MealIntake::getMealTime)
-                    .collect(Collectors.toSet());
-            
-            // Get items for today to sum consumed calories
-            List<MealItem> todayItems = mealPlanMapper.findMealItemsByDayId(todayDay.getId());
-            
-            consumedCalories = todayItems.stream()
-                    .filter(item -> consumedMealTimes.contains(item.getMealTime()))
-                    .mapToInt(MealItem::getCalories)
-                    .sum();
+        if (latestPlan != null) {
+            planId = latestPlan.getId();
+            startDate = latestPlan.getStartDate();
+            endDate = latestPlan.getEndDate();
+            totalDays = latestPlan.getTotalDays();
+            targetPerDay = latestPlan.getTargetCaloriesPerDay();
+
+            List<MealPlanDay> days = mealPlanMapper.findMealPlanDaysByPlanId(latestPlan.getId());
+            if (days != null && !days.isEmpty()) {
+                totalCalories = days.stream().mapToInt(MealPlanDay::getTotalCalories).sum();
+                averageCalories = (int) Math.round(totalCalories / (double) days.size());
+                if (targetPerDay > 0) {
+                    achievementRate = (int) Math.round(totalCalories / (double) (targetPerDay * days.size()) * 100.0);
+                }
+
+                // Calculate consumed calories for TODAY
+                LocalDate today = LocalDate.now();
+                MealPlanDay todayDay = days.stream()
+                        .filter(d -> d.getPlanDate().equals(today))
+                        .findFirst()
+                        .orElse(null);
+
+                if (todayDay != null) {
+                    todayDayId = todayDay.getId();
+                    // Check intakes
+                    List<MealIntake> intakes = mealIntakeMapper.findConsumedByDayId(userId, todayDay.getId());
                     
-            todayTargetCalories = todayDay.getTotalCalories() > 0 ? todayDay.getTotalCalories() : targetPerDay;
-            
-            if (todayTargetCalories > 0) {
-                todayAchievementRate = (int) Math.round((double) consumedCalories / todayTargetCalories * 100);
+                    Set<String> consumedMealTimes = intakes.stream()
+                            .map(MealIntake::getMealTime)
+                            .collect(Collectors.toSet());
+                    
+                    // Get items for today to sum consumed calories
+                    List<MealItem> todayItems = mealPlanMapper.findMealItemsByDayId(todayDay.getId());
+                    
+                    consumedCalories = todayItems.stream()
+                            .filter(item -> consumedMealTimes.contains(item.getMealTime()))
+                            .mapToInt(MealItem::getCalories)
+                            .sum();
+                            
+                    todayTargetCalories = todayDay.getTotalCalories() > 0 ? todayDay.getTotalCalories() : targetPerDay;
+                    
+                    if (todayTargetCalories > 0) {
+                        todayAchievementRate = (int) Math.round((double) consumedCalories / todayTargetCalories * 100);
+                    }
+                }
+            }
+        } else {
+            // Fallback for user with no plan: Use User's target calories if available
+            User user = userMapper.findById(userId);
+            if (user != null && user.getTargetCalories() != null) {
+                targetPerDay = (int) Math.round(user.getTargetCalories());
+                todayTargetCalories = targetPerDay;
             }
         }
 
@@ -978,11 +1117,11 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         return DashboardSummaryResponse.builder()
                 .userId(userId)
-                .recentMealPlanId(latestPlan.getId())
-                .todayDayId(todayDay != null ? todayDay.getId() : null)
-                .startDate(latestPlan.getStartDate())
-                .endDate(latestPlan.getEndDate())
-                .totalDays(latestPlan.getTotalDays())
+                .recentMealPlanId(planId)
+                .todayDayId(todayDayId)
+                .startDate(startDate)
+                .endDate(endDate)
+                .totalDays(totalDays)
                 .targetCaloriesPerDay(targetPerDay)
                 .averageCalories(averageCalories)
                 .achievementRate(achievementRate)
@@ -1082,9 +1221,10 @@ public class MealPlanServiceImpl implements MealPlanService {
         MealPlanDay day = mealPlanMapper.findMealPlanDayById(dayId);
         if (day == null) throw new BusinessException("존재하지 않는 날짜입니다. id=" + dayId);
 
-        day.setIsStamped(true);
-        mealPlanMapper.updateMealPlanDayStamp(dayId, true);
-        log.info("[MealPlan] stampDay dayId={}", dayId);
+        boolean newState = !(day.getIsStamped() != null && day.getIsStamped());
+        day.setIsStamped(newState);
+        mealPlanMapper.updateMealPlanDayStamp(dayId, newState);
+        log.info("[MealPlan] stampDay toggle dayId={} newState={}", dayId, newState);
     }
     
     private int compareMealTimes(String t1, String t2) {
