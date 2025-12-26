@@ -24,6 +24,9 @@ public class UserProfileUpdateRequest {
     private Double weight;
 
     @NotNull
+    private Double targetWeight;
+
+    @NotNull
     private ActivityLevel activityLevel;
 
     @NotNull

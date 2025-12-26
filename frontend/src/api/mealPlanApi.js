@@ -44,6 +44,12 @@ export async function replaceMeal(dayId, mealTime) {
   return res.data.data ?? res.data;
 }
 
+// 식단 도장 찍기
+export async function stampMealPlanDay(dayId) {
+  const res = await http.post(`/meal-plans/days/${dayId}/stamp`);
+  return res?.data;
+}
+
 // 섭취 체크 (upsert)
 export async function upsertIntake(payload) {
   const res = await http.put('/meal-intakes', payload);

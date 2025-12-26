@@ -1,9 +1,18 @@
 <template>
   <div 
     class="shopping-card" 
-    :class="{ 'is-checked': isChecked, 'has-product': !!item.product }"
-    @click="$emit('toggle')"
+    :class="{ 
+      'is-checked': isChecked, 
+      'has-product': !!item.product,
+      'is-purchased': isPurchased 
+    }"
+    @click="!isPurchased && $emit('toggle')"
   >
+    <!-- 구매 완료 뱃지 -->
+    <div v-if="isPurchased" class="purchased-overlay">
+      <span>구매 완료</span>
+    </div>
+
     <!-- 체크박스 -->
     <div class="checkbox-container">
       <div class="custom-checkbox" :class="{ checked: isChecked }">
@@ -38,6 +47,12 @@
           <span class="price">{{ item.product.price.toLocaleString() }}원</span>
           <span class="mall">{{ item.product.mallName }}</span>
         </div>
+        
+        <!-- 추천 구매 개수 배지 추가 (PRD 요구사항) -->
+        <div class="recommendation-row" v-if="item.recommendedCount && item.recommendedCount > 0">
+          <span class="rec-badge">추천: {{ item.recommendedCount }}개</span>
+          <span class="pkg-info" v-if="item.packageGram">{{ item.packageGram }}g/팩</span>
+        </div>
       </div>
       
       <div v-else class="empty-state">
@@ -64,7 +79,8 @@
 <script setup>
 defineProps({
   item: { type: Object, required: true },
-  isChecked: { type: Boolean, default: false }
+  isChecked: { type: Boolean, default: false },
+  isPurchased: { type: Boolean, default: false }
 });
 defineEmits(['toggle']);
 </script>
@@ -75,9 +91,40 @@ defineEmits(['toggle']);
   background-color: white; border: 1px solid #e5e7eb;
   border-radius: 8px; overflow: hidden; cursor: pointer;
   transition: all 0.2s ease; height: 80px;
+  position: relative;
 }
 .shopping-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-color: #d1fae5; }
 .shopping-card.is-checked { background-color: #f0fdf4; border-color: #10b981; }
+
+.shopping-card.is-purchased {
+  opacity: 0.6;
+  filter: grayscale(0.8);
+  cursor: default;
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+  pointer-events: none;
+}
+
+.purchased-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.purchased-overlay span {
+  background: #374151;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
 .checkbox-container { padding: 0 12px; }
 .custom-checkbox {
   width: 20px; height: 20px; background: white; border: 2px solid #d1d5db;
@@ -95,6 +142,30 @@ defineEmits(['toggle']);
 .product-title { font-size: 13px; color: #4b5563; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .price-row { display: flex; align-items: center; gap: 8px; }
 .price { font-size: 14px; font-weight: 700; color: #059669; }
+.mall { font-size: 11px; color: #9ca3af; }
+
+.recommendation-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.rec-badge {
+  background-color: #ecfdf5;
+  color: #059669;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #10b981;
+}
+
+.pkg-info {
+  font-size: 10px;
+  color: #6b7280;
+}
+
 .action-area { padding: 0 16px; }
 .add-cart-btn { width: 36px; height: 36px; border-radius: 50%; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center; text-decoration: none; }
 </style>

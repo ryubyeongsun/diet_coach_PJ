@@ -20,7 +20,7 @@
         </div>
 
         <div class="brand">
-          <span class="logo-icon">🥑</span> 남남코치
+          <img src="/images/brand-logo.png" alt="남남코치" class="logo-img" />
         </div>
 
         <div class="header">
@@ -71,6 +71,13 @@
             </div>
           </div>
 
+          <div class="row">
+             <div class="input-group">
+              <label>목표 체중 (kg)</label>
+              <NnInput type="number" v-model.number="form.targetWeight" placeholder="65" required />
+            </div>
+          </div>
+
           <div class="input-group">
             <label>목표</label>
             <div class="goal-options">
@@ -115,6 +122,7 @@ const form = ref({
   birthDate: "",
   height: null,
   weight: null,
+  targetWeight: null,
   activityLevel: "SEDENTARY",
   goalType: "MAINTAIN",
 });
@@ -232,15 +240,16 @@ async function handleSubmit() {
 }
 
 .brand {
-  font-size: 18px;
-  font-weight: 800;
-  color: #047857;
-  text-align: center;
   margin-bottom: 24px;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 6px;
+}
+
+.logo-img {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
 }
 
 .header {

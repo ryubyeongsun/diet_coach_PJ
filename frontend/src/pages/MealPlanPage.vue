@@ -66,16 +66,24 @@
         </div>
 
         <!-- ⭐ 실제 데이터 내려주기 -->
-        <MealPlanCalendar :days="overview.days" @click-day="onClickDay" />
+        <MealPlanCalendar 
+          :days="overview.days" 
+          :target-calories="overview.targetCaloriesPerDay" 
+          @click-day="onClickDay" 
+        />
       </div>
     </NnCard>
 
-    <MealPlanDayModal v-model="isDayModalOpen" :day-id="selectedDayId" />
+    <MealPlanDayModal 
+      v-model="isDayModalOpen" 
+      :day-id="selectedDayId" 
+      @stamp="handleStamp"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
 
 import NnButton from "../components/common/NnButton.vue";
@@ -84,7 +92,7 @@ import MealPlanCalendar from "../components/meal/MealPlanCalendar.vue";
 import MealPlanCreatePanel from "../components/meal/MealPlanCreatePanel.vue";
 import MealPlanDayModal from "../components/meal/MealPlanDayModal.vue";
 
-import { fetchLatestMealPlan, createMealPlan } from "../api/mealPlanApi";
+import { fetchLatestMealPlan, createMealPlan, stampMealPlanDay } from "../api/mealPlanApi";
 import { getCurrentUser } from "@/utils/auth.js";
 import { getDashboardSummary, getDashboardTrend } from "../api/dashboardApi.js";
 
@@ -97,6 +105,9 @@ const router = useRouter();
 // --- 상세 모달 상태 ---
 const selectedDayId = ref(null);
 const isDayModalOpen = ref(false);
+
+// --- 폴링 상태 ---
+let pollingInterval = null;
 
 // --- 통계 데이터 계산 ---
 const avgCalories = computed(() => {
@@ -140,15 +151,77 @@ function onClickGoShopping() {
   });
 }
 
+async function handleStamp(dayId) {
+  if (!overview.value || !overview.value.days) return;
+  
+  try {
+    // 1. 백엔드 DB 저장
+    await stampMealPlanDay(dayId);
+    
+    // 2. 로컬 상태 업데이트 (애니메이션 트리거)
+    const day = overview.value.days.find(d => d.dayId === dayId);
+    if (day) {
+      day.isStamped = true;
+    }
+  } catch (err) {
+    console.error("Failed to stamp day:", err);
+    alert("도장 찍기에 실패했습니다. 다시 시도해 주세요.");
+  }
+}
+
+// 식단 완성 여부 확인 (모든 날짜의 칼로리가 0보다 큰지)
+function isPlanComplete(plan) {
+  if (!plan || !plan.days) return false;
+  return plan.days.every(day => day.totalCalories > 0);
+}
+
+function stopPolling() {
+  if (pollingInterval) {
+    clearInterval(pollingInterval);
+    pollingInterval = null;
+  }
+}
+
+function startPolling(userId) {
+  stopPolling(); // 기존 인터벌 제거
+  
+  // 3초마다 갱신
+  pollingInterval = setInterval(async () => {
+    try {
+      const updatedPlan = await fetchLatestMealPlan(userId);
+      if (updatedPlan) {
+        overview.value = updatedPlan;
+        // 완성이 되면 폴링 중단
+        if (isPlanComplete(updatedPlan)) {
+          stopPolling();
+        }
+      }
+    } catch (err) {
+      console.error("Polling error:", err);
+      stopPolling(); // 에러 발생 시 중단
+    }
+  }, 3000);
+}
+
 async function loadLatest() {
   const userId = currentUser.value?.id;
   if (!userId) return;
 
-  isLoading.value = true;
+  // 이미 데이터가 있고 폴링 중이라면 로딩 표시 스킵 가능하지만,
+  // 초기 진입 시에는 로딩 표시
+  if (!overview.value) {
+    isLoading.value = true;
+  }
   errorMessage.value = "";
 
   try {
-    overview.value = await fetchLatestMealPlan(userId);
+    const plan = await fetchLatestMealPlan(userId);
+    overview.value = plan;
+
+    // 식단이 존재하지만 아직 미완성 상태라면 폴링 시작
+    if (plan && !isPlanComplete(plan)) {
+      startPolling(userId);
+    }
   } catch (err) {
     console.error(err);
     if (
@@ -186,9 +259,9 @@ async function handleCreatePlan(payload) {
       userId: currentUser.value.id,
     });
 
-    alert("식단이 성공적으로 생성되었습니다!");
+    alert("식단이 성공적으로 생성되었습니다! AI가 식단을 짜는 동안 잠시만 기다려주세요.");
 
-    // 식단 생성 후에는 관련 데이터를 다시 불러옵니다.
+    // 식단 생성 직후 데이터 로드 및 폴링 시작
     await loadLatest();
   } catch (err) {
     console.error("Error creating meal plan:", err);
@@ -210,6 +283,10 @@ onMounted(() => {
   if (currentUser.value) {
     loadLatest();
   }
+});
+
+onUnmounted(() => {
+  stopPolling();
 });
 </script>
 

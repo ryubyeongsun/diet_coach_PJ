@@ -146,4 +146,14 @@ public class MealPlanController {
     ) {
         return ApiResponse.success(mealPlanService.replaceMeal(dayId, mealTime));
     }
+
+    /**
+     * 식단 도장 찍기
+     * POST /api/meal-plans/days/{dayId}/stamp
+     */
+    @PostMapping("/meal-plans/days/{dayId}/stamp")
+    public ApiResponse<Void> stampDay(@PathVariable Long dayId) {
+        mealPlanService.stampDay(dayId);
+        return ApiResponse.success("stamped", null);
+    }
 }

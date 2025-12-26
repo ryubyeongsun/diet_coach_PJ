@@ -37,7 +37,8 @@ import WeeklyWeightCard from "../components/dashboard/WeeklyWeightCard.vue";
 import SystemTodoCard from "../components/dashboard/SystemTodoCard.vue";
 import TodayMealPreview from "../components/dashboard/TodayMealPreview.vue";
 import { getDashboardSummary, getDashboardTrend } from "../api/dashboardApi";
-import { getCurrentUser } from "../utils/auth";
+import { fetchUserProfile } from "../api/usersApi";
+import { getCurrentUser, updateCurrentUser } from "../utils/auth";
 import { format, subDays } from "date-fns";
 
 const loading = ref(false);
@@ -69,25 +70,36 @@ async function fetchDashboardData() {
   }
   loading.value = true;
   error.value = "";
+  
   try {
-    const [summary, trend] = await Promise.all([
+    // We'll handle individual failures to allow partial dashboard display
+    const results = await Promise.allSettled([
       getDashboardSummary(),
       getDashboardTrend({
         userId: currentUser.value.id,
         ...trendDateRange.value,
       }),
+      fetchUserProfile(currentUser.value.id)
     ]);
-    summaryData.value = summary;
-    trendData.value = trend;
-  } catch (err) {
-    console.error("Failed to fetch dashboard data:", err);
-    error.value = "대시보드 데이터를 불러오는 데 실패했습니다.";
-    if (
-      err.response?.config.url.includes("summary") &&
-      err.response?.status === 404
-    ) {
-      error.value = "요약 정보를 불러올 수 없습니다. API 경로를 확인해주세요.";
+
+    if (results[0].status === 'fulfilled') {
+      summaryData.value = results[0].value;
+    } else {
+      console.warn("Summary data not found or failed:", results[0].reason);
+      // If it's a 404, it just means no meal plan yet, which is fine.
     }
+
+    if (results[1].status === 'fulfilled') {
+      trendData.value = results[1].value;
+    }
+
+    if (results[2].status === 'fulfilled' && results[2].value?.data) {
+      updateCurrentUser(results[2].value.data);
+      currentUser.value = results[2].value.data;
+    }
+  } catch (err) {
+    console.error("Unexpected error in fetchDashboardData:", err);
+    error.value = "데이터를 불러오는 중 예기치 않은 오류가 발생했습니다.";
   } finally {
     loading.value = false;
   }

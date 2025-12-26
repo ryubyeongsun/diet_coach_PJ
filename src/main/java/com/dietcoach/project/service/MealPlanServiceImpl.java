@@ -73,7 +73,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     // =========================
     // A2 캐시: ingredientName(lower) -> CachedProduct
     // =========================
-    private final Map<String, CachedProduct> productCache = new HashMap<>();
+    private final Map<String, CachedProduct> productCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private static class CachedProduct {
         final ShoppingListResponse.ProductCard product;
@@ -125,9 +125,6 @@ public class MealPlanServiceImpl implements MealPlanService {
             new FoodPortion(new FoodItem("샐러드", 40), 80)
     );
 
-    // =========================
-    // 1) 한달 식단 생성 (단일 진입점)
-    // =========================
     @Override
     @Transactional
     public MealPlanOverviewResponse createMonthlyPlan(Long userId, MealPlanCreateRequest request) {
@@ -152,6 +149,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         log.info("[MealPlan] createMonthlyPlan start userId={}, startDate={}, mealsPerDay={}",
                 userId, startDate, mealsPerDay);
 
+        // 1. Create Plan & Days Skeleton (Empty)
         MealPlan mealPlan = MealPlan.builder()
                 .userId(userId)
                 .startDate(startDate)
@@ -166,161 +164,141 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         mealPlanMapper.insertMealPlan(mealPlan);
 
-        AiMonthlySkeletonResponse skeleton = null;
-        String generationSource = "TEMPLATE";
-
-        try {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("startDate", startDate.format(DF));
-            payload.put("totalDays", DEFAULT_PLAN_DAYS);
-            payload.put("targetCaloriesPerDay", targetKcalPerDay);
-            payload.put("mealsPerDay", mealsPerDay);
-            payload.put("monthlyBudget", request != null ? request.getMonthlyBudget() : null);
-            payload.put("preferences", request != null ? request.getPreferences() : List.of());
-            payload.put("allergies", request != null ? request.getAllergies() : List.of());
-
-            log.info("[MealPlan] AI call start planId={}, userId={}", mealPlan.getId(), userId);
-            skeleton = generateAiSkeletonInChunks(mealPlan.getId(), startDate, DEFAULT_PLAN_DAYS, payload);
-            if (skeleton == null) {
-                log.warn("[MealPlan] AI returned null, fallback to template. planId={}", mealPlan.getId());
-            } else {
-                validateAiSkeleton(skeleton);
-                logAiResponseSummary(skeleton);
-                int dayCount = (skeleton.getDays() == null ? 0 : skeleton.getDays().size());
-                log.info("[MealPlan] AI call success planId={}, days={}", mealPlan.getId(), dayCount);
-                generationSource = "AI";
-            }
-        } catch (BusinessException e) {
-            log.warn("[MealPlan] AI invalid, fallback to template. planId={}, reason={}",
-                    mealPlan.getId(), e.getMessage());
-            skeleton = null;
-        } catch (Exception e) {
-            log.warn("[MealPlan] AI failed, fallback to template. planId={}, reason={}",
-                    mealPlan.getId(), e.getMessage());
-            skeleton = null;
-        }
-
-        List<MealPlanDay> days = new ArrayList<>();
-        Map<Long, List<MealItem>> itemsByDayId = new HashMap<>();
-
+        List<MealPlanDay> allDays = new ArrayList<>();
         for (int i = 0; i < DEFAULT_PLAN_DAYS; i++) {
-            LocalDate date = startDate.plusDays(i);
-
             MealPlanDay day = MealPlanDay.builder()
                     .mealPlanId(mealPlan.getId())
-                    .planDate(date)
+                    .planDate(startDate.plusDays(i))
                     .dayIndex(i + 1)
                     .totalCalories(0)
+                    .isStamped(false)
                     .build();
-
             mealPlanMapper.insertMealPlanDay(day);
-            days.add(day);
+            allDays.add(day);
+        }
 
+        // Base Payload for AI
+        Map<String, Object> basePayload = new HashMap<>();
+        basePayload.put("targetCaloriesPerDay", targetKcalPerDay);
+        basePayload.put("mealsPerDay", mealsPerDay);
+        basePayload.put("monthlyBudget", request != null ? request.getMonthlyBudget() : null);
+        basePayload.put("preferences", request != null ? request.getPreferences() : List.of());
+        basePayload.put("allergies", request != null ? request.getAllergies() : List.of());
+        basePayload.put("goalType", user.getGoalType() != null ? user.getGoalType().name() : "MAINTAIN");
+
+        // 2. Generate First Week (Sync) - Days 0-6
+        log.info("[MealPlan] Generating Week 1 Sync...");
+        generateAndSaveChunk(mealPlan, allDays, basePayload, 0, 7, targetKcalPerDay, mealsPerDay);
+
+        // 3. Generate Remaining Weeks (Async) - Days 7-29
+        // We use CompletableFuture to run this in background without blocking response
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                generateRemainingWeeksParallel(mealPlan, allDays, basePayload, targetKcalPerDay, mealsPerDay);
+            } catch (Exception e) {
+                log.error("[MealPlan] Async generation failed for planId={}", mealPlan.getId(), e);
+            }
+        });
+
+        // 4. Return Response (Contains populated Week 1 and empty subsequent weeks)
+        return getMealPlan(mealPlan.getId());
+    }
+
+    private void generateRemainingWeeksParallel(
+            MealPlan mealPlan,
+            List<MealPlanDay> allDays,
+            Map<String, Object> basePayload,
+            int targetKcal,
+            int mealsPerDay
+    ) {
+        log.info("[MealPlan] Starting Async Parallel Generation for remaining weeks...");
+        
+        // Define chunks for remaining days (e.g. 7-13, 14-20, 21-29)
+        List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
+        
+        // From day 7 to 29
+        for (int offset = 7; offset < DEFAULT_PLAN_DAYS; offset += AI_CHUNK_DAYS) {
+            int currentOffset = offset;
+            int limit = Math.min(AI_CHUNK_DAYS, DEFAULT_PLAN_DAYS - currentOffset);
+            
+            // Create a parallel task for each chunk
+            futures.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
+                log.info("[MealPlan] Parallel Chunk Start offset={}", currentOffset);
+                generateAndSaveChunk(mealPlan, allDays, basePayload, currentOffset, limit, targetKcal, mealsPerDay);
+            }));
+        }
+
+        // Wait for all parallel chunks to complete
+        java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0])).join();
+        log.info("[MealPlan] Async Parallel Generation Completed for planId={}", mealPlan.getId());
+    }
+
+    private void generateAndSaveChunk(
+            MealPlan mealPlan,
+            List<MealPlanDay> allDays,
+            Map<String, Object> basePayload,
+            int offset,
+            int limit,
+            int targetKcal,
+            int mealsPerDay
+    ) {
+        LocalDate chunkStart = mealPlan.getStartDate().plusDays(offset);
+        
+        Map<String, Object> payload = new HashMap<>(basePayload);
+        payload.put("startDate", chunkStart.format(DF));
+        payload.put("totalDays", limit);
+
+        AiMonthlySkeletonResponse skeleton = null;
+        try {
+            skeleton = dietAiClient.generateMonthlySkeleton(payload);
+        } catch (Exception e) {
+            log.warn("[MealPlan] AI failed for chunk offset={}, reason={}", offset, e.getMessage());
+        }
+
+        // Calculate Meal Targets
+        List<String> mealTimesForDay = switch (mealsPerDay) {
+            case 1 -> List.of("LUNCH");
+            case 2 -> List.of("BREAKFAST", "DINNER");
+            default -> List.of("BREAKFAST", "LUNCH", "DINNER");
+        };
+        Map<String, Integer> mealTargets = distributeCalories(targetKcal, mealTimesForDay);
+
+        // Save Items
+        for (int i = 0; i < limit; i++) {
+            int dayIndex = offset + i; // 0-based global index
+            if (dayIndex >= allDays.size()) break;
+
+            MealPlanDay day = allDays.get(dayIndex);
             List<MealItem> itemsForDay;
-            List<String> mealTimesForDay = switch (mealsPerDay) {
-                case 1 -> List.of("LUNCH");
-                case 2 -> List.of("BREAKFAST", "DINNER");
-                default -> List.of("BREAKFAST", "LUNCH", "DINNER");
-            };
-            Map<String, Integer> mealTargets = distributeCalories(targetKcalPerDay, mealTimesForDay);
 
             if (skeleton != null) {
-                itemsForDay = buildItemsFromAiWithFixedRules(
-                        skeleton,
-                        i,
-                        day.getId(),
-                        mealsPerDay,
-                        mealTargets
-                );
-                if (itemsForDay.isEmpty()) {
-                    log.warn("[MealPlan] AI items empty planId={}, dayIndex={}", mealPlan.getId(), i + 1);
-                }
+                // Determine logic day index within skeleton (0 to limit-1)
+                itemsForDay = buildItemsFromAiWithFixedRules(skeleton, i, day.getId(), mealsPerDay, mealTargets);
             } else {
-                itemsForDay = buildItemsFromTemplate(day.getId(), targetKcalPerDay, mealsPerDay);
+                itemsForDay = buildItemsFromTemplate(day.getId(), targetKcal, mealsPerDay);
             }
 
-            for (MealItem item : itemsForDay) {
-                mealPlanMapper.insertMealItem(item);
-            }
-
-            int totalCaloriesForDay = 0;
-            Integer sumFromDb = mealPlanMapper.sumMealItemCaloriesByDayId(day.getId());
-            if (sumFromDb != null) {
-                totalCaloriesForDay = sumFromDb;
-            }
-
-            day.setTotalCalories(totalCaloriesForDay);
-            mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
-
-            if (skeleton != null && skeleton.getDays() != null && skeleton.getDays().size() > i) {
-                AiMonthlySkeletonResponse.AiDaySkeleton aiDay = skeleton.getDays().get(i);
-                if (aiDay != null && aiDay.getTotalCalories() != null) {
-                    int diff = totalCaloriesForDay - aiDay.getTotalCalories();
-                    if (diff != 0) {
-                        log.info("[DAY_CAL_DIFF] dayIndex={}, ai={}, server={}, diff={}",
-                                i + 1, aiDay.getTotalCalories(), totalCaloriesForDay, diff);
-                    }
-                }
-            }
-
-            itemsByDayId.put(day.getId(), itemsForDay);
+            // Using synchronized block or transaction might be needed if strictly enforcing transactional integrity,
+            // but for bulk insert in separate logic, calling mapper directly is fine.
+            // Note: Since we are in a async thread, we don't have the parent transaction.
+            // Ideally we should wrap this in a transaction or save safely.
+            saveItemsForDay(day, itemsForDay);
         }
-
-        List<MealPlanDaySummaryResponse> daySummaries = days.stream()
-                .map(d -> MealPlanDaySummaryResponse.from(d, itemsByDayId.getOrDefault(d.getId(), List.of())))
-                .toList();
-
-        MealPlanOverviewResponse resp = MealPlanOverviewResponse.of(mealPlan, daySummaries);
-        log.info("[MealPlan] created planId={}, source={}", mealPlan.getId(), generationSource);
-        return resp;
     }
 
-    private AiMonthlySkeletonResponse generateAiSkeletonInChunks(
-            Long planId,
-            LocalDate startDate,
-            int totalDays,
-            Map<String, Object> basePayload
-    ) {
-        List<AiMonthlySkeletonResponse.AiDaySkeleton> merged = new ArrayList<>();
-
-        for (int offset = 0; offset < totalDays; offset += AI_CHUNK_DAYS) {
-            int chunkDays = Math.min(AI_CHUNK_DAYS, totalDays - offset);
-            LocalDate chunkStart = startDate.plusDays(offset);
-
-            Map<String, Object> payload = new HashMap<>(basePayload);
-            payload.put("startDate", chunkStart.format(DF));
-            payload.put("totalDays", chunkDays);
-
-            log.info("[MealPlan] AI chunk start planId={}, chunkStart={}, chunkDays={}",
-                    planId, chunkStart, chunkDays);
-
-            AiMonthlySkeletonResponse chunk = dietAiClient.generateMonthlySkeleton(payload);
-            if (chunk == null || chunk.getDays() == null || chunk.getDays().isEmpty()) {
-                log.warn("[MealPlan] AI chunk empty planId={}, chunkStart={}", planId, chunkStart);
-                return null;
-            }
-
-            List<AiMonthlySkeletonResponse.AiDaySkeleton> days = chunk.getDays();
-            for (int i = 0; i < chunkDays; i++) {
-                AiMonthlySkeletonResponse.AiDaySkeleton day = (i < days.size()) ? days.get(i) : null;
-                if (day == null) {
-                    log.warn("[MealPlan] AI chunk missing day planId={}, chunkStart={}, dayOffset={}",
-                            planId, chunkStart, i);
-                    return null;
-                }
-                merged.add(AiMonthlySkeletonResponse.AiDaySkeleton.builder()
-                        .dayIndex(offset + i + 1)
-                        .planDate(chunkStart.plusDays(i).format(DF))
-                        .meals(day.getMeals())
-                        .totalCalories(day.getTotalCalories())
-                        .build());
-            }
+    private void saveItemsForDay(MealPlanDay day, List<MealItem> items) {
+        for (MealItem item : items) {
+            mealPlanMapper.insertMealItem(item);
         }
-
-        return AiMonthlySkeletonResponse.builder()
-                .days(merged)
-                .build();
+        int totalCaloriesForDay = items.stream().mapToInt(MealItem::getCalories).sum();
+        day.setTotalCalories(totalCaloriesForDay);
+        mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
     }
+
+    // Removing old generateAiSkeletonInChunks as it's replaced by generateRemainingWeeksParallel
+    /*
+    private AiMonthlySkeletonResponse generateAiSkeletonInChunks(...) { ... }
+    */
 
     private List<MealItem> buildItemsFromAiWithFixedRules(
             AiMonthlySkeletonResponse skeleton,
@@ -348,37 +326,65 @@ public class MealPlanServiceImpl implements MealPlanService {
             if (mt == null) continue;
             if (!allowedMealTimes.contains(mt)) continue;
 
-            Integer mealTargetCalories = (mealTargets == null ? null : mealTargets.get(mt));
             String menuName = safeTrim(meal.getMenuName());
 
             List<AiMonthlySkeletonResponse.AiIngredient> ings =
                     (meal.getIngredients() == null) ? List.of() : meal.getIngredients();
-            int ingredientCount = ings.size();
 
             for (AiMonthlySkeletonResponse.AiIngredient ing : ings) {
                 if (ing == null) continue;
                 String ingredient = safeTrim(ing.getIngredientName());
                 if (ingredient.isEmpty()) continue;
 
-                // 1) grams 먼저 계산(또는 파생)
-                Integer grams = adjustGrams(ing.getGrams(), ingredient, ing.getCalories());
-
-                // 2) calories가 없으면 grams*kpg 우선으로 계산 (균등분배는 최후)
-                Integer calories = adjustCalories(ing.getCalories(), ingredient, mealTargetCalories, ingredientCount, grams);
-
-                // 3) calories가 바뀌었을 수 있으니 grams 한 번 더 보정 (폭발 방지 clamp 포함)
-                grams = adjustGrams(ing.getGrams(), ingredient, calories);
+                // 1) grams 확정
+                Integer grams = adjustGrams(ing.getGrams(), ingredient);
 
                 String memo = menuName.isEmpty() ? "AI" : menuName;
 
-                result.add(MealItem.builder()
+                // 2) 객체 생성 (일단 칼로리 0으로 생성)
+                MealItem item = MealItem.builder()
                         .mealPlanDayId(mealPlanDayId)
                         .mealTime(mt)
                         .foodName(ingredient)
                         .grams(grams)
-                        .calories(calories)
+                        .calories(0)
                         .memo(memo)
-                        .build());
+                        .build();
+                
+                // 3) 정밀 영양 분석 엔진 돌리기 (Calories, Carbs, Protein, Fat 계산)
+                calculateAndSetNutrients(item);
+
+                // 중복 허용: AI가 보낸 그대로 추가
+                result.add(item);
+            }
+        }
+
+        // =========================================================
+        // 3) Post-Scaling: 총 칼로리가 목표 대비 너무 낮거나 높으면 전체적으로 조정
+        // =========================================================
+        if (mealTargets != null) {
+            int targetTotal = mealTargets.values().stream().mapToInt(Integer::intValue).sum();
+            int currentTotal = result.stream().mapToInt(MealItem::getCalories).sum();
+            
+            // 오차 범위 10% 초과 시 양방향 스케일링 수행
+            if (targetTotal > 0 && currentTotal > 0 && 
+               (currentTotal < targetTotal * 0.9 || currentTotal > targetTotal * 1.1)) {
+                
+                double scale = (double) targetTotal / currentTotal;
+                // 안전 장치: 최대 1.5배 증량, 최소 0.5배 감량
+                scale = Math.max(0.5, Math.min(1.5, scale));
+                
+                log.info("[SCALING_APPLIED] target={} current={} scale={}", targetTotal, currentTotal, String.format("%.2f", scale));
+                
+                List<MealItem> scaledItems = new ArrayList<>();
+                for (MealItem item : result) {
+                    int newGrams = (int) Math.round(item.getGrams() * scale);
+                    // Re-calculate nutrients based on new grams
+                    item.setGrams(newGrams);
+                    calculateAndSetNutrients(item);
+                    scaledItems.add(item);
+                }
+                return scaledItems;
             }
         }
 
@@ -428,162 +434,73 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     // =========================
-    // grams / calories 보정
+    // 정밀 영양 분석 엔진
     // =========================
 
-    private Integer adjustGrams(Integer grams, String ingredientName, Integer calories) {
-        int max = maxGramsFor(ingredientName);
-
-        // 1) AI grams 우선
+    private Integer adjustGrams(Integer grams, String ingredientName) {
+        // 1) AI grams 무조건 신뢰
         if (grams != null && grams > 0) {
-            int adjusted = clamp(grams, 10, max);
-            if (adjusted != grams) {
-                log.info("[GRAMS_CLAMP] ingredient={}, {} -> {}", ingredientName, grams, adjusted);
-            }
-            return adjusted;
+            return grams;
         }
-
-        // 2) grams 없으면 calories/kpg로 파생
-        if (calories != null && calories > 0) {
-            double kcalPerGram = kcalPerGramFor(ingredientName);
-            int derived = (int) Math.round(calories / kcalPerGram);
-            int clamped = clamp(derived, 10, max);
-            log.info("[GRAMS_DERIVE] ingredient={}, cal={}, kpg={} -> {}",
-                    ingredientName, calories, String.format(Locale.US, "%.2f", kcalPerGram), clamped);
-            return clamped;
-        }
-
-        // 3) 최종 fallback
-        int fallback = 100;
-        int adjusted = clamp(fallback, 10, max);
-        log.info("[GRAMS_DEFAULT] ingredient={}, null -> {}", ingredientName, adjusted);
-        return adjusted;
+        // 2) 없으면 기본값 (추후 고도화 가능)
+        return 100;
     }
 
-    private Integer adjustCalories(Integer calories, String ingredientName, Integer mealCalories, int ingredientCount, Integer grams) {
-        // 1) AI calories 우선
-        if (calories != null) {
-            int adjusted = clamp(calories, 0, 2000);
-            if (adjusted != calories) {
-                log.info("[CAL_CLAMP] ingredient={}, {} -> {}", ingredientName, calories, adjusted);
-            }
-            return adjusted;
+    private void calculateAndSetNutrients(MealItem item) {
+        // 공백을 제거하여 "기름 뺀" -> "기름뺀"으로 인식하게 함
+        String n = normalizeName(item.getFoodName()).replace(" ", "");
+        int grams = item.getGrams();
+        
+        double kpg = 1.2;
+        double cRatio = 0.4; double pRatio = 0.3; double fRatio = 0.3;
+
+        // 1. 예외 처리 강화 (공백 제거 상태로 체크)
+        boolean isFatRemoved = n.contains("기름뺀") || n.contains("기름제거") || n.contains("지방제거") || n.contains("저지방") || n.contains("언스위트");
+
+        // 2. 우선순위 재배치: 음료/대체유를 최우선으로 (Tier 0)
+        if (containsAny(n, "아몬드브리즈", "아몬드유", "almondbreeze", "almondmilk", "우유", "두유", "음료")) {
+            kpg = 0.3; cRatio = 0.5; pRatio = 0.2; fRatio = 0.3;
+        }
+        // 3. 저지방 단백질 (참치 기름 뺀 것 등은 여기서 먼저 걸러짐)
+        else if (isFatRemoved || containsAny(n, "닭가슴살", "흰살생선", "새우", "오징어", "참치", "계란", "달걀", "명태", "동태")) {
+            kpg = 1.2; cRatio = 0.05; pRatio = 0.85; fRatio = 0.10;
+        }
+        // 4. 순수 유지류 (isFatRemoved가 아님이 보장됨)
+        else if (containsAny(n, "oil", "butter", "기름", "오일", "버터", "마요네즈", "참기름", "들기름", "식용유")) {
+            kpg = 8.5; cRatio = 0.0; pRatio = 0.0; fRatio = 1.0;
+        }
+        // 5. 조리된 면/빵류 (상수 하향: 2.5 -> 1.5)
+        else if (containsAny(n, "면", "국수", "파스타", "라면", "칼국수", "우동", "잔치국수", "빵", "베이글", "떡")) {
+            kpg = 1.5; cRatio = 0.80; pRatio = 0.12; fRatio = 0.08;
+        }
+        // [Tier 2] 견과류
+        else if (containsAny(n, "nuts", "almond", "peanut", "walnut", "견과", "아몬드", "땅콩", "호두")) {
+            kpg = 6.0; cRatio = 0.15; pRatio = 0.15; fRatio = 0.70;
+        }
+        // [Tier 3] 고지방 단백질
+        else if (containsAny(n, "pork", "belly", "beef", "mackerel", "salmon", "돼지", "삼겹살", "소고기", "쇠고기", "고등어", "연어", "갈비")) {
+            kpg = 2.5; cRatio = 0.05; pRatio = 0.40; fRatio = 0.55;
+        }
+        // [Tier 5] 밥/구황작물
+        else if (containsAny(n, "밥", "현미", "고구마", "감자", "옥수수", "rice", "potato")) {
+            kpg = 1.4; cRatio = 0.88; pRatio = 0.08; fRatio = 0.04;
+        }
+        // [Tier 8] 양념
+        else if (containsAny(n, "sauce", "장", "소스", "양념", "케찹", "마요")) {
+            kpg = 1.6; cRatio = 0.6; pRatio = 0.2; fRatio = 0.2;
+        }
+        // [Tier 9] 채소
+        else if (containsAny(n, "샐러드", "김치", "배추", "숙주", "나물", "채소", "상추", "깻잎", "오이", "당근", "버섯", "브로콜리")) {
+            kpg = 0.35; cRatio = 0.70; pRatio = 0.20; fRatio = 0.10;
         }
 
-        // 2) grams가 있으면 grams*kpg로 calories 파생 (균등분배보다 우선)
-        if (grams != null && grams > 0) {
-            double kpg = kcalPerGramFor(ingredientName);
-            int derived = (int) Math.round(grams * kpg);
-            int clamped = clamp(derived, 0, 2000);
-            log.info("[CAL_FROM_GRAMS] ingredient={}, grams={}, kpg={} -> {}",
-                    ingredientName, grams, String.format(Locale.US, "%.2f", kpg), clamped);
-            return clamped;
-        }
-
-        // 3) 최후에만 균등분배
-        if (mealCalories != null && ingredientCount > 0) {
-            int derived = (int) Math.round(mealCalories / (double) ingredientCount);
-            int clamped = clamp(derived, 0, 2000);
-            log.info("[CAL_DERIVE] ingredient={}, mealCal={}, count={} -> {}",
-                    ingredientName, mealCalories, ingredientCount, clamped);
-            return clamped;
-        }
-
-        return 0;
-    }
-
-    private int maxGramsFor(String ingredientName) {
-        String n = normalizeName(ingredientName);
-        if (n.isEmpty()) return 600;
-
-        // 지방류(오일/버터/치즈/견과 등) -> 상한 낮게
-        if (containsAny(n,
-                "oil", "olive", "butter", "mayo", "mayonnaise", "cream", "cheese",
-                "nuts", "almond", "peanut", "walnut", "avocado",
-                "기름", "오일", "올리브유", "참기름", "들기름", "식용유",
-                "버터", "마요", "마요네즈", "크림", "치즈",
-                "견과", "아몬드", "땅콩", "호두", "아보카도"
-        )) {
-            return 80;
-        }
-
-        // 소스/양념류
-        if (containsAny(n,
-                "sauce", "soy sauce", "gochujang", "doenjang", "ketchup",
-                "소스", "간장", "고추장", "된장", "케찹"
-        )) {
-            return 120;
-        }
-
-        // 채소/과일류 -> 폭발 방지 상한
-        if (containsAny(n,
-                "salad", "lettuce", "spinach", "broccoli", "cabbage", "tomato", "cucumber", "carrot",
-                "apple", "banana", "grape", "orange", "berry",
-                "샐러드", "양상추", "상추", "시금치",
-                "브로콜리", "양배추", "토마토", "오이", "당근",
-                "사과", "바나나", "포도", "오렌지", "딸기"
-        )) {
-            return 300;
-        }
-
-        return 600;
-    }
-
-    private double kcalPerGramFor(String ingredientName) {
-        String normalized = normalizeName(ingredientName);
-        if (normalized.isEmpty()) {
-            return 1.0;
-        }
-
-        // FAT (오일/치즈/견과 등)
-        if (containsAny(normalized,
-                "oil", "olive", "olive oil", "butter", "mayo", "mayonnaise", "cream", "cheese",
-                "nuts", "almond", "peanut", "walnut", "avocado",
-                "기름", "오일", "올리브유", "참기름", "들기름", "식용유",
-                "버터", "마요", "마요네즈", "크림", "치즈",
-                "견과", "아몬드", "땅콩", "호두", "아보카도"
-        )) {
-            return 7.5;
-        }
-
-        // CARB (밥/면/빵 등)
-        if (containsAny(normalized,
-                "rice", "noodle", "ramen", "pasta", "bread", "oat", "oatmeal", "potato", "sweet potato",
-                "밥", "쌀", "현미", "잡곡", "국수", "면", "라면",
-                "파스타", "빵", "오트밀", "감자", "고구마"
-        )) {
-            return 2.5;
-        }
-
-        // PROTEIN (고기/생선/계란/두부)
-        if (containsAny(normalized,
-                "chicken", "beef", "pork", "fish", "salmon", "tuna", "shrimp", "egg", "tofu",
-                "닭", "닭가슴살", "소고기", "쇠고기", "돼지고기",
-                "생선", "연어", "참치", "새우", "계란", "달걀", "두부"
-        )) {
-            return 2.0;
-        }
-
-        // VEG / FRUIT (채소/과일) : 너무 낮게 두면 grams 폭발 -> 0.45로 상향
-        if (containsAny(normalized,
-                "salad", "lettuce", "spinach", "broccoli", "cabbage", "tomato", "cucumber", "carrot",
-                "apple", "banana", "grape", "orange", "berry",
-                "샐러드", "양상추", "상추", "시금치",
-                "브로콜리", "양배추", "토마토", "오이", "당근",
-                "사과", "바나나", "포도", "오렌지", "딸기"
-        )) {
-            return 0.45;
-        }
-
-        // SAUCE
-        if (containsAny(normalized,
-                "sauce", "soy sauce", "gochujang", "doenjang", "ketchup",
-                "소스", "간장", "고추장", "된장", "케찹"
-        )) {
-            return 1.0;
-        }
-
-        return 1.0;
+        // 최종 산출
+        int totalKcal = (int) Math.round(grams * kpg);
+        item.setCalories(totalKcal);
+        item.setCarbs((int) Math.round((totalKcal * cRatio) / 4.0));
+        item.setProtein((int) Math.round((totalKcal * pRatio) / 4.0));
+        item.setFat((int) Math.round((totalKcal * fRatio) / 9.0));
+        item.setIsHighProtein((item.getProtein() * 4.0) >= (totalKcal * 0.3));
     }
 
     private String normalizeName(String ingredientName) {
@@ -724,43 +641,85 @@ public class MealPlanServiceImpl implements MealPlanService {
         String traceId = currentTraceId();
         log.info("[SHOPPING_LIST][{}] INGREDIENT_SUMMARY top10={}", traceId, buildIngredientSummary(ingredients));
 
-        Map<String, String> keywordByKey = new LinkedHashMap<>();
+        // A2-R4 Budget Allocation
+        int planMonthlyBudget = (plan.getMonthlyBudget() != null && plan.getMonthlyBudget() > 0) 
+                ? plan.getMonthlyBudget().intValue() : 300000;
+        
+        double rangeFraction = 1.0;
+        if ("WEEK".equalsIgnoreCase(range)) rangeFraction = 7.0 / 30.0;
+        else if ("TODAY".equalsIgnoreCase(range)) rangeFraction = 1.0 / 30.0;
+        
+        int rangeBudget = (int) (planMonthlyBudget * rangeFraction);
+
+        // Calculate Weights & Total
+        double totalWeight = 0.0;
+        Map<String, Double> weightMap = new HashMap<>();
         for (MealPlanIngredientResponse ing : ingredients) {
-            String ingredientName = safeTrim(ing.getIngredientName());
-            if (ingredientName.isEmpty()) continue;
-            String key = normalizeCacheKey(ingredientName);
-            if (key.isEmpty()) continue;
-            keywordByKey.putIfAbsent(key, ingredientName);
+             String name = safeTrim(ing.getIngredientName());
+             if (name.isEmpty()) continue;
+             
+             double weight = 1.0;
+             if (ing.getDaysCount() != null && ing.getDaysCount() > 0) {
+                 weight = ing.getDaysCount() * 10.0; // Day count has high priority
+             } else if (toLongSafe(ing.getTotalGram()) != null) {
+                 weight = toLongSafe(ing.getTotalGram()) / 100.0; // 100g = 1 point
+             }
+             weightMap.put(name, weight);
+             totalWeight += weight;
         }
+        if (totalWeight <= 0) totalWeight = 1.0;
 
-        Map<String, ProductLookup> lookupByKey = new HashMap<>();
-        for (Map.Entry<String, String> entry : keywordByKey.entrySet()) {
-            lookupByKey.put(entry.getKey(), getRepresentativeProductCached(entry.getValue()));
-        }
+        // Parallel Processing for faster shopping list generation (Search + AI)
+        double finalTotalWeight = totalWeight; // effectively final for lambda
+        List<ShoppingListResponse.ShoppingItem> items = ingredients.parallelStream()
+            .map(ing -> {
+                String ingredientName = safeTrim(ing.getIngredientName());
+                if (ingredientName.isEmpty()) return null;
 
-        List<ShoppingListResponse.ShoppingItem> items = new ArrayList<>();
+                Long totalGram = toLongSafe(ing.getTotalGram());
+                if (totalGram == null || totalGram <= 0) return null;
 
-        for (MealPlanIngredientResponse ing : ingredients) {
-            String ingredientName = safeTrim(ing.getIngredientName());
-            if (ingredientName.isEmpty()) continue;
+                Integer totalCalories = toIntSafe(ing.getTotalCalories());
+                
+                // Calculate Allocated Budget
+                double weight = weightMap.getOrDefault(ingredientName, 1.0);
+                int allocated = (int) (rangeBudget * (weight / finalTotalWeight));
+                
+                // Clamp (Min 2k, Max 30k)
+                if (allocated < 2000) allocated = 2000;
+                if (allocated > 30000) allocated = 30000;
 
-            Long totalGram = toLongSafe(ing.getTotalGram());
-            if (totalGram == null || totalGram <= 0) continue;
+                ProductLookup lookup = getRepresentativeProductCached(ingredientName, allocated);
 
-            Integer totalCalories = toIntSafe(ing.getTotalCalories());
+                // Calculate recommended purchase count (PRD 6.3)
+                Integer packageGram = 0;
+                Integer recommendedCount = 1; // Default 1
 
-            String key = normalizeCacheKey(ingredientName);
-            ProductLookup lookup = lookupByKey.getOrDefault(key, getRepresentativeProductCached(ingredientName));
+                if (lookup.product != null && lookup.product.getPackageGram() != null && lookup.product.getPackageGram() > 0) {
+                     packageGram = lookup.product.getPackageGram();
+                     // ceil(totalGram / packageGram)
+                     recommendedCount = (int) Math.ceil((double) totalGram / packageGram);
+                }
 
-            items.add(ShoppingListResponse.ShoppingItem.builder()
-                    .ingredientName(ingredientName)
-                    .totalGram(totalGram)
-                    .totalCalories(totalCalories)
-                    .daysCount(ing.getDaysCount())
-                    .product(lookup.product)
-                    .source(lookup.source)
-                    .build());
-        }
+                // PRD 8. Logging
+                if (lookup.product != null) {
+                    log.info("[SHOPPING_ITEM] ingredient={} product=\"{}\" budget={} totalGram={} pkgGram={} recCount={} source={}", 
+                            ingredientName, lookup.product.getProductName(), allocated, totalGram, packageGram, recommendedCount, lookup.source);
+                }
+
+                return ShoppingListResponse.ShoppingItem.builder()
+                        .ingredientName(ingredientName)
+                        .totalGram(totalGram)
+                        .totalCalories(totalCalories)
+                        .daysCount(ing.getDaysCount())
+                        .product(lookup.product)
+                        .source(lookup.source)
+                        .packageGram(packageGram)
+                        .recommendedCount(recommendedCount)
+                        .build();
+            })
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toList());
 
         String overallSource = items.stream().anyMatch(i -> "REAL".equals(i.getSource())) ? "REAL" : "MOCK";
         String normalizedRange = (range == null || range.isBlank()) ? "MONTH" : range.trim().toUpperCase();
@@ -770,6 +729,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .range(normalizedRange)
                 .startDate(w.from)
                 .endDate(w.to)
+                .budget((long) rangeBudget) // ✅ Set the calculated range budget
                 .source(overallSource)
                 .items(items)
                 .build();
@@ -784,34 +744,37 @@ public class MealPlanServiceImpl implements MealPlanService {
         }
     }
 
-    private ProductLookup getRepresentativeProductCached(String ingredientName) {
+    private ProductLookup getRepresentativeProductCached(String ingredientName, int allocatedBudget) {
         String traceId = currentTraceId();
-        String key = normalizeCacheKey(ingredientName);
-        if (key.isEmpty()) {
+        
+        // A2-R5 Cache Key Improvement: ingredient + priceBucket
+        // Bucket size: 2000 KRW
+        int bucket = (allocatedBudget / 2000) * 2000;
+        String normalizedName = normalizeCacheKey(ingredientName);
+        String key = normalizedName + ":" + bucket;
+
+        if (normalizedName.isEmpty()) {
             return new ProductLookup(null, "MOCK");
         }
 
         CachedProduct cached = productCache.get(key);
         if (cached != null && !cached.isExpired()) {
             // ✅ 캐시된 상품도 재검증 (Banned Keyword 체크)
-            // cached.product가 null이면 (이전에 검색 결과 없음으로 캐싱됨) 검증 패스
             if (cached.product == null || categoryService.isValidProductTitle(cached.product.getProductName())) {
-                log.info("[SHOPPING_LIST][{}] CACHE_HIT ingredient={}", traceId, ingredientName);
+                log.info("[SHOPPING_LIST][{}] CACHE_HIT ingredient={} key={}", traceId, ingredientName, key);
                 return new ProductLookup(cached.product, normalizeSource(cached.source));
             } else {
-                log.info("[SHOPPING_LIST][{}] CACHE_INVALIDATED ingredient={} reason=BANNED_KEYWORD product=\"{}\"", 
-                        traceId, ingredientName, cached.product.getProductName());
+                 log.info("[SHOPPING_LIST][{}] CACHE_INVALIDATED ingredient={} reason=BANNED_KEYWORD", traceId, ingredientName);
             }
         }
-        log.info("[SHOPPING_LIST][{}] CACHE_MISS ingredient={}", traceId, ingredientName);
+        log.info("[SHOPPING_LIST][{}] CACHE_MISS ingredient={} key={} budget={}", traceId, ingredientName, key, allocatedBudget);
 
         ShoppingListResponse.ProductCard product = null;
         String source = "MOCK";
 
         try {
-            log.info("[SHOPPING_LIST][{}] SEARCH_REQ ingredient={} keyword=\"{}\" limit={}",
-                    traceId, ingredientName, ingredientName, SHOPPING_SEARCH_TOP_N);
-            ShoppingService.SearchOneResult r = shoppingService.searchOne(ingredientName);
+            // A2-R3 Call with allocatedBudget
+            ShoppingService.SearchOneResult r = shoppingService.searchOne(ingredientName, allocatedBudget);
             if (r != null) {
                 product = r.product();
                 source = normalizeSource(r.source());
@@ -1071,6 +1034,10 @@ public class MealPlanServiceImpl implements MealPlanService {
                             .foodName(it.getFoodName())
                             .calories(it.getCalories())
                             .grams(it.getGrams())
+                            .carbs(it.getCarbs())
+                            .protein(it.getProtein())
+                            .fat(it.getFat())
+                            .isHighProtein(it.getIsHighProtein())
                             .memo(it.getMemo())
                             .build())
                     .toList();
@@ -1091,6 +1058,10 @@ public class MealPlanServiceImpl implements MealPlanService {
                         .foodName(it.getFoodName())
                         .calories(it.getCalories())
                         .grams(it.getGrams())
+                        .carbs(it.getCarbs())
+                        .protein(it.getProtein())
+                        .fat(it.getFat())
+                        .isHighProtein(it.getIsHighProtein())
                         .memo(it.getMemo())
                         .build())
                 .toList();
@@ -1099,9 +1070,21 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .dayId(day.getId())
                 .date(day.getPlanDate().toString())
                 .totalCalories(day.getTotalCalories())
+                .isStamped(day.getIsStamped() != null && day.getIsStamped())
                 .items(flatItems)
                 .meals(meals)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void stampDay(Long dayId) {
+        MealPlanDay day = mealPlanMapper.findMealPlanDayById(dayId);
+        if (day == null) throw new BusinessException("존재하지 않는 날짜입니다. id=" + dayId);
+
+        day.setIsStamped(true);
+        mealPlanMapper.updateMealPlanDayStamp(dayId, true);
+        log.info("[MealPlan] stampDay dayId={}", dayId);
     }
     
     private int compareMealTimes(String t1, String t2) {
@@ -1131,7 +1114,8 @@ public class MealPlanServiceImpl implements MealPlanService {
         mealIntakeMapper.deleteByDayId(plan.getUserId(), dayId);
 
         // 1. 기존 데이터 삭제
-        mealPlanMapper.deleteMealItemsByDayId(dayId);
+        int deleted = mealPlanMapper.deleteMealItemsByDayId(dayId);
+        log.info("[MealPlan] regenerateDay dayId={} deletedItems={}", dayId, deleted);
 
         // 2. AI 생성 (1일치)
         int targetKcal = plan.getTargetCaloriesPerDay();
@@ -1166,7 +1150,8 @@ public class MealPlanServiceImpl implements MealPlanService {
         mealIntakeMapper.deleteByDayIdAndMealTime(plan.getUserId(), dayId, normalizedMealTime);
 
         // 1. 해당 끼니 삭제
-        mealPlanMapper.deleteMealItemsByDayIdAndMealTime(dayId, normalizedMealTime);
+        int deleted = mealPlanMapper.deleteMealItemsByDayIdAndMealTime(dayId, normalizedMealTime);
+        log.info("[MealPlan] replaceMeal dayId={} mealTime={} deletedItems={}", dayId, normalizedMealTime, deleted);
 
         // 2. AI 생성 (1일치 생성 후 해당 끼니만 추출)
         // 효율성을 위해 전체 하루를 생성하고 필요한 끼니만 골라냅니다.
@@ -1181,6 +1166,8 @@ public class MealPlanServiceImpl implements MealPlanService {
         List<MealItem> targetItems = allNewItems.stream()
                 .filter(item -> item.getMealTime().equals(normalizedMealTime))
                 .toList();
+        
+        log.info("[MealPlan] replaceMeal generated items for insert={}", targetItems.size());
 
         // 3. 저장
         for (MealItem item : targetItems) {

@@ -2,7 +2,7 @@
   <div class="landing-page">
     <header class="landing-header">
       <div class="header-content">
-        <h1 class="logo">남남코치</h1>
+        <img src="/images/brand-logo.png" alt="남남코치" class="logo-img" />
         <div class="cta-group">
           <router-link to="/login" class="btn btn-secondary">로그인</router-link>
           <router-link to="/signup" class="btn btn-primary">회원가입</router-link>
@@ -85,11 +85,10 @@
   align-items: center;
 }
 
-.logo {
-  font-size: 24px;
-  font-weight: 800;
-  color: #3b82f6;
-  margin: 0;
+.logo-img {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
 }
 
 .cta-group {

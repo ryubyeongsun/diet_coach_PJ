@@ -50,49 +50,46 @@ public class DietAiClient {
 
     private AiMonthlySkeletonResponse callOnce(Map<String, Object> payload) throws Exception {
         String system = """
-            You are a diet planning assistant.
-            Output MUST be valid JSON only. No markdown. No extra text.
-            Follow this fixed schema exactly:
-
-            {
-              "days":[
-                {
-                  "dayIndex":1,
-                  "planDate":"2025-12-01",
-                  "meals":[
-                    {
-                      "mealTime":"BREAKFAST",
-                      "menuName":"오트밀 볼",
-                      "ingredients":["오트밀","우유","바나나"],
-                      "calories":450
-                    }
-                  ]
-                }
-              ]
-            }
+            Role: Professional Clinical Dietitian & Budget Analyst.
+            Constraint: You must think step-by-step to calculate nutrition and cost before outputting JSON.
 
             Rules:
-            - mealTime must be one of BREAKFAST|LUNCH|DINNER|SNACK
-            - planDate format yyyy-MM-dd
-            - ingredients must be keyword list (no grams, no prices)
-            - menuName and ingredients must be Korean (Hangul). Do NOT use English.
+            1. VARIETY: NEVER repeat the same 'menuName' or same meal combination across the plan. Do not use the same ingredient twice in one meal (e.g. no Chicken Breast twice in Lunch).
+            2. CALORIE PRECISION: 'actualTotalKcal' MUST be the exact sum of all ingredients' 'kcal' in that day.
+            3. STANDARD DATA: Use standard nutritional data for COOKED food (e.g., Cooked Rice 100g = ~130kcal, Cooked Chicken Breast 100g = ~110kcal, Veggies 100g = ~30kcal).
+            4. ALLERGY SAFETY: Strictly exclude ingredients based on the provided allergy list. If Milk is listed, exclude: milk, cheese, yogurt, butter, cream, and any dairy.
+            5. PORTION REALISM: For high-calorie goals (e.g., 2800kcal), increase portion sizes (e.g., 200-300g of rice, 150-200g of protein) instead of adding unrealistic side dishes.
+            6. JSON ONLY: No markdown, no conversational text. Return only the raw JSON.
+            7. DATA TYPE: Ensure 'grams', 'kcal', 'targetKcal', 'actualTotalKcal', and 'estimatedCostKrw' are NUMBERS, not strings.
+            8. LANGUAGE: All names and reasoning must be in Korean (Hangul).
             """;
+        
+        String userPrompt = toUserPrompt(payload);
+        String combinedPrompt = system + "\n\n" + userPrompt;
 
+        // Gemini Native Payload Structure
         Map<String, Object> body = Map.of(
-                "model", model,
-                "messages", List.of(
-                        Map.of("role", "developer", "content", system),
-                        Map.of("role", "user", "content", toUserPrompt(payload))
+                "contents", List.of(
+                        Map.of(
+                                "role", "user",
+                                "parts", List.of(Map.of("text", combinedPrompt))
+                        )
+                ),
+                "generationConfig", Map.of(
+                        "response_mime_type", "application/json"
                 )
         );
 
         String reqBody = objectMapper.writeValueAsString(body);
         log.info("[AI] request body size={}", reqBody.length());
 
+        // Call Gemini API (Fixed to match GMS Guideline)
         String respBody = gmsOpenAiRestClient.post()
-                .uri("/chat/completions")
+                .uri(uriBuilder -> uriBuilder
+                        .path("/generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent")
+                        .queryParam("key", apiKey)
+                        .build())
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + apiKey)
                 .body(reqBody)
                 .retrieve()
                 .body(String.class);
@@ -101,9 +98,16 @@ public class DietAiClient {
             throw new RuntimeException("AI response empty");
         }
 
-        // choices[0].message.content 가 JSON 문자열
+        // Parse Gemini Response
         JsonNode root = objectMapper.readTree(respBody);
-        String content = root.path("choices").path(0).path("message").path("content").asText();
+        
+        // Structure: candidates[0].content.parts[0].text
+        JsonNode candidates = root.path("candidates");
+        if (candidates.isEmpty()) {
+            throw new RuntimeException("AI candidates empty");
+        }
+        
+        String content = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
 
         if (content == null || content.isBlank()) {
             throw new RuntimeException("AI content empty");
@@ -117,24 +121,84 @@ public class DietAiClient {
     }
 
     private String toUserPrompt(Map<String, Object> payload) {
+        int targetKcal = (int) payload.getOrDefault("targetCaloriesPerDay", 2000);
+        int lowerBound = (int) (targetKcal * 0.97);
+        int upperBound = (int) (targetKcal * 1.03);
+        String goalType = (String) payload.getOrDefault("goalType", "MAINTAIN");
+
+        // 테마 및 세부 지침 정의
+        String themeInfo = switch (goalType) {
+            case "LOSE_WEIGHT" -> "다이어트 (체지방 감량, 고단백, 저탄수화물, 풍부한 식이섬유)";
+            case "GAIN_WEIGHT" -> "벌크업 (근육 및 체중 증량, 고단백, 고복합탄수화물, 높은 칼로리 밀도)";
+            default -> "유지 (건강한 균형식, 탄단지 5:3:2 비율 준수)";
+        };
+
         return """
         Create a %d-day meal skeleton from startDate=%s.
-        Constraints:
-        - targetCaloriesPerDay=%s
-        - mealsPerDay=%s
-        - monthlyBudget=%s
-        - preferences=%s
-        - allergies=%s
+
+        [Target User Data]
+        - Daily Goal: %d kcal (Target Tolerance: ±3%%)
+        - Goal Type: %s
+        - Diet Theme: %s
+        - Meals Per Day: %s (Ratio: Breakfast 30%% / Lunch 40%% / Dinner 30%%)
+        - Monthly Budget: %s KRW (Daily Limit: approx. 16,000 KRW)
+        - Preferences: %s
+        - Allergies: %s
+        
+        [High Calorie Rule]
+        IF targetKcal >= 2500:
+          - YOU MUST INCLUDE: at least 200g of Rice/Carb AND 150g of Protein per meal.
+          - Do not output small portions like 100g for main dishes.
+
+        [Execution Step-by-Step]
+        1. Calculate: First, determine the target kcal for each meal.
+        2. Selection: Choose diverse Korean ingredients based on the Diet Theme (%s).
+        3. Quantify: If targetKcal >= 2500, set Rice to 200g+ and Meat to 150g+. Adjust 'grams' to ensure total kcal reaches %d.
+        4. Verify: Sum all ingredient kcal for each day. If it is not within %d-%d kcal, re-adjust the portions before generating.
+        5. Diversity Check: Scan the plan to ensure no menu name is repeated.
+
+        [Schema]
+        {
+          "days": [
+            {
+              "dayIndex": 1,
+              "planDate": "yyyy-MM-dd",
+              "validation": {
+                "targetKcal": %d,
+                "actualTotalKcal": 0,
+                "estimatedCostKrw": 0,
+                "isBudgetSafe": true
+              },
+              "meals": [
+                {
+                  "mealTime": "BREAKFAST/LUNCH/DINNER/SNACK",
+                  "menuName": "Korean Menu Name",
+                  "reasoning": "Explain why this fits the theme and budget",
+                  "ingredients": [
+                    {"name": "Korean Name", "grams": 0, "kcal": 0, "costTier": "Low/Mid/High"}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
 
         Return JSON only.
         """.formatted(
                 payload.get("totalDays"),
                 payload.get("startDate"),
-                payload.get("targetCaloriesPerDay"),
+                targetKcal,
+                goalType,
+                themeInfo,
                 payload.get("mealsPerDay"),
                 payload.get("monthlyBudget"),
                 payload.get("preferences"),
-                payload.get("allergies")
+                payload.get("allergies"),
+                themeInfo,
+                targetKcal,
+                lowerBound,
+                upperBound,
+                targetKcal
         );
     }
 

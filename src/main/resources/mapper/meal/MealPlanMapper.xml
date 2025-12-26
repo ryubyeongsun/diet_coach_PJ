@@ -10,13 +10,13 @@
     </insert>
 
     <insert id="insertMealPlanDay" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO meal_plan_days (meal_plan_id, plan_date, day_index, total_calories)
-        VALUES (#{mealPlanId}, #{planDate}, #{dayIndex}, #{totalCalories})
+        INSERT INTO meal_plan_days (meal_plan_id, plan_date, day_index, total_calories, is_stamped)
+        VALUES (#{mealPlanId}, #{planDate}, #{dayIndex}, #{totalCalories}, #{isStamped})
     </insert>
 
     <insert id="insertMealItem" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO meal_items (meal_plan_day_id, meal_time, food_name, calories, grams, memo)
-        VALUES (#{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{grams}, #{memo})
+        INSERT INTO meal_items (meal_plan_day_id, meal_time, food_name, calories, grams, carbs, protein, fat, is_high_protein, memo)
+        VALUES (#{mealPlanDayId}, #{mealTime}, #{foodName}, #{calories}, #{grams}, #{carbs}, #{protein}, #{fat}, #{isHighProtein}, #{memo})
     </insert>
 
     <select id="findMealPlanById" resultType="com.dietcoach.project.domain.meal.MealPlan">
@@ -77,12 +77,16 @@
         UPDATE meal_plan_days SET total_calories = #{totalCalories} WHERE id = #{dayId}
     </update>
 
+    <update id="updateMealPlanDayStamp">
+        UPDATE meal_plan_days SET is_stamped = #{isStamped} WHERE id = #{dayId}
+    </update>
+
     <delete id="deleteMealItemsByDayId">
         DELETE FROM meal_items WHERE meal_plan_day_id = #{mealPlanDayId}
     </delete>
 
     <delete id="deleteMealItemsByDayIdAndMealTime">
-        DELETE FROM meal_items WHERE meal_plan_day_id = #{mealPlanDayId} AND meal_time = #{mealTime}
+        DELETE FROM meal_items WHERE meal_plan_day_id = #{mealPlanDayId} AND UPPER(meal_time) = UPPER(#{mealTime})
     </delete>
 
 </mapper>

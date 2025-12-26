@@ -20,9 +20,13 @@
             <span class="label">목표 예산</span>
             <span class="value">{{ monthlyBudget.toLocaleString() }}원</span>
           </div>
+          <div class="budget-row expense-actual">
+            <span class="label">실제 지출 (구매 완료)</span>
+            <span class="value">- {{ totalPurchasedAmount.toLocaleString() }}원</span>
+          </div>
           <div class="budget-row expense">
             <span class="label">지출 예정 (담은 재료)</span>
-            <span class="value">- {{ totalAmount.toLocaleString() }}원</span>
+            <span class="value">- {{ totalCartAmount.toLocaleString() }}원</span>
           </div>
           <div class="divider"></div>
           <div class="budget-row remaining">
@@ -71,11 +75,35 @@
           <li v-for="item in cartItems" :key="item.productCode" class="item-row">
             <div class="item-left">
               <span class="item-name">{{ item.name }}</span>
+              <span v-if="item.recommendedCount > 1" class="qty-badge">{{ item.recommendedCount }}개</span>
               <a v-if="item.productUrl" :href="item.productUrl" target="_blank" class="item-link">🔗</a>
             </div>
             <div class="item-right">
-              <span class="item-price">{{ (item.price * item.quantity).toLocaleString() }}원</span>
+              <span class="item-price">{{ (item.price * (item.recommendedCount || 1)).toLocaleString() }}원</span>
               <button class="remove-btn" @click="removeItem(item.productCode)">×</button>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 3. 구매 완료 목록 (실제 지출) -->
+      <section class="expense-list-card purchased-section">
+        <h2 class="purchased-title">구매 완료 목록 ({{ purchasedItems.length }}개)</h2>
+        
+        <div v-if="purchasedItems.length === 0" class="empty-state">
+          <p>아직 확정된 구매 내역이 없습니다.</p>
+        </div>
+
+        <ul v-else class="item-list">
+          <li v-for="(item, index) in purchasedItems" :key="'purchased-'+index" class="item-row is-purchased">
+            <div class="item-left">
+              <span class="status-badge">구매완료</span>
+              <span class="item-name">{{ item.name }}</span>
+              <span v-if="item.recommendedCount > 1" class="qty-badge">{{ item.recommendedCount }}개</span>
+            </div>
+            <div class="item-right">
+              <span class="item-price">{{ (item.price * (item.recommendedCount || 1)).toLocaleString() }}원</span>
+              <button class="remove-btn" @click="removePurchasedItem(index)">×</button>
             </div>
           </li>
         </ul>
@@ -90,17 +118,29 @@ import { globalState, removeFromCart } from "../utils/globalState";
 import NnButton from "../components/common/NnButton.vue";
 
 const cartItems = computed(() => globalState.cart);
+const purchasedItems = computed(() => globalState.purchasedItems);
 
 // 기본 예산 (로컬 상태)
 const monthlyBudget = ref(500000); 
 const isEditingBudget = ref(false);
 
-const totalAmount = computed(() => {
+// 지출 예정 금액 (장바구니)
+const totalCartAmount = computed(() => {
   return cartItems.value.reduce(
-    (total, item) => total + item.price * item.quantity,
+    (total, item) => total + item.price * (item.recommendedCount || 1),
     0,
   );
 });
+
+// 실제 지출 금액 (구매 확정)
+const totalPurchasedAmount = computed(() => {
+  return purchasedItems.value.reduce(
+    (total, item) => total + item.price * (item.recommendedCount || 1),
+    0,
+  );
+});
+
+const totalAmount = computed(() => totalCartAmount.value + totalPurchasedAmount.value);
 
 const remainingBudget = computed(() => {
   return monthlyBudget.value - totalAmount.value;
@@ -117,6 +157,13 @@ function toggleBudgetEdit() {
 
 function removeItem(productCode) {
   removeFromCart(productCode);
+}
+
+// 구매 이력 삭제 (가계부에서만 관리용)
+function removePurchasedItem(index) {
+  if (confirm("이 구매 기록을 삭제하시겠습니까?")) {
+    globalState.purchasedItems.splice(index, 1);
+  }
 }
 </script>
 
@@ -193,8 +240,38 @@ function removeItem(productCode) {
   margin-bottom: 8px;
 }
 
+.budget-row.expense-actual {
+  color: #374151;
+  font-weight: 600;
+}
+
 .budget-row.expense {
   color: #ef4444;
+}
+...
+.item-row.is-purchased {
+  background-color: #f9fafb;
+  padding: 12px 10px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+.status-badge {
+  font-size: 10px;
+  background-color: #374151;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.purchased-section {
+  border-top: 4px solid #f3f4f6;
+  background-color: #fafafa;
+}
+
+.purchased-title {
+  color: #6b7280 !important;
 }
 
 .budget-row.remaining {
@@ -290,6 +367,16 @@ function removeItem(productCode) {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
+}
+
+.qty-badge {
+  background-color: #ecfdf5;
+  color: #059669;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #10b981;
 }
 
 .item-link {

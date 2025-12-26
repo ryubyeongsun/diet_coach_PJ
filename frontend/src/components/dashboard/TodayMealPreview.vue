@@ -7,13 +7,15 @@
       </button>
     </div>
 
-    <div v-if="loading" class="state-msg">
-      <div class="spinner"></div> 식단 불러오는 중...
-    </div>
+      <div v-if="isLoading" class="state-msg">
+        <div class="spinner"></div> 남남코치가 식단 불러오는 중... 🥑
+      </div>
 
     <div v-else-if="!hasData" class="state-msg empty">
-      <p>오늘의 식단이 없습니다.</p>
-      <p class="sub-text">월간 식단을 생성하면 여기에 표시됩니다.</p>
+      <div class="cute-mascot">🥑</div>
+      <p class="cute-text">앗! 아직 식단이 없어요.</p>
+      <p class="sub-text">나만의 맞춤 식단을 생성하고<br/>건강한 하루를 시작해볼까요? ✨</p>
+      <button class="go-plan-btn" @click="$router.push('/meal-plans')">식단 만들러 가기</button>
     </div>
 
     <div v-else class="meal-list">
@@ -51,6 +53,16 @@
         </div>
       </div>
     </div>
+
+    <!-- Celebration Modal (Simple & Bold) -->
+    <Teleport to="body">
+      <div v-if="showCelebration" class="celebration-overlay" @click="showCelebration = false">
+        <div class="celebration-content">
+          <h1 class="celebrate-title-big">목표 달성!</h1>
+          <p class="celebrate-msg-big">오늘 하루도 건강하게 채우셨군요 ✨</p>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -58,6 +70,7 @@
 import { ref, watch, computed, onMounted } from 'vue';
 import { fetchDayDetail, upsertIntake } from '../../api/mealPlanApi';
 import { getCurrentUser } from '../../utils/auth';
+import confetti from 'canvas-confetti';
 
 const props = defineProps({
   summary: Object,
@@ -68,6 +81,7 @@ const emit = defineEmits(['update']);
 const loading = ref(false);
 const dayDetail = ref(null);
 const processingMap = ref({}); // mealTime -> boolean
+const showCelebration = ref(false);
 
 const hasData = computed(() => !!dayDetail.value);
 
@@ -80,10 +94,6 @@ const mealList = computed(() => {
     return dayDetail.value.meals;
   }
   
-  // Fallback if backend returns flat 'items' (old structure or failed migration)
-  // We can group them manually if needed, but for now let's hope backend works.
-  // If only items exist, we might not have isConsumed status properly unless we fetch intakes separately.
-  // But our backend change guarantees 'meals' field.
   return []; 
 });
 
@@ -150,8 +160,24 @@ async function onToggle(meal) {
       mealTime: mealTime,
       isConsumed: targetState
     });
-    // Emit update so parent can refresh summary (calories)
-    emit('update'); 
+    
+    // Check if all consumed to trigger celebration
+    const isAllConsumed = targetState && mealList.value.every(m => m.isConsumed);
+
+    if (isAllConsumed) {
+      triggerConfetti();
+      showCelebration.value = true;
+      
+      // Delay update to prevent component re-render (which kills the modal)
+      setTimeout(() => {
+        showCelebration.value = false;
+        emit('update'); 
+      }, 2500);
+    } else {
+      // Normal toggle, update immediately
+      emit('update'); 
+    }
+
   } catch (e) {
     console.error("Failed to update intake:", e);
     // Revert on failure
@@ -161,15 +187,100 @@ async function onToggle(meal) {
     processingMap.value[mealTime] = false;
   }
 }
+
+function triggerConfetti() {
+  const duration = 2500;
+  const end = Date.now() + duration;
+
+  (function frame() {
+    confetti({
+      particleCount: 3,
+      angle: 60,
+      spread: 55,
+      origin: { x: 0 },
+      colors: ['#10b981', '#34d399', '#f59e0b']
+    });
+    confetti({
+      particleCount: 3,
+      angle: 120,
+      spread: 55,
+      origin: { x: 1 },
+      colors: ['#10b981', '#34d399', '#f59e0b']
+    });
+
+    if (Date.now() < end) {
+      requestAnimationFrame(frame);
+    }
+  }());
+}
+
+function closeCelebration() {
+  showCelebration.value = false;
+}
 </script>
 
 <style scoped>
+/* Celebration Modal Styles - Bold & Dark */
+.celebration-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background-color: rgba(0, 0, 0, 0.85) !important; /* Dark background */
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: 2147483647 !important; /* Max Z-Index */
+  backdrop-filter: blur(5px);
+}
+
+.celebration-content {
+  text-align: center;
+  color: white;
+  animation: zoomIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.celebrate-title-big {
+  font-size: 48px;
+  font-weight: 900;
+  color: #10b981; /* Emerald Green */
+  margin: 0 0 16px 0;
+  text-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+  letter-spacing: -1px;
+}
+
+.celebrate-msg-big {
+  font-size: 20px;
+  color: #e5e7eb;
+  font-weight: 500;
+}
+
+/* Transitions */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+@keyframes zoomIn {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 .meal-preview-card {
+  position: relative;
   background: #fff;
   padding: 24px;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
+
+
 .header {
   display: flex;
   justify-content: space-between;
@@ -197,13 +308,47 @@ async function onToggle(meal) {
   color: #6b7280;
 }
 .state-msg.empty {
-  background-color: #f9fafb;
-  border-radius: 8px;
+  background-color: #f0fdf4;
+  border: 2px dashed #bbf7d0;
+  border-radius: 16px;
+  padding: 40px 20px;
+}
+.cute-mascot {
+  font-size: 48px;
+  margin-bottom: 12px;
+  animation: bounce 2s infinite;
+}
+.cute-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #047857;
+  margin-bottom: 8px;
 }
 .sub-text {
-  font-size: 13px;
-  color: #9ca3af;
+  font-size: 14px;
+  color: #6b7280;
   margin-top: 4px;
+  line-height: 1.5;
+}
+.go-plan-btn {
+  margin-top: 20px;
+  padding: 10px 24px;
+  background-color: #047857;
+  color: white;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.go-plan-btn:hover {
+  transform: scale(1.05);
+  background-color: #059669;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 .meal-list {
@@ -349,4 +494,5 @@ input:checked + .slider:before {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
 </style>

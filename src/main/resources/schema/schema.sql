@@ -71,6 +71,7 @@ CREATE TABLE meal_plan_days (
     plan_date DATE NOT NULL,
     day_index INT NOT NULL,
     total_calories INT NOT NULL DEFAULT 0,
+    is_stamped BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_meal_plan_days_meal_plan
@@ -136,5 +137,9 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   INDEX idx_refresh_user_id (user_id),
   INDEX idx_refresh_expires_at (expires_at)
 );
-
+ALTER TABLE meal_items 
+ADD COLUMN carbs INT NOT NULL DEFAULT 0 AFTER calories,
+ADD COLUMN protein INT NOT NULL DEFAULT 0 AFTER carbs,
+ADD COLUMN fat INT NOT NULL DEFAULT 0 AFTER protein,
+ADD COLUMN is_high_protein BOOLEAN NOT NULL DEFAULT FALSE AFTER fat;
 select *from users;

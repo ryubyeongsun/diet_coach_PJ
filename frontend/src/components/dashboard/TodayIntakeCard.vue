@@ -11,10 +11,9 @@
       </div>
       <p class="rate-text">{{ achievementRate.toFixed(1) }}% 달성</p>
     </div>
-    <div v-else class="placeholder">
-      <p>요약 정보 없음</p>
-    </div>
-  </div>
+          <div v-else class="placeholder">
+            <p class="placeholder-text">앗! 아직 오늘 식단이 없어요. 🍱<br/>식단을 생성하면 칼로리가 슝~ 계산돼요! ✨</p>
+          </div>  </div>
 </template>
 
 <script setup>
@@ -91,5 +90,12 @@ h3 {
 }
 .placeholder {
   color: #9ca3af;
+  text-align: center;
+  padding: 10px 0;
+}
+.placeholder-text {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
 }
 </style>

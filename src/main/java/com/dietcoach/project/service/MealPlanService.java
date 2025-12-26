@@ -15,6 +15,9 @@ public interface MealPlanService {
 
     // A4: 하루 재생성
     MealPlanDayDetailResponse regenerateDay(Long dayId);
-    // A4: 끼니 교체
+    // 특정 끼니 교체 (A4)
     MealPlanDayDetailResponse replaceMeal(Long dayId, String mealTime);
+
+    // 식단 도장 찍기
+    void stampDay(Long dayId);
 }

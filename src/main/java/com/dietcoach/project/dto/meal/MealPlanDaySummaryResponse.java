@@ -25,6 +25,8 @@ public class MealPlanDaySummaryResponse {
     private int totalCalories;   // 1800
     private String label;        // "아·점·저 균형식" 같은 요약 문구
     private String memo;         // "AI" | "TEMPLATE"
+    private String representativeMenu; // 대표 메뉴 (칼로리 가장 높은 음식)
+    private Boolean isStamped;   // 도장 찍힘 여부
 
     public static MealPlanDaySummaryResponse from(
             MealPlanDay day,
@@ -36,6 +38,13 @@ public class MealPlanDaySummaryResponse {
         int totalCalories = (day.getTotalCalories() != null && day.getTotalCalories() > 0)
                 ? day.getTotalCalories()
                 : sumCalories;
+
+        // 대표 메뉴 추출 (칼로리 내림차순 1순위)
+        String representativeMenu = items.stream()
+                .sorted((a, b) -> b.getCalories() - a.getCalories())
+                .findFirst()
+                .map(MealItem::getFoodName)
+                .orElse(null);
 
         // 일단 1차 버전은 고정 라벨(나중에 규칙 넣어도 됨)
         String label = "자동 생성 균형 식단";
@@ -50,6 +59,8 @@ public class MealPlanDaySummaryResponse {
                 .totalCalories(totalCalories)
                 .label(label)
                 .memo(memo)
+                .representativeMenu(representativeMenu)
+                .isStamped(day.getIsStamped() != null && day.getIsStamped())
                 .build();
     }
 }

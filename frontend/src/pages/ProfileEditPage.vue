@@ -67,6 +67,13 @@
           </div>
         </div>
 
+        <div class="form-row">
+          <div class="form-group">
+            <label>목표 체중 (kg)</label>
+            <NnInput type="number" v-model.number="form.targetWeight" placeholder="65" required />
+          </div>
+        </div>
+
         <div class="form-group">
           <label>목표</label>
           <div class="goal-options">
@@ -117,6 +124,7 @@ const form = ref({
   birthDate: "",
   height: null,
   weight: null,
+  targetWeight: null,
   activityLevel: "SEDENTARY",
   goalType: "MAINTAIN",
 });
@@ -138,6 +146,7 @@ onMounted(async () => {
         birthDate: data.birthDate || "",
         height: data.height,
         weight: data.weight,
+        targetWeight: data.targetWeight,
         activityLevel: data.activityLevel || "SEDENTARY",
         goalType: data.goalType || "MAINTAIN",
       };
@@ -157,13 +166,12 @@ async function handleSubmit() {
   try {
     const response = await updateUserProfile(currentUser.value.id, form.value);
     
-    // 로컬 스토리지 정보도 업데이트 (필요한 경우)
-    // updateCurrentUser(...) 는 보통 Auth 정보를 갱신하지만, 
-    // 프로필 정보(키/몸무게 등)가 Auth 객체에 포함되어 있다면 갱신 필요.
-    // 여기서는 name, email 등 기본 정보는 안 바뀌지만 혹시 모르니 갱신 로직을 둠.
+    if (response.data) {
+      updateCurrentUser(response.data);
+    }
     
     alert("프로필이 성공적으로 수정되었습니다.");
-    // router.push("/dashboard"); // or stay here
+    router.push("/dashboard");
   } catch (err) {
     console.error(err);
     errorMessage.value = "프로필 수정 중 오류가 발생했습니다.";
