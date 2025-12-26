@@ -20,7 +20,7 @@ import { ref, onMounted, onUnmounted, defineProps } from "vue";
 const props = defineProps({
   title: {
     type: String,
-    default: "남남코치가 도와드리고 있어요!",
+    default: "아보핏 도와드리고 있어요!",
   },
   messages: {
     type: Array,

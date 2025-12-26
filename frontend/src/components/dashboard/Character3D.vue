@@ -29,11 +29,11 @@ let loader = null;
 
 // Mapping for levels (Color/Size fallback if GLB missing)
 const LEVEL_CONFIG = {
-  1: { color: 0x87CEEB, scaleX: 0.6, label: "매우 마름" },
-  2: { color: 0xFFD700, scaleX: 0.8, label: "마름" },
-  3: { color: 0x90EE90, scaleX: 1.0, label: "정상" },
-  4: { color: 0xFFA07A, scaleX: 1.3, label: "통통" },
-  5: { color: 0xFF6347, scaleX: 1.6, label: "비만" },
+  1: { color: 0x87CEEB, scaleX: 0.7, label: "마름" },
+  2: { color: 0x90EE90, scaleX: 1.0, label: "정상" },
+  3: { color: 0xFFD700, scaleX: 1.2, label: "과체중" },
+  4: { color: 0xFFA07A, scaleX: 1.4, label: "비만" },
+  5: { color: 0xFF6347, scaleX: 1.7, label: "고도비만" },
 };
 
 const initThree = () => {
@@ -54,11 +54,14 @@ const initThree = () => {
   renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
+  renderer.outputColorSpace = THREE.SRGBColorSpace; // PRD 4.1
+  renderer.toneMapping = THREE.NoToneMapping;     // PRD 4.1
+  renderer.toneMappingExposure = 1.0;             // PRD 4.1
   canvasContainer.value.appendChild(renderer.domElement);
   
   // --- Add Floor Shadow ---
   const planeGeometry = new THREE.PlaneGeometry(10, 10);
-  const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.2 }); // Soft shadow
+  const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.1 }); // PRD 4.4: Adjusted opacity
   const plane = new THREE.Mesh(planeGeometry, planeMaterial);
   plane.rotation.x = -Math.PI / 2;
   plane.position.y = -1.5; // Match character's lowest Y position
@@ -85,11 +88,16 @@ const initThree = () => {
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.9); // Increased intensity slightly
   scene.add(ambientLight);
 
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7); // PRD 4.3: Add HemisphereLight
+  scene.add(hemiLight);
+
   const dirLight = new THREE.DirectionalLight(0xffffff, 1);
   dirLight.position.set(5, 10, 7);
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.width = 1024;
   dirLight.shadow.mapSize.height = 1024;
+  dirLight.shadow.bias = -0.0001;      // PRD 4.4
+  dirLight.shadow.normalBias = 0.02;   // PRD 4.4
   scene.add(dirLight);
 
   // 6. Loader
@@ -121,6 +129,22 @@ const loadCharacter = (level) => {
     (gltf) => {
       currentModel = gltf.scene;
       currentModel.scale.set(1, 1, 1);
+      
+      // PRD 4.2: Texture Color Space Correction
+      currentModel.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          
+          if (child.material) {
+            // Ensure textures are treated as sRGB
+            if (child.material.map) child.material.map.colorSpace = THREE.SRGBColorSpace;
+            if (child.material.emissiveMap) child.material.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+            child.material.needsUpdate = true;
+          }
+        }
+      });
+
       const box = new THREE.Box3().setFromObject(currentModel);
       const center = box.getCenter(new THREE.Vector3());
       currentModel.position.x += currentModel.position.x - center.x;

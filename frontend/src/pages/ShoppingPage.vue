@@ -9,8 +9,17 @@
           <button @click="setRange('MONTH')" :class="{ active: range === 'MONTH' }">이번 달</button>
         </div>
       </div>
-      <p v-if="shoppingData && shoppingData.fromDate && shoppingData.toDate" class="date-range">
-        {{ shoppingData.fromDate }} ~ {{ shoppingData.toDate }}
+      <div v-if="range === 'TODAY'" class="date-picker">
+        <label for="shopping-date">날짜 선택</label>
+        <input
+          id="shopping-date"
+          type="date"
+          v-model="selectedDate"
+          @change="loadShoppingList"
+        />
+      </div>
+      <p v-if="shoppingData && (shoppingData.startDate || shoppingData.endDate)" class="date-range">
+        {{ shoppingData.startDate || '-' }} ~ {{ shoppingData.endDate || '-' }}
       </p>
     </header>
 
@@ -20,10 +29,10 @@
           title="장바구니를 채우고 있어요!"
           icon="🛒"
           :messages="[
-            '냉장고에 필요한 재료들을 분석하고 있어요...',
-            '신선하고 저렴한 식재료를 찾는 중입니다...',
-            '예산에 딱 맞는 최적의 상품을 비교하고 있어요...',
-            '장보기 리스트를 꼼꼼히 정리하고 있습니다...'
+            '냉장고 문을 열고 필요한 재료를 꺼내는 중이에요...',
+            '오늘 먹을 메뉴에 맞춰 재료를 골라 담고 있어요...',
+            '11번가에서 가장 현실적인 가격을 찾아보고 있어요...',
+            '장보기 리스트를 센스 있게 정리하고 있어요...'
           ]" 
         />
       </div>
@@ -37,13 +46,34 @@
         <!-- 왼쪽: 메인 리스트 영역 -->
         <div class="shopping-main">
           
-          <!-- 예산 초과 경고 배너 -->
-          <div v-if="isOverBudget" class="budget-warning">
+          <!-- 전체 선택 헤더 -->
+          <div class="list-control-header">
+            <label class="select-all-label">
+              <input 
+                type="checkbox" 
+                :checked="allSelected" 
+                @change="toggleAll"
+              />
+              <span>전체 선택 ({{ selectedCount }}/{{ sortedShoppingItems.length }})</span>
+            </label>
+          </div>
+
+          <div v-if="shoppingData && shoppingData.warningMessage" class="budget-warning">
             <div class="warning-icon">⚠️</div>
             <div class="warning-content">
-              <strong>예산이 {{ (totalPrice - totalBudget).toLocaleString() }}원 초과되었습니다.</strong>
-              <p>최저가 상품들로 구성했지만, 식단 구성상 설정된 예산을 초과했습니다.</p>
+              <strong>{{ shoppingData.warningMessage }}</strong>
             </div>
+          </div>
+          <div v-else-if="showBudgetNotice" class="budget-warning">
+            <div class="warning-icon">⚠️</div>
+            <div class="warning-content">
+              <strong>재료 가격 변동으로 예산을 초과할 수 있습니다.</strong>
+              <p>실제 결제 금액은 11번가 가격에 따라 달라질 수 있어요.</p>
+            </div>
+          </div>
+          <div class="mapping-note">
+            11번가 상품 매핑은 정확도가 떨어질 수 있어요. 원하는 상품이 아니면
+            위 가격 범위 내에서 직접 검색해 구매해 주세요.
           </div>
 
           <!-- 요약 카드 (예산 바 포함) -->
@@ -74,7 +104,6 @@
               </div>
               <div class="budget-labels">
                 <span>0원</span>
-                <span v-if="isOverBudget" class="over-label">+{{ (totalPrice - totalBudget).toLocaleString() }}원 초과</span>
               </div>
             </div>
           </div>
@@ -148,7 +177,7 @@
                 <button 
                   class="bulk-add-btn" 
                   @click="confirmPurchase" 
-                  :disabled="globalState.cart.length === 0"
+                  :disabled="globalState.cart.length === 0 || !purchaseRecommended"
                 >
                   ✅ 구매 확정
                 </button>
@@ -156,6 +185,9 @@
                   💰 식단 가계부 확인
                 </button>
               </div>
+              <p v-if="!purchaseRecommended" class="purchase-note">
+                월/주 단위 장보기는 참고용입니다. 구매 확정은 하루 장보기에서 가능합니다.
+              </p>
             </div>
           </div>
         </div>
@@ -180,10 +212,11 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { format } from "date-fns";
 import { fetchShoppingList } from "../api/shoppingApi.js";
 import { fetchLatestMealPlan } from "../api/mealPlanApi.js";
 import { getCurrentUser } from "../utils/auth";
-import { globalState, addToCart, removeFromCart } from "../utils/globalState";
+import { globalState, addToCart, removeFromCart, syncStorageForUser } from "../utils/globalState";
 import ShoppingItemCard from "../components/shopping/ShoppingItemCard.vue";
 import NnButton from "../components/common/NnButton.vue";
 import LoadingOverlay from "../components/common/LoadingOverlay.vue";
@@ -194,6 +227,7 @@ const router = useRouter();
 const planId = ref(null);
 const isValidPlanId = ref(false);
 const range = ref("MONTH");
+const selectedDate = ref("");
 const shoppingData = ref(null);
 const isLoading = ref(true); // Start loading immediately
 const error = ref("");
@@ -218,9 +252,11 @@ const isItemInCart = (item) => {
 // Total price of ALL items in the list
 const totalPrice = computed(() => {
   if (!shoppingData.value) return 0;
+  if (shoppingData.value.estimatedTotal) return shoppingData.value.estimatedTotal;
   return shoppingData.value.items.reduce((sum, item) => {
     if (item.product && item.product.price) {
-      return sum + item.product.price;
+      const count = item.recommendedCount || 1;
+      return sum + (item.product.price * count);
     }
     return sum;
   }, 0);
@@ -238,6 +274,10 @@ const isOverBudget = computed(() => {
   return totalPrice.value > totalBudget.value;
 });
 
+const showBudgetNotice = computed(() => {
+  return range.value === "TODAY" && totalBudget.value > 0 && totalPrice.value > totalBudget.value;
+});
+
 const budgetPercent = computed(() => {
   if (totalBudget.value === 0) return 0;
   return Math.round((totalPrice.value / totalBudget.value) * 100);
@@ -246,7 +286,11 @@ const budgetPercent = computed(() => {
 // 정렬된 장보기 리스트 (체크된 항목 상단, 구매 완료 항목 최하단)
 const sortedShoppingItems = computed(() => {
   if (!shoppingData.value || !shoppingData.value.items) return [];
-  return [...shoppingData.value.items].sort((a, b) => {
+  const visibleItems = shoppingData.value.items.filter((item) => {
+    const key = getItemKey(item);
+    return !globalState.confirmed.has(key);
+  });
+  return [...visibleItems].sort((a, b) => {
     const aKey = getItemKey(a);
     const bKey = getItemKey(b);
     const aPurchased = globalState.confirmed.has(aKey);
@@ -263,6 +307,54 @@ const sortedShoppingItems = computed(() => {
     return 0;
   });
 });
+
+// 전체 선택 상태 계산
+const allSelected = computed(() => {
+  const items = sortedShoppingItems.value;
+  if (items.length === 0) return false;
+  return items.every(item => isItemInCart(item));
+});
+
+// 선택된 개수 계산
+const selectedCount = computed(() => {
+  return sortedShoppingItems.value.filter(item => isItemInCart(item)).length;
+});
+
+// 전체 선택 토글
+const toggleAll = () => {
+  const items = sortedShoppingItems.value;
+  const isAll = allSelected.value; // 현재 모두 선택되어 있다면 -> 모두 해제
+
+  items.forEach(item => {
+    const key = getItemKey(item);
+    if (isAll) {
+      // 이미 담겨있다면 제거
+      if (isItemInCart(item)) removeFromCart(key);
+    } else {
+      // 안 담겨있다면 추가
+      if (!isItemInCart(item)) {
+        const productToAdd = item.product ? {
+          externalId: item.product.externalId || key,
+          name: item.product.productName,
+          ingredientName: item.ingredientName,
+          price: item.product.price,
+          imageUrl: item.product.imageUrl,
+          productUrl: item.product.productUrl,
+          recommendedCount: item.recommendedCount || 1,
+          packageGram: item.packageGram || 0
+        } : {
+          externalId: key,
+          name: item.ingredientName,
+          ingredientName: item.ingredientName,
+          price: 0, 
+          imageUrl: '', 
+          productUrl: ''
+        };
+        addToCart(productToAdd);
+      }
+    }
+  });
+};
 
 // Selected items list (from Global Cart)
 const selectedTotalPrice = computed(() => {
@@ -354,6 +446,11 @@ function confirmPurchase() {
   purchasedIndices.value.clear(); // 영수증 체크 초기화
 }
 
+const purchaseRecommended = computed(() => {
+  if (!shoppingData.value || shoppingData.value.purchaseRecommended == null) return true;
+  return shoppingData.value.purchaseRecommended;
+});
+
 async function loadShoppingList() {
   if (!isValidPlanId.value) return;
 
@@ -361,7 +458,8 @@ async function loadShoppingList() {
   error.value = "";
 
   try {
-    const response = await fetchShoppingList(planId.value, range.value);
+    const dateParam = range.value === "TODAY" ? (selectedDate.value || format(new Date(), 'yyyy-MM-dd')) : null;
+    const response = await fetchShoppingList(planId.value, range.value, dateParam);
     shoppingData.value = response;
   } catch (err) {
     console.error("Error fetching shopping list:", err);
@@ -380,6 +478,16 @@ async function loadShoppingList() {
 
 function setRange(newRange) {
   range.value = newRange;
+  if (newRange === "TODAY" && !selectedDate.value) {
+    selectedDate.value = format(new Date(), 'yyyy-MM-dd');
+  }
+  router.replace({
+    query: {
+      ...route.query,
+      range: newRange,
+      date: newRange === "TODAY" ? selectedDate.value : undefined,
+    },
+  });
 }
 
 function goBack() {
@@ -390,8 +498,32 @@ watch(range, () => {
   loadShoppingList();
 });
 
+watch(selectedDate, (newDate) => {
+  if (range.value !== "TODAY") return;
+  router.replace({
+    query: {
+      ...route.query,
+      range: "TODAY",
+      date: newDate,
+    },
+  });
+});
+
 onMounted(async () => {
+  syncStorageForUser();
   const id = route.query.planId;
+  const queryRange = route.query.range;
+  const queryDate = route.query.date;
+
+  if (queryRange && ["TODAY", "WEEK", "MONTH"].includes(queryRange)) {
+    range.value = queryRange;
+  }
+  if (typeof queryDate === "string" && queryDate) {
+    selectedDate.value = queryDate;
+  } else {
+    selectedDate.value = format(new Date(), 'yyyy-MM-dd');
+  }
+
   if (id && !isNaN(id)) {
     planId.value = Number(id);
     isValidPlanId.value = true;
@@ -443,6 +575,22 @@ onMounted(async () => {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.date-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.date-picker input {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: #fff;
 }
 
 .page__header h1 {
@@ -534,6 +682,15 @@ onMounted(async () => {
   margin: 0;
   font-size: 14px;
   opacity: 0.9;
+}
+
+.mapping-note {
+  font-size: 12px;
+  color: #6b7280;
+  background-color: #f9fafb;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
 }
 
 /* --- Summary Card (Budget Bar) --- */
@@ -809,6 +966,12 @@ onMounted(async () => {
   gap: 8px;
 }
 
+.purchase-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
 .bulk-add-btn {
   flex: 2;
   padding: 14px;
@@ -890,6 +1053,32 @@ onMounted(async () => {
 .list-leave-to {
   opacity: 0;
   transform: translateY(10px);
+}
+
+/* --- List Control Header --- */
+.list-control-header {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.select-all-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
+}
+
+.select-all-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #10b981;
 }
 
 @media (max-width: 900px) {

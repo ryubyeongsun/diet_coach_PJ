@@ -13,13 +13,45 @@ public class ProductWeightParser {
     // \s* : optional space
     // (kg|g|ml|l|lb|oz) : Unit
     private static final Pattern WEIGHT_PATTERN = Pattern.compile("(?i)(\\d+(?:[.,]\\d+)?)\\s*(kg|g|ml|l|lb|oz)");
+    private static final Pattern MULTIPLY_PATTERN = Pattern.compile("(?i)(\\d+(?:[.,]\\d+)?)\\s*(kg|g|ml|l)\\s*[xX*]\\s*(\\d+)");
 
     public int parseWeightInGrams(String title) {
         if (title == null || title.isBlank()) return 0;
         
-        Matcher matcher = WEIGHT_PATTERN.matcher(title);
+        Matcher multiMatcher = MULTIPLY_PATTERN.matcher(title);
         int maxGrams = 0;
         boolean found = false;
+
+        while (multiMatcher.find()) {
+            try {
+                String numStr = multiMatcher.group(1).replace(",", ".");
+                double val = Double.parseDouble(numStr);
+                String unit = multiMatcher.group(2).toLowerCase();
+                int multiplier = Integer.parseInt(multiMatcher.group(3));
+
+                int grams = 0;
+                switch (unit) {
+                    case "kg":
+                    case "l":
+                        grams = (int) (val * 1000);
+                        break;
+                    case "g":
+                    case "ml":
+                        grams = (int) val;
+                        break;
+                }
+                grams *= multiplier;
+
+                if (grams > maxGrams) {
+                    maxGrams = grams;
+                    found = true;
+                }
+            } catch (Exception e) {
+                // ignore parsing errors
+            }
+        }
+
+        Matcher matcher = WEIGHT_PATTERN.matcher(title);
 
         // Strategy: Iterate all matches.
         // We prefer the largest value found, assuming the title might contain "100g x 10ea (1kg)"

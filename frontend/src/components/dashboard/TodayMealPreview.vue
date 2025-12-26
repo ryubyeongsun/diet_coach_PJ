@@ -1,15 +1,15 @@
 <template>
   <div class="card meal-preview-card">
     <div class="header">
-      <h2 class="section-title">오늘의 식단</h2>
+      <h2 class="section-title">오늘의 추천 식단</h2>
       <button v-if="hasData" class="refresh-btn" @click="fetchData" title="새로고침">
          ↻
       </button>
     </div>
 
-      <div v-if="isLoading" class="state-msg">
-        <div class="spinner"></div> 남남코치가 식단 불러오는 중... 🥑
-      </div>
+    <div v-if="isLoading" class="state-msg">
+      <div class="spinner"></div> 남남코치가 식단 불러오는 중... 🥑
+    </div>
 
     <div v-else-if="!hasData" class="state-msg empty">
       <div class="cute-mascot">🥑</div>
@@ -18,38 +18,41 @@
       <button class="go-plan-btn" @click="$router.push('/meal-plans')">식단 만들러 가기</button>
     </div>
 
-    <div v-else class="meal-list">
-      <div 
-        v-for="meal in mealList" 
-        :key="meal.mealTime" 
-        class="meal-row"
-        :class="{ 'is-consumed': meal.isConsumed }"
-      >
-        <div class="meal-info">
-          <div class="badge-row">
+    <div v-else class="meal-slider-container">
+      <div class="meal-list hide-scrollbar">
+        <div 
+          v-for="meal in mealList" 
+          :key="meal.mealTime" 
+          class="meal-card"
+          :class="{ 'is-consumed': meal.isConsumed }"
+        >
+          <div class="card-top">
             <span class="badge" :class="getBadgeClass(meal.mealTime)">
               {{ formatMealTime(meal.mealTime) }}
             </span>
             <span class="kcal">{{ meal.totalCalories }} kcal</span>
           </div>
-          <div class="menu-text">
-            {{ formatMenu(meal.items) }}
+          
+          <div class="card-body">
+            <div class="menu-text" :title="getMenuString(meal.items)">
+              {{ formatMenu(meal.items) }}
+            </div>
           </div>
-        </div>
 
-        <div class="action-area">
-          <label class="toggle-switch">
-            <input 
-              type="checkbox" 
-              v-model="meal.isConsumed"
-              @change="onToggle(meal)"
-              :disabled="isProcessing(meal.mealTime)"
-            />
-            <span class="slider round"></span>
-          </label>
-          <span class="status-text" :class="{ active: meal.isConsumed }">
-            {{ meal.isConsumed ? '먹었어요' : '안 먹음' }}
-          </span>
+          <div class="card-footer">
+            <label class="toggle-switch">
+              <input 
+                type="checkbox" 
+                v-model="meal.isConsumed"
+                @change="onToggle(meal)"
+                :disabled="isProcessing(meal.mealTime)"
+              />
+              <span class="slider round"></span>
+            </label>
+            <span class="status-text" :class="{ active: meal.isConsumed }">
+              {{ meal.isConsumed ? '완료' : '미완료' }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -132,11 +135,16 @@ function getBadgeClass(t) {
   return map[t] || 'bg-gray';
 }
 
+function getMenuString(items) {
+  if (!items) return '';
+  return items.map(i => i.foodName).join(', ');
+}
+
 function formatMenu(items) {
   if (!items || items.length === 0) return '메뉴 없음';
-  // Show first 2 items and count
   const names = items.map(i => i.foodName);
-  if (names.length <= 2) return names.join(', ');
+  // Show more items in card format
+  if (names.length <= 3) return names.join(', ');
   return `${names[0]}, ${names[1]} 외 ${names.length - 2}개`;
 }
 
@@ -150,7 +158,6 @@ async function onToggle(meal) {
   const mealTime = meal.mealTime;
   processingMap.value[mealTime] = true;
   
-  // v-model has already updated meal.isConsumed to the new state (target state)
   const targetState = meal.isConsumed;
 
   try {
@@ -161,26 +168,22 @@ async function onToggle(meal) {
       isConsumed: targetState
     });
     
-    // Check if all consumed to trigger celebration
     const isAllConsumed = targetState && mealList.value.every(m => m.isConsumed);
 
     if (isAllConsumed) {
       triggerConfetti();
       showCelebration.value = true;
       
-      // Delay update to prevent component re-render (which kills the modal)
       setTimeout(() => {
         showCelebration.value = false;
         emit('update'); 
       }, 2500);
     } else {
-      // Normal toggle, update immediately
       emit('update'); 
     }
 
   } catch (e) {
     console.error("Failed to update intake:", e);
-    // Revert on failure
     meal.isConsumed = !targetState;
     alert("상태 업데이트에 실패했습니다.");
   } finally {
@@ -213,25 +216,21 @@ function triggerConfetti() {
     }
   }());
 }
-
-function closeCelebration() {
-  showCelebration.value = false;
-}
 </script>
 
 <style scoped>
-/* Celebration Modal Styles - Bold & Dark */
+/* Celebration Modal Styles */
 .celebration-overlay {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  background-color: rgba(0, 0, 0, 0.85) !important; /* Dark background */
+  background-color: rgba(0, 0, 0, 0.85) !important;
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
-  z-index: 2147483647 !important; /* Max Z-Index */
+  z-index: 2147483647 !important;
   backdrop-filter: blur(5px);
 }
 
@@ -244,7 +243,7 @@ function closeCelebration() {
 .celebrate-title-big {
   font-size: 48px;
   font-weight: 900;
-  color: #10b981; /* Emerald Green */
+  color: #10b981;
   margin: 0 0 16px 0;
   text-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
   letter-spacing: -1px;
@@ -256,36 +255,26 @@ function closeCelebration() {
   font-weight: 500;
 }
 
-/* Transitions */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
 @keyframes zoomIn {
   from { transform: scale(0.5); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
 
+/* Card Styles */
 .meal-preview-card {
   position: relative;
-  background: #fff;
-  padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  background: transparent; /* Seamless blend */
+  padding: 0; /* Let cards define padding */
+  border-radius: 0;
+  box-shadow: none;
 }
-
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  padding: 0 4px;
 }
 .section-title {
   font-size: 18px;
@@ -300,94 +289,69 @@ function closeCelebration() {
   cursor: pointer;
   color: #6b7280;
 }
-.refresh-btn:hover { color: #374151; }
 
-.state-msg {
-  text-align: center;
-  padding: 40px 0;
-  color: #6b7280;
-}
-.state-msg.empty {
-  background-color: #f0fdf4;
-  border: 2px dashed #bbf7d0;
-  border-radius: 16px;
-  padding: 40px 20px;
-}
-.cute-mascot {
-  font-size: 48px;
-  margin-bottom: 12px;
-  animation: bounce 2s infinite;
-}
-.cute-text {
-  font-size: 18px;
-  font-weight: 700;
-  color: #047857;
-  margin-bottom: 8px;
-}
-.sub-text {
-  font-size: 14px;
-  color: #6b7280;
-  margin-top: 4px;
-  line-height: 1.5;
-}
-.go-plan-btn {
-  margin-top: 20px;
-  padding: 10px 24px;
-  background-color: #047857;
-  color: white;
-  border: none;
-  border-radius: 999px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-.go-plan-btn:hover {
-  transform: scale(1.05);
-  background-color: #059669;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+/* Horizontal Scroll Container */
+.meal-slider-container {
+  width: 100%;
+  overflow: hidden; /* Hide outer overflow */
 }
 
 .meal-list {
   display: flex;
-  flex-direction: column;
+  flex-direction: row; /* Horizontal */
   gap: 16px;
+  overflow-x: auto;
+  padding: 4px 4px 16px 4px; /* Bottom padding for shadow */
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
-.meal-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  transition: all 0.2s ease;
+/* Hide Scrollbar Utility */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
-.meal-row.is-consumed {
-  background-color: #f0fdf4; /* Light green bg */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Individual Meal Card */
+.meal-card {
+  min-width: 220px;
+  width: 220px;
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.meal-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+}
+
+.meal-card.is-consumed {
+  background-color: #f0fdf4;
   border-color: #bbf7d0;
 }
 
-.meal-info {
+.card-top {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.badge-row {
-  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .badge {
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
 }
 .bg-morning { background-color: #f59e0b; }
@@ -402,97 +366,86 @@ function closeCelebration() {
   color: #6b7280;
 }
 
-.menu-text {
-  font-size: 15px;
-  font-weight: 500;
-  color: #374151;
+.card-body {
+  flex: 1;
+  margin-bottom: 16px;
 }
 
-/* Toggle Switch */
-.action-area {
+.menu-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  line-height: 1.4;
+  word-break: keep-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-footer {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 4px;
-  min-width: 60px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
 }
 
 .toggle-switch {
   position: relative;
   display: inline-block;
-  width: 48px;
-  height: 26px;
+  width: 44px;
+  height: 24px;
 }
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
 .slider {
   position: absolute;
   cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
   background-color: #e5e7eb;
   transition: .4s;
+  border-radius: 34px;
 }
-
 .slider:before {
   position: absolute;
   content: "";
-  height: 18px;
-  width: 18px;
-  left: 4px;
-  bottom: 4px;
+  height: 18px; width: 18px;
+  left: 3px; bottom: 3px;
   background-color: white;
   transition: .4s;
-}
-
-input:checked + .slider {
-  background-color: #10b981;
-}
-
-input:focus + .slider {
-  box-shadow: 0 0 1px #10b981;
-}
-
-input:checked + .slider:before {
-  transform: translateX(22px);
-}
-
-.slider.round {
-  border-radius: 34px;
-}
-
-.slider.round:before {
   border-radius: 50%;
 }
+input:checked + .slider { background-color: #10b981; }
+input:checked + .slider:before { transform: translateX(20px); }
 
 .status-text {
-  font-size: 11px;
+  font-size: 12px;
   color: #9ca3af;
   font-weight: 600;
 }
-.status-text.active {
-  color: #10b981;
-}
+.status-text.active { color: #10b981; }
 
-.spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid #ccc;
-  border-top-color: #333;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-right: 8px;
+/* Empty State */
+.state-msg.empty {
+  background-color: white;
+  border: 2px dashed #bbf7d0;
+  border-radius: 20px;
+  padding: 40px;
+  text-align: center;
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.cute-mascot { font-size: 48px; margin-bottom: 12px; }
+.cute-text { font-size: 18px; font-weight: 700; color: #047857; margin-bottom: 8px; }
+.sub-text { font-size: 14px; color: #6b7280; margin-top: 4px; line-height: 1.5; }
+.go-plan-btn {
+  margin-top: 20px;
+  padding: 10px 24px;
+  background-color: #047857;
+  color: white;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
 }
-
+.go-plan-btn:hover { transform: scale(1.05); background-color: #059669; }
 </style>

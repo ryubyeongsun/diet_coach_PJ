@@ -14,6 +14,9 @@ public class ShoppingListResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private Long budget; // ✅ Allocated Budget for this range
+    private Long estimatedTotal;
+    private String warningMessage;
+    private Boolean purchaseRecommended;
     private String source; // REAL|MOCK
     private List<ShoppingItem> items;
 

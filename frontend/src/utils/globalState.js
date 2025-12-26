@@ -1,18 +1,30 @@
 import { reactive, watch } from "vue";
+import { getCurrentUser } from "./auth";
 
 const CART_STORAGE_KEY = "nncoach_cart";
 const PURCHASED_ID_STORAGE_KEY = "nncoach_purchased_ids";
 const PURCHASED_ITEMS_STORAGE_KEY = "nncoach_purchased_items";
 
+function getStorageKey(base) {
+  const user = getCurrentUser();
+  const suffix = user?.id ? `_${user.id}` : "_guest";
+  return `${base}${suffix}`;
+}
+
+function loadFromStorage(key, fallback) {
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
 // Load initial data
-const savedCart = localStorage.getItem(CART_STORAGE_KEY);
-const initialCart = savedCart ? JSON.parse(savedCart) : [];
-
-const savedPurchasedIds = localStorage.getItem(PURCHASED_ID_STORAGE_KEY);
-const initialPurchasedIds = savedPurchasedIds ? JSON.parse(savedPurchasedIds) : [];
-
-const savedPurchasedItems = localStorage.getItem(PURCHASED_ITEMS_STORAGE_KEY);
-const initialPurchasedItems = savedPurchasedItems ? JSON.parse(savedPurchasedItems) : [];
+const initialCart = loadFromStorage(getStorageKey(CART_STORAGE_KEY), []);
+const initialPurchasedIds = loadFromStorage(getStorageKey(PURCHASED_ID_STORAGE_KEY), []);
+const initialPurchasedItems = loadFromStorage(getStorageKey(PURCHASED_ITEMS_STORAGE_KEY), []);
 
 export const globalState = reactive({
   isLoading: false,
@@ -23,8 +35,38 @@ export const globalState = reactive({
   isWeightModalOpen: false,
 });
 
-// Sync watchers
-// ... (existing watchers) ...
+watch(
+  () => globalState.cart,
+  (value) => {
+    localStorage.setItem(getStorageKey(CART_STORAGE_KEY), JSON.stringify(value));
+  },
+  { deep: true },
+);
+
+watch(
+  () => Array.from(globalState.confirmed),
+  (value) => {
+    localStorage.setItem(getStorageKey(PURCHASED_ID_STORAGE_KEY), JSON.stringify(value));
+  },
+  { deep: true },
+);
+
+watch(
+  () => globalState.purchasedItems,
+  (value) => {
+    localStorage.setItem(getStorageKey(PURCHASED_ITEMS_STORAGE_KEY), JSON.stringify(value));
+  },
+  { deep: true },
+);
+
+export function syncStorageForUser() {
+  const cart = loadFromStorage(getStorageKey(CART_STORAGE_KEY), []);
+  const ids = loadFromStorage(getStorageKey(PURCHASED_ID_STORAGE_KEY), []);
+  const items = loadFromStorage(getStorageKey(PURCHASED_ITEMS_STORAGE_KEY), []);
+  globalState.cart = cart;
+  globalState.confirmed = new Set(ids);
+  globalState.purchasedItems = items;
+}
 
 export function setWeightModalOpen(isOpen) {
   globalState.isWeightModalOpen = isOpen;
