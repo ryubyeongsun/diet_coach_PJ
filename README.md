@@ -97,26 +97,13 @@ graph TD
 
 ```bash
 diet_coach_PJ
-├── src
-│   ├── main
-│   │   ├── java/com/dietcoach/project
-│   │   │   ├── controller      # API 엔드포인트
-│   │   │   ├── service         # 비즈니스 로직 (Core)
-│   │   │   ├── domain          # 엔티티 및 도메인 모델
-│   │   │   ├── dto             # 데이터 전송 객체
-│   │   │   ├── mapper          # MyBatis 인터페이스
-│   │   │   ├── security        # JWT 인증/인가 설정
-│   │   │   └── client          # 외부 API 클라이언트
-│   │   └── resources
-│   │       ├── mapper          # SQL 매핑 XML
-│   │       └── schema          # DB 스키마 스크립트
+├── backend                     # Spring Boot Application
+│   ├── src/main/java           # Java Source Code
+│   ├── src/main/resources      # Resources & SQL
+│   └── pom.xml                 # Maven Dependencies
 ├── frontend                    # Vue.js Client
-│   ├── public/models           # 3D .glb Assets
-│   ├── src
-│   │   ├── api                 # API 연동 모듈
-│   │   ├── components          # 재사용 컴포넌트
-│   │   ├── pages               # 라우팅 페이지
-│   │   └── utils               # 공통 유틸리티
+│   ├── src                     # Vue Source Code
+│   └── package.json            # Node.js Dependencies
 └── README.md
 ```
 
@@ -135,11 +122,11 @@ MySQL 데이터베이스를 생성하고 초기 스키마를 적용합니다.
 ```sql
 CREATE DATABASE yumyum;
 USE yumyum;
--- src/main/resources/schema/schema.sql 파일의 내용을 실행하여 테이블 생성
+-- backend/src/main/resources/schema/schema.sql 파일의 내용을 실행하여 테이블 생성
 ```
 
 ### 3. Backend Configuration
-`src/main/resources/application.yml` (또는 properties) 파일에서 DB 설정을 확인합니다.
+`backend/src/main/resources/application.yml` 파일에서 DB 설정을 확인합니다.
 
 ```yaml
 spring:
@@ -151,6 +138,7 @@ spring:
 
 ### 4. Run Backend
 ```bash
+cd backend
 ./mvnw clean install
 ./mvnw spring-boot:run
 ```

@@ -1,0 +1,53 @@
+﻿spring:
+  profiles:
+    active: dev
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/yumyum?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: root
+    password: zhsl106
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema/schema.sql
+
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+    session:
+      timeout: 60m
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    jdbc-type-for-null: 'NULL'
+
+mealplan:
+  budget:
+    base-cost-per-100g: 500
+
+elevenst:
+  api:
+    key: c79b603aecf72f9c74f74279df8dc0da
+    base-url: http://openapi.11st.co.kr/openapi/OpenApiService.tmall
+
+naver:
+  shopping:
+    client-id: ""
+    client-secret: ""
+
+gms:
+  openai:
+    base-url: https://gms.ssafy.io/gmsapi
+    api-key: S14P02CE06-255ba570-2c59-48eb-a2ed-e34bac45bdd6
+    timeout-ms: 3600000
+
+jwt:
+  secret: 0123456789abcdef0123456789abcdef0123456789abcdef
+  access-token-validity-in-seconds: 86400
+  refresh-token-validity-in-seconds: 604800
