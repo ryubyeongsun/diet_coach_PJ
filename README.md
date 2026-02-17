@@ -23,6 +23,12 @@
 
 ---
 
+## 📺 시연 영상 및 발표 자료 (Demo & Presentation)
+
+[📂 Diet Coach 프로젝트 시연 영상 및 발표 자료(PPT, PDF) 보기](https://drive.google.com/drive/folders/1dfmQnl0CSuvlWtrIJdcFdw_Y8KkmliGW?usp=drive_link)
+
+---
+
 ## 🏛 시스템 아키텍처 (System Architecture)
 
 ```mermaid
@@ -70,6 +76,16 @@ graph TD
 - 체중 변화 추이 그래프 (Chart.js)
 - 일별/주별 칼로리 섭취량 분석
 - 체중 기록 메모 및 히스토리 관리
+
+---
+
+## 📖 상세 문서 (Documentation)
+
+프로젝트의 상세 설계 및 기술 가이드는 아래 링크에서 확인할 수 있습니다.
+
+- [🏗️ 상세 아키텍처 가이드 (Architecture)](./ARCHITECTURE.md)
+- [📡 API 상세 명세서 (API Specification)](./API_SPECIFICATION.md)
+- [🏷️ 네이밍 컨벤션 (Naming Conventions)](./NAMING_CONVENTIONS.md)
 
 ---
 
@@ -148,6 +164,16 @@ cd frontend
 npm install
 npm run dev
 ```
+
+---
+
+## 🏗️ 배포 팁 (Deployment)
+
+프론트엔드 빌드 결과물을 백엔드 정적 리소스로 통합하여 배포하려면 다음 과정을 수행하세요.
+
+1. 프론트엔드 빌드: `cd frontend && npm run build`
+2. 생성된 `dist` 폴더 내의 파일들을 `backend/src/main/resources/static` 폴더로 복사합니다.
+3. 백엔드를 실행하면 `http://localhost:8080`에서 통합된 애플리케이션을 확인할 수 있습니다.
 
 ---
 
