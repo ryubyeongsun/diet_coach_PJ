@@ -125,25 +125,24 @@ USE yumyum;
 -- backend/src/main/resources/schema/schema.sql 파일의 내용을 실행하여 테이블 생성
 ```
 
-### 3. Backend Configuration
-`backend/src/main/resources/application.yml` 파일에서 DB 설정을 확인합니다.
+### 3. Environment Variables
+본 프로젝트는 보안을 위해 API 키 및 비밀 정보를 환경 변수로 관리합니다.
 
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/yumyum
-    username: your_username
-    password: your_password
-```
+1. 프로젝트 루트의 `.env.example` 파일을 참고하여 필요한 환경 변수 목록을 확인합니다.
+2. 개발 환경(Local)에 맞게 시스템 환경 변수를 설정하거나, IDE(IntelliJ 등)의 실행 환경 설정에 변수를 등록합니다.
+3. 주요 필요 변수: `GMS_API_KEY`, `JWT_SECRET`, `ELEVENST_API_KEY`, `NAVER_CLIENT_ID` 등
 
-### 4. Run Backend
+### 4. Backend Configuration
+`backend/src/main/resources/application.yml` 파일에서 기본 설정을 확인합니다. (비밀 키는 환경 변수를 통해 주입됩니다.)
+
+### 5. Run Backend
 ```bash
 cd backend
 ./mvnw clean install
 ./mvnw spring-boot:run
 ```
 
-### 5. Run Frontend
+### 6. Run Frontend
 ```bash
 cd frontend
 npm install

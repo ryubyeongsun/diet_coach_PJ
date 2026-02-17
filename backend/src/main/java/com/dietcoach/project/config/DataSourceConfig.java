@@ -10,16 +10,16 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class DataSourceConfig {
 
-    @Value("${spring.datasource.url:jdbc:mysql://localhost:3306/yumyum?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}")
+    @Value("${spring.datasource.url}")
     private String url;
 
-    @Value("${spring.datasource.username:root}")
+    @Value("${spring.datasource.username}")
     private String username;
 
-    @Value("${spring.datasource.password:zhsl106}")
+    @Value("${spring.datasource.password}")
     private String password;
 
-    @Value("${spring.datasource.driver-class-name:com.mysql.cj.jdbc.Driver}")
+    @Value("${spring.datasource.driver-class-name}")
     private String driverClassName;
 
     @Bean

@@ -31,3 +31,12 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Build Output ###
+out/
+bin/
+
+### OS ###
+.DS_Store
+Thumbs.db
+

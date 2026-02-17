@@ -22,3 +22,14 @@ jwt:
 elevenst:
   api:
     key: ${PROD_ELEVENST_API_KEY}
+
+naver:
+  shopping:
+    client-id: ${PROD_NAVER_CLIENT_ID}
+    client-secret: ${PROD_NAVER_CLIENT_SECRET}
+
+gms:
+  openai:
+    base-url: https://gms.ssafy.io/gmsapi
+    api-key: ${PROD_GMS_API_KEY}
+    timeout-ms: 3600000
