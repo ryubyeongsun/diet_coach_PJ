@@ -144,24 +144,25 @@
 ### 4.1. 월간 식단 생성
 
 -   **Endpoint**: `POST /api/meal-plans`
--   **설명**: 사용자의 최신 TDEE 정보를 바탕으로 1개월치 식단을 자동 생성합니다.
--   **Request Body**: (비어있음 - 인증된 사용자의 정보를 사용)
--   **Success Response** (201 Created):
-    -   `data`: 생성된 식단 계획의 ID (Long)
+-   **설명**: 인증된 사용자의 TDEE 정보를 바탕으로 식단 계획을 생성합니다. 1주차 식단은 요청 처리 중 우선 생성해 응답에 포함하고, 나머지 주차는 전용 Executor에서 백그라운드로 생성합니다.
+-   **Request Body**: `monthlyBudget`, `mealsPerDay`, `preferences`, `allergies`를 선택적으로 전달할 수 있습니다. 사용자 정보는 인증 정보에서 가져옵니다.
+-   **Success Response** (200 OK):
+    -   `data`: `MealPlanOverviewResponse`
+-   **생성 결과 확인**: 별도 jobId 또는 상태 API는 제공하지 않습니다. 응답의 계획 ID로 `GET /api/meal-plans/{planId}`를 호출하거나 최신 식단 조회 API를 다시 호출해 나머지 주차의 생성 결과를 확인할 수 있습니다.
 
 ### 4.2. 사용자의 최신 식단 조회
 
 -   **Endpoint**: `GET /api/users/{userId}/meal-plans/latest`
--   **설명**: 해당 사용자의 가장 최근 식단 계획을 조회합니다.
+-   **설명**: 해당 사용자의 가장 최근 식단 계획을 조회합니다. 백그라운드 생성 이후 결과를 다시 확인하는 데 사용할 수 있으며, 작업 상태만을 반환하는 전용 polling API는 아닙니다.
 -   **Success Response** (200 OK):
-    -   `data`: `MealPlanResponse`
+    -   `data`: `MealPlanOverviewResponse`
 
 ### 4.3. 특정 식단 상세 조회
 
 -   **Endpoint**: `GET /api/meal-plans/{planId}`
--   **설명**: 특정 식단 계획의 전체 상세 정보를 조회합니다. (포함된 모든 `MealPlanDay` 정보 포함)
+-   **설명**: 특정 식단 계획의 전체 상세 정보를 조회합니다. (포함된 모든 `MealPlanDay` 정보 포함) 백그라운드 생성이 진행 중이면 생성이 완료된 일자부터 조회됩니다.
 -   **Success Response** (200 OK):
-    -   `data`: `MealPlanDetailResponse`
+    -   `data`: `MealPlanOverviewResponse`
 
 ### 4.4. 일일 식단 상세 조회
 

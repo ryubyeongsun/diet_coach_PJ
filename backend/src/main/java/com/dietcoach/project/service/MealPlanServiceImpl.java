@@ -10,10 +10,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,12 +46,10 @@ import com.dietcoach.project.mapper.meal.MealPlanMapper;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class MealPlanServiceImpl implements MealPlanService {
 
     private static final int DEFAULT_PLAN_DAYS = 30;
@@ -74,6 +75,27 @@ public class MealPlanServiceImpl implements MealPlanService {
     // 11번가 대표상품 1개 조회 서비스
     private final ShoppingService shoppingService;
     private final ShoppingCategoryService categoryService;
+    private final Executor mealTaskExecutor;
+
+    public MealPlanServiceImpl(
+            UserMapper userMapper,
+            MealPlanMapper mealPlanMapper,
+            WeightRecordMapper weightRecordMapper,
+            MealIntakeMapper mealIntakeMapper,
+            DietAiClient dietAiClient,
+            ShoppingService shoppingService,
+            ShoppingCategoryService categoryService,
+            @Qualifier("mealTaskExecutor") Executor mealTaskExecutor
+    ) {
+        this.userMapper = userMapper;
+        this.mealPlanMapper = mealPlanMapper;
+        this.weightRecordMapper = weightRecordMapper;
+        this.mealIntakeMapper = mealIntakeMapper;
+        this.dietAiClient = dietAiClient;
+        this.shoppingService = shoppingService;
+        this.categoryService = categoryService;
+        this.mealTaskExecutor = mealTaskExecutor;
+    }
 
     // =========================
     // A2 캐시: ingredientName(lower) -> CachedProduct
@@ -197,13 +219,13 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         // 3. Generate Remaining Weeks (Async) - Days 7-29
         // We use CompletableFuture to run this in background without blocking response
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
+        CompletableFuture.runAsync(() -> {
             try {
                 generateRemainingWeeksParallel(mealPlan, allDays, basePayload, targetKcalPerDay, mealsPerDay);
             } catch (Exception e) {
-                log.error("[MealPlan] Async generation failed for planId={}", mealPlan.getId(), e);
+                log.error("[MealPlan] Background generation failed for planId={}", mealPlan.getId(), e);
             }
-        });
+        }, mealTaskExecutor);
 
         // 4. Return Response (Contains populated Week 1 and empty subsequent weeks)
         return getMealPlan(mealPlan.getId());
@@ -216,26 +238,24 @@ public class MealPlanServiceImpl implements MealPlanService {
             int targetKcal,
             int mealsPerDay
     ) {
-        log.info("[MealPlan] Starting Async Parallel Generation for remaining weeks...");
-        
-        // Define chunks for remaining days (e.g. 7-13, 14-20, 21-29)
-        List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
-        
-        // From day 7 to 29
+        log.info("[MealPlan] Starting background generation for remaining weeks...");
+
+        // The outer task already occupies mealTaskExecutor. Processing chunks in that
+        // task avoids pool starvation when several meal plans are requested at once.
         for (int offset = 7; offset < DEFAULT_PLAN_DAYS; offset += AI_CHUNK_DAYS) {
             int currentOffset = offset;
             int limit = Math.min(AI_CHUNK_DAYS, DEFAULT_PLAN_DAYS - currentOffset);
-            
-            // Create a parallel task for each chunk
-            futures.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
-                log.info("[MealPlan] Parallel Chunk Start offset={}", currentOffset);
+
+            try {
+                log.info("[MealPlan] Background chunk start offset={}", currentOffset);
                 generateAndSaveChunk(mealPlan, allDays, basePayload, currentOffset, limit, targetKcal, mealsPerDay);
-            }));
+            } catch (Exception e) {
+                log.error("[MealPlan] Background chunk failed. planId={}, offset={}",
+                        mealPlan.getId(), currentOffset, e);
+            }
         }
 
-        // Wait for all parallel chunks to complete
-        java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0])).join();
-        log.info("[MealPlan] Async Parallel Generation Completed for planId={}", mealPlan.getId());
+        log.info("[MealPlan] Background generation completed for planId={}", mealPlan.getId());
     }
 
     private void generateAndSaveChunk(

@@ -67,6 +67,9 @@ graph TD
 - 끼니별(아침/점심/저녁) 메뉴 및 영양 정보(탄단지) 제공
 - 섭취 기록(Stamp) 및 목표 달성률 트래킹
 
+#### 비동기 식단 생성
+외부 AI API 호출 시간이 길어지는 문제를 줄이기 위해, 1주차 식단은 우선 생성하고 남은 기간의 식단 생성은 `CompletableFuture.runAsync(..., mealTaskExecutor)`로 백그라운드 처리했습니다. 기본 `ForkJoinPool` 대신 Core=5, Max=10, Queue=50으로 구성한 전용 `ThreadPoolTaskExecutor`를 주입해 백그라운드 작업 수를 제어합니다. 현재 별도 jobId 또는 상태 API는 없으며, 식단 조회 API를 다시 호출해 생성 결과를 확인합니다. `@EnableAsync`는 설정되어 있지만, 핵심 백그라운드 실행은 `@Async` 메서드가 아닌 `CompletableFuture` 방식입니다.
+
 ### 4. 🛒 식재료 쇼핑 연동
 - 식단 기반 필요 식재료 자동 리스트업
 - **Open API(11번가)** 연동을 통한 최저가 상품 검색 및 추천
