@@ -1,17 +1,5 @@
-drop database yumyum;
-create database yumyum;
-use yumyum;
-
-
--- Drop tables in reverse order of creation to avoid foreign key constraints
-DROP TABLE IF EXISTS meal_intakes;
-DROP TABLE IF EXISTS refresh_tokens;
-DROP TABLE IF EXISTS shopping_cart_items;
-DROP TABLE IF EXISTS meal_items;
-DROP TABLE IF EXISTS meal_plan_days;
-DROP TABLE IF EXISTS meal_plans;
-DROP TABLE IF EXISTS weight_records;
-DROP TABLE IF EXISTS users;
+-- Initial schema for an EMPTY database selected by the MySQL client.
+-- Apply once. Existing tables cause an error; this script does not reset data.
 
 -- Create users table
 CREATE TABLE users (
