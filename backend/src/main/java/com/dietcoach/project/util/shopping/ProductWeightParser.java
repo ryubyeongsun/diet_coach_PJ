@@ -11,8 +11,9 @@ public class ProductWeightParser {
     // (?i) case insensitive
     // (\d+(?:[.,]\d+)?) : Number (integer or decimal, supports 1.5 or 1,5)
     // \s* : optional space
-    // (kg|g|ml|l|lb|oz) : Unit
-    private static final Pattern WEIGHT_PATTERN = Pattern.compile("(?i)(\\d+(?:[.,]\\d+)?)\\s*(kg|g|ml|l|lb|oz)");
+    // (kg|g|ml|lb|oz|l) : Unit
+    // lb must precede l so pounds are not parsed as liters.
+    private static final Pattern WEIGHT_PATTERN = Pattern.compile("(?i)(\\d+(?:[.,]\\d+)?)\\s*(kg|g|ml|lb|oz|l)");
     private static final Pattern MULTIPLY_PATTERN = Pattern.compile("(?i)(\\d+(?:[.,]\\d+)?)\\s*(kg|g|ml|l)\\s*[xX*]\\s*(\\d+)");
 
     public int parseWeightInGrams(String title) {
