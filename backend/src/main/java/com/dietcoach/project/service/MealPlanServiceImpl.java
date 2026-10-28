@@ -221,7 +221,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         // We use CompletableFuture to run this in background without blocking response
         CompletableFuture.runAsync(() -> {
             try {
-                generateRemainingWeeksParallel(mealPlan, allDays, basePayload, targetKcalPerDay, mealsPerDay);
+                generateRemainingWeeksSequentially(mealPlan, allDays, basePayload, targetKcalPerDay, mealsPerDay);
             } catch (Exception e) {
                 log.error("[MealPlan] Background generation failed for planId={}", mealPlan.getId(), e);
             }
@@ -231,7 +231,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         return getMealPlan(mealPlan.getId());
     }
 
-    private void generateRemainingWeeksParallel(
+    private void generateRemainingWeeksSequentially(
             MealPlan mealPlan,
             List<MealPlanDay> allDays,
             Map<String, Object> basePayload,
@@ -303,10 +303,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 itemsForDay = buildItemsFromTemplate(day.getId(), targetKcal, mealsPerDay);
             }
 
-            // Using synchronized block or transaction might be needed if strictly enforcing transactional integrity,
-            // but for bulk insert in separate logic, calling mapper directly is fine.
-            // Note: Since we are in a async thread, we don't have the parent transaction.
-            // Ideally we should wrap this in a transaction or save safely.
+            // Background execution does not inherit the request transaction.
+            // TODO: make item insertion and calorie update atomic in a separate service.
             saveItemsForDay(day, itemsForDay);
         }
     }
@@ -319,11 +317,6 @@ public class MealPlanServiceImpl implements MealPlanService {
         day.setTotalCalories(totalCaloriesForDay);
         mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
     }
-
-    // Removing old generateAiSkeletonInChunks as it's replaced by generateRemainingWeeksParallel
-    /*
-    private AiMonthlySkeletonResponse generateAiSkeletonInChunks(...) { ... }
-    */
 
     private List<MealItem> buildItemsFromAiWithFixedRules(
             AiMonthlySkeletonResponse skeleton,
