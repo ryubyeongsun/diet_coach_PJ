@@ -1,41 +1,55 @@
-# 🏛 Project Architecture
+# AvoFit 아키텍처
 
-이 문서는 **Diet Coach** 프로젝트의 기술적 설계와 구조에 대해 설명합니다.
+현재 소스의 흐름을 설명합니다. 프로젝트 기간의 구현과 2026.08.15 후속 비동기 개선을 구분하며, 미구현 기능은 개선 과제로 표시합니다.
 
-## 1. 개요 (Overview)
-본 프로젝트는 확장성과 유지보수성을 고려하여 **Layered Architecture** 패턴을 기반으로 설계되었습니다. 백엔드와 프론트엔드는 분리되어 있으며 RESTful API를 통해 통신합니다.
+## 구성
 
-## 2. Backend Architecture (Spring Boot)
-백엔드는 역할에 따라 4개의 주요 레이어로 구분됩니다.
+- `frontend/src/pages`, `components`: Vue 화면과 재사용 컴포넌트, Three.js 렌더링
+- `frontend/src/api`: Axios 호출. 개발 환경에서는 Vite가 `/api`를 백엔드로 프록시
+- `backend/.../controller`: 요청·응답과 인증 사용자 전달
+- `backend/.../service`: 식단·쇼핑·체중·인증 업무 흐름
+- `backend/.../client`: 외부 AI·11번가 API 호출
+- `backend/.../mapper`와 `resources/mapper`: MyBatis 인터페이스·SQL
+- `backend/.../domain`, `dto`: 저장 모델과 요청·응답 모델
 
-### Layers
-- **Controller (Web Layer)**: 
-  - 외부 요청(HTTP Request)을 수신하고 응답(Response)을 반환합니다.
-  - 요청 파라미터 유효성 검사(Validation)를 수행합니다.
-- **Service (Business Layer)**: 
-  - 핵심 비즈니스 로직(TDEE 계산, 식단 생성 알고리즘 등)을 구현합니다.
-  - 트랜잭션 관리와 도메인 간의 로직 흐름을 제어합니다.
-- **Mapper/Repository (Data Access Layer)**: 
-  - MyBatis를 사용하여 DB와의 인터페이스를 정의합니다.
-  - `resources/mapper`에 정의된 XML 쿼리와 매핑됩니다.
-- **Domain/DTO (Data Object)**: 
-  - **Domain**: DB 테이블과 1:1 대응되는 핵심 모델입니다.
-  - **DTO**: API 요청/응답 시 필요한 데이터만 골라 담는 객체로, 보안과 데이터 효율성을 위해 Domain과 분리하여 사용합니다.
+## 장보기 추천
 
-### Security
-- **JWT Authentication**: Spring Security와 연동하여 무상태(Stateless) 인증을 구현했습니다.
-- **RTR Policy**: 보안 강화를 위해 Refresh Token Rotation 정책을 적용했습니다.
+`MealPlanServiceImpl.getShoppingList`가 기간별 식재료를 집계하고 예산을 배분합니다. `ShoppingServiceImpl.searchOne`은 검색어 정규화 → 카테고리 검색 → 후보 점수 평가 → AI 재평가 → 예산 가드 순으로 상품을 선택합니다.
 
-## 3. Frontend Architecture (Vue.js)
-프론트엔드는 컴포넌트 기반 아키텍처를 따르며, 관심사 분리를 위해 폴더 구조를 최적화했습니다.
+- 검색 실패·빈 결과에는 카테고리 제한을 완화하거나 원래 재료명으로 재검색하는 경로가 있습니다.
+- `ProductScorer`는 재료명·용량·예산 적합도를 평가합니다. 상위 후보가 3개 이상이면 `AiProductReranker`를 호출하고 실패 시 규칙 기반 후보를 사용합니다.
+- 상품명 용량은 `ProductWeightParser`로 추정합니다. 유효한 용량이 있으면 필요량을 포장 용량으로 나눈 뒤 올림해 개수를 계산합니다.
+- 개별 상품 비용 검증은 배정 예산의 125%, 전체 장보기 검증은 전체 예산의 115%를 기준으로 합니다. 예산 내 후보가 없으면 단위 중량당 가격을 기준으로 대체할 수 있으므로 개별 가드는 예산 준수를 보장하는 제약이 아닙니다.
+- 전체 예산 초과 시 고비용 항목을 제외하는 방식이므로 모든 식재료를 반드시 제공하는 최적화 알고리즘은 아닙니다.
+- 캐시는 프로세스 내부 메모리에 있습니다. 다중 인스턴스 간 공유하지 않습니다.
 
-### Components Structure
-- **Pages**: 라우터와 연결된 최상위 뷰 컴포넌트입니다.
-- **Components/Common**: 여러 페이지에서 재사용되는 버튼, 입력창, 모달 등의 UI 요소입니다.
-- **API Layer**: `axios` 인스턴스를 관리하고 모든 백엔드 통신 로직을 모듈화하여 관리합니다.
-- **Assets/Models**: Three.js에서 사용하는 3D 모델(.glb) 및 정적 자산을 보관합니다.
+용량 해석은 휴리스틱입니다. `ml`·`L`는 기존 정책상 같은 수치의 g·kg로 환산하지만 재료별 밀도를 반영하지 않습니다. 쉼표의 소수점/천 단위 구분, 복합 묶음 표현 등은 별도 검증이 필요합니다.
 
-## 4. 데이터베이스 설계 전략
-- **Normalization**: 데이터 중복 최소화를 위해 정규화를 수행했습니다.
-- **Integrity**: 외래키(Foreign Key) 제약 조건을 통해 데이터 무결성을 보장합니다.
-- **Scalability**: 추후 식단 종류 확장이나 사용자 통계 기능을 고려하여 테이블을 설계했습니다.
+## 식단 생성
+
+1. `createMonthlyPlan`에서 플랜과 30일의 빈 일자를 저장합니다.
+2. 첫 7일은 요청 스레드에서 AI 호출 후 저장합니다. AI 예외 시 템플릿 식단을 사용합니다.
+3. 나머지 기간은 `mealTaskExecutor`의 한 작업에서 구간별로 순차 생성합니다.
+4. 클라이언트는 기존 식단 조회 API를 재호출해 결과를 확인합니다. 빈 날짜도 응답에 포함될 수 있습니다.
+
+전용 풀은 Core 5 / Max 10 / Queue 50입니다. 기본 큐 정책상 코어 스레드가 사용 중이면 먼저 큐에 적재되고 큐가 찬 뒤 최대 스레드까지 확장합니다. 큐와 최대 스레드가 모두 포화되면 작업 거절이 발생할 수 있습니다. 영속 작업 큐·jobId·상태 API·자동 재시도는 없습니다.
+
+## 데이터와 인증
+
+주요 테이블은 `users`, `weight_records`, `meal_plans`, `meal_plan_days`, `meal_items`, `meal_intakes`, `refresh_tokens`입니다. 체중은 사용자·날짜, 섭취 기록은 사용자·일자·끼니 조합의 유일 제약을 사용합니다. 외래키의 실제 범위는 스키마를 기준으로 합니다.
+
+Spring Security와 JWT를 사용합니다. Refresh Token은 SHA-256 해시로 저장하고 재발급 시 기존 토큰을 폐기하는 Rotation 흐름을 구현했습니다. `/api/health/**`, `/api/auth/**`는 보안 설정에서 공개 경로이고 나머지는 인증을 요구합니다. `/api/auth/me` 구현은 인증 사용자 ID에 의존하므로 정상 사용에는 Access Token이 필요합니다.
+
+## 추가 검증·개선이 필요한 부분
+
+| 우선순위 | 현재 관찰 | 후속 검증·개선 |
+| --- | --- | --- |
+| 높음 | 사용자·식단·체중 ID를 직접 받는 여러 Controller/Service 경로에 인증 사용자와 리소스 소유자 비교가 없음 | 타 사용자 리소스 접근 회귀 테스트 후 서비스 계층 소유권 검증 |
+| 높음 | `createMonthlyPlan`의 트랜잭션이 커밋되기 전에 백그라운드 작업을 제출 | 커밋 후 제출 구조와 제출 실패 시 응답·작업 상태 정책 설계 |
+| 높음 | 비동기 스레드에 요청 트랜잭션이 전파되지 않으며 식단 항목과 일일 합계가 개별 저장됨 | 구간 또는 일자별 저장 트랜잭션과 부분 실패 복구 검증 |
+| 중간 | `ProductScorer`가 모든 후보를 제외하면 검색 결과를 다시 후보로 쓰는 대체 경로 존재 | 금지 상품이 대체 경로에서 다시 선택되지 않도록 정책·테스트 보강 |
+| 중간 | Refresh Token 동시 재발급에 대한 락·원자적 폐기 조건 검증 필요 | 동일 토큰 병렬 요청 테스트 |
+| 중간 | Frontend/Backend BMI 경계값·반올림 중복 | 기준을 한 곳으로 모으고 경계값 테스트 |
+| 중간 | 외부 AI 호출 시간과 프론트 요청 제한 시간의 차이 | 타임아웃·취소·재시도·생성 상태 UX 검증 |
+
+이 문서의 항목은 코드 검토에서 확인한 보완 과제이며, 장애 재현 또는 운영 부하 테스트를 모두 수행했다는 의미는 아닙니다.

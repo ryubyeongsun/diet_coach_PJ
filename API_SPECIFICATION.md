@@ -1,218 +1,81 @@
-# API 명세서
+# AvoFit API 목록
 
-이 문서는 'Diet Coach' 백엔드 애플리케이션의 RESTful API 명세를 상세히 정의합니다. 모든 요청과 응답은 JSON 형식을 따르며, 모든 API는 `/api` 경로 하위에 위치합니다.
+실제 Controller 기준 경로와 입력 요약입니다. 날짜 형식은 `YYYY-MM-DD`입니다. 정상 반환은 현재 Controller 기준 HTTP 200이며 일반 응답은 다음 형태입니다.
 
--   **공통 응답 구조**: 모든 API 응답은 아래와 같이 `ApiResponse` 객체로 감싸여 반환됩니다.
-    ```json
-    {
-        "message": "응답 메시지",
-        "data": { ... } // 실제 데이터 객체 또는 null
-    }
-    ```
--   **인증**: `/api/auth` 경로를 제외한 모든 API는 HTTP 요청 헤더에 `Authorization: Bearer <Access_Token>` 형식의 JWT 토큰을 포함해야 합니다.
+```json
+{"success": true, "message": "success", "data": {}}
+```
 
----
+`data` 타입과 필수 입력 검증은 각 DTO·Service를 함께 확인해야 합니다. 아래 표는 소유권 검증을 보장한다는 의미가 아닙니다. 보완 사항은 [아키텍처](ARCHITECTURE.md)를 참고하세요.
 
-## 1. 인증 (Auth)
+## 인증
 
-**Controller**: `AuthController`
+보호 API는 `Authorization: Bearer <accessToken>`을 사용합니다. 보안 설정상 `/api/health/**`, `/api/auth/**`는 공개되어 있습니다. `GET /api/auth/me`는 구현에서 인증 사용자 ID를 사용하므로 Access Token을 보내야 합니다.
 
-### 1.1. 회원가입
+| Method | Path | 입력 | data |
+| --- | --- | --- | --- |
+| GET | `/api/health` | 없음 | `UP` |
+| POST | `/api/auth/signup` | `SignupRequest`: email, password, name | 사용자 ID |
+| POST | `/api/auth/login` | `LoginRequest`: email, password | `AuthResponse` |
+| POST | `/api/auth/refresh` | `RefreshRequest`: refreshToken | `AuthResponse` |
+| GET | `/api/auth/me` | Access Token | `UserProfileResponse` |
 
--   **Endpoint**: `POST /api/auth/signup`
--   **설명**: 새로운 사용자를 시스템에 등록합니다.
--   **Request Body**:
-    ```json
-    {
-        "email": "user@example.com",
-        "password": "password123",
-        "name": "홍길동"
-    }
-    ```
--   **Success Response** (201 Created):
-    -   `message`: "회원가입이 완료되었습니다."
-    -   `data`: (User-ID, Long)
+## 사용자·체중
 
-### 1.2. 로그인
+| Method | Path | 입력 | data |
+| --- | --- | --- | --- |
+| POST | `/api/users` | `UserCreateRequest` | 사용자 ID |
+| GET | `/api/users/{id}` | 사용자 ID | `UserProfileResponse` |
+| PUT | `/api/users/{id}/profile` | `UserProfileUpdateRequest` | `UserProfileResponse` |
+| GET | `/api/users/{id}/tdee` | 사용자 ID | `TdeeResponse` |
+| GET | `/api/users/{id}/body-status` | 사용자 ID | `BodyStatusResponse` |
+| GET | `/api/users/{userId}/weights` | 선택 query: `from`, `to` | `List<WeightRecordResponse>` |
+| POST | `/api/users/{userId}/weights` | `recordDate`, `weight`, `memo` | `WeightRecordResponse` |
+| DELETE | `/api/users/{userId}/weights/{recordDate}` | 날짜 | null |
 
--   **Endpoint**: `POST /api/auth/login`
--   **설명**: 사용자 인증을 수행하고, 성공 시 JWT 토큰을 발급합니다.
--   **Request Body**:
-    ```json
-    {
-        "email": "user@example.com",
-        "password": "password123"
-    }
-    ```
--   **Success Response** (200 OK):
-    -   `message`: "로그인 성공"
-    -   `data`:
-        ```json
-        {
-            "grantType": "Bearer",
-            "accessToken": "ey...",
-            "refreshToken": "ey..."
-        }
-        ```
+체중 POST는 사용자·날짜 기준 upsert입니다. 기존 문서의 개별 날짜 GET과 recordId 기반 PUT은 현재 Controller에 없습니다.
 
----
+```json
+{"recordDate": "2026-10-28", "weight": 70.0, "memo": "아침 기록"}
+```
 
-## 2. 사용자 (User)
+## 식단·섭취·대시보드
 
-**Controller**: `UserController`
+| Method | Path | 입력 | data |
+| --- | --- | --- | --- |
+| POST | `/api/meal-plans` | `MealPlanCreateRequest` | `MealPlanOverviewResponse` |
+| GET | `/api/meal-plans/latest` | 인증 사용자 | `MealPlanOverviewResponse` |
+| GET | `/api/users/{userId}/meal-plans/latest` | 사용자 ID | `MealPlanOverviewResponse` |
+| GET | `/api/meal-plans/{planId}` | 플랜 ID | `MealPlanOverviewResponse` |
+| GET | `/api/meal-plans/{planId}/ingredients` | 플랜 ID | `List<MealPlanIngredientResponse>` |
+| GET | `/api/meal-plans/days/{dayId}` | 일자 ID | `MealPlanDayDetailResponse` |
+| POST | `/api/meal-plans/days/{dayId}/regenerate` | 일자 ID | `MealPlanDayDetailResponse` |
+| POST | `/api/meal-plans/days/{dayId}/meals/{mealTime}/replace` | 일자·끼니 | `MealPlanDayDetailResponse` |
+| POST | `/api/meal-plans/days/{dayId}/stamp` | 일자 ID | null |
+| PUT | `/api/meal-intakes` | `MealIntakeRequest` | `MealIntakeResponse` |
+| GET | `/api/dashboard/summary` | 인증 사용자 | `DashboardSummaryResponse` |
+| GET | `/api/dashboard/trend` | 필수 `userId`, 선택 `from`, `to` | `DashboardTrendResponse` |
 
-### 2.1. 사용자 정보 조회
+식단 생성 body는 `startDate`, `monthlyBudget`, `mealsPerDay`, `preferences`, `allergies`를 포함할 수 있습니다. 사용자 ID는 인증 정보에서 가져옵니다.
 
--   **Endpoint**: `GET /api/users/{userId}`
--   **설명**: 특정 사용자의 프로필 정보를 조회합니다.
--   **Success Response** (200 OK):
-    -   `data`: UserProfile DTO (id, email, name, gender, birthDate, height, weight 등)
+```json
+{
+  "startDate": "2026-10-28",
+  "monthlyBudget": 300000,
+  "mealsPerDay": 3,
+  "preferences": [],
+  "allergies": []
+}
+```
 
-### 2.2. TDEE 정보 조회
+첫 7일을 요청 중 생성하고 나머지 8~30일은 전용 Executor에서 순차 생성합니다. jobId·상태 API는 없습니다. 전체 조회에는 미생성 날짜가 포함될 수 있으며, 식단 조회를 다시 호출해 결과를 확인합니다.
 
--   **Endpoint**: `GET /api/users/{userId}/tdee`
--   **설명**: 사용자의 신체 정보를 바탕으로 BMR, TDEE, 목표 칼로리 등을 계산하여 반환합니다.
--   **Success Response** (200 OK):
-    -   `data`: TdeeResponse DTO (bmr, tdee, targetCalories 등)
+## 장보기
 
----
+| Method | Path | 입력 | data |
+| --- | --- | --- | --- |
+| GET | `/api/shopping/search` | 필수 `keyword`, 기본 `page=1`, `size=10` | `ShoppingProductsResponse` (`source`, `products`) |
+| GET | `/api/meal-plans/{planId}/shopping` | 기본 `range=MONTH`, 선택 `date` | `ShoppingListResponse` |
+| GET | `/api/meal-plans/{planId}/shopping-list` | 기본 `range=MONTH` | 위 경로의 호환 별칭 |
 
-## 3. 체중 기록 (Weight Record)
-
-**Controller**: `WeightRecordController`
-
-### 3.1. 기간별 체중 기록 조회
-
--   **Endpoint**: `GET /api/users/{userId}/weights`
--   **설명**: 특정 사용자의 기간별 체중 기록 목록을 조회합니다.
--   **Query Parameters**:
-    -   `startDate` (String, `YYYY-MM-DD`, 필수)
-    -   `endDate` (String, `YYYY-MM-DD`, 필수)
--   **Success Response** (200 OK):
-    -   `data`: `List<WeightRecordResponse>`
-
-### 3.2. 특정 날짜 체중 기록 조회
-
--   **Endpoint**: `GET /api/users/{userId}/weights/{date}`
--   **설명**: 특정 날짜의 체중 기록을 조회합니다.
--   **Path Variable**:
-    -   `date` (String, `YYYY-MM-DD`)
--   **Success Response** (200 OK):
-    -   `data`: `WeightRecordResponse`
-
-### 3.3. 체중 기록 추가
-
--   **Endpoint**: `POST /api/users/{userId}/weights`
--   **설명**: 새로운 체중 기록을 추가합니다.
--   **Request Body**:
-    ```json
-    {
-        "weight": 75.5,
-        "date": "2025-12-18"
-    }
-    ```
--   **Success Response** (201 Created):
-    -   `data`: 생성된 체중 기록의 ID (Long)
-
-### 3.4. 체중 기록 수정
-
--   **Endpoint**: `PUT /api/users/{userId}/weights/{recordId}`
--   **설명**: 기존 체중 기록을 수정합니다.
--   **Request Body**:
-    ```json
-    {
-        "weight": 74.8
-    }
-    ```
--   **Success Response** (200 OK):
-    -   `data`: 수정된 체중 기록의 ID (Long)
-
-### 3.5. 체중 기록 삭제
-
--   **Endpoint**: `DELETE /api/users/{userId}/weights/{recordId}`
--   **설명**: 특정 체중 기록을 삭제합니다.
--   **Success Response** (200 OK):
-    -   `message`: "체중 기록이 삭제되었습니다."
-    -   `data`: `null`
-
----
-
-## 4. 식단 계획 (Meal Plan)
-
-**Controller**: `MealPlanController`
-
-### 4.1. 월간 식단 생성
-
--   **Endpoint**: `POST /api/meal-plans`
--   **설명**: 인증된 사용자의 TDEE 정보를 바탕으로 식단 계획을 생성합니다. 1주차 식단은 요청 처리 중 우선 생성해 응답에 포함하고, 나머지 주차는 전용 Executor에서 백그라운드로 생성합니다.
--   **Request Body**: `monthlyBudget`, `mealsPerDay`, `preferences`, `allergies`를 선택적으로 전달할 수 있습니다. 사용자 정보는 인증 정보에서 가져옵니다.
--   **Success Response** (200 OK):
-    -   `data`: `MealPlanOverviewResponse`
--   **생성 결과 확인**: 별도 jobId 또는 상태 API는 제공하지 않습니다. 응답의 계획 ID로 `GET /api/meal-plans/{planId}`를 호출하거나 최신 식단 조회 API를 다시 호출해 나머지 주차의 생성 결과를 확인할 수 있습니다.
-
-### 4.2. 사용자의 최신 식단 조회
-
--   **Endpoint**: `GET /api/users/{userId}/meal-plans/latest`
--   **설명**: 해당 사용자의 가장 최근 식단 계획을 조회합니다. 백그라운드 생성 이후 결과를 다시 확인하는 데 사용할 수 있으며, 작업 상태만을 반환하는 전용 polling API는 아닙니다.
--   **Success Response** (200 OK):
-    -   `data`: `MealPlanOverviewResponse`
-
-### 4.3. 특정 식단 상세 조회
-
--   **Endpoint**: `GET /api/meal-plans/{planId}`
--   **설명**: 특정 식단 계획의 전체 상세 정보를 조회합니다. (포함된 모든 `MealPlanDay` 정보 포함) 백그라운드 생성이 진행 중이면 생성이 완료된 일자부터 조회됩니다.
--   **Success Response** (200 OK):
-    -   `data`: `MealPlanOverviewResponse`
-
-### 4.4. 일일 식단 상세 조회
-
--   **Endpoint**: `GET /api/meal-plans/days/{dayId}`
--   **설명**: 특정 날짜(`MealPlanDay`)의 상세 식단(아침, 점심, 저녁 메뉴 및 칼로리)을 조회합니다.
--   **Success Response** (200 OK):
-    -   `data`: `MealPlanDayDetailResponse`
-
-### 4.5. 식단 재료 목록 조회
-
--   **Endpoint**: `GET /api/meal-plans/{planId}/ingredients`
--   **설명**: 특정 식단 계획에 필요한 모든 재료를 집계하여 목록으로 반환합니다.
--   **Success Response** (200 OK):
-    -   `data`: `List<IngredientResponse>` (예: `{"name": "닭가슴살", "amount": 2000, "unit": "g"}`)
-
----
-
-## 5. 대시보드 (Dashboard)
-
-**Controller**: `DashboardController`
-
-### 5.1. 대시보드 요약 정보 조회
-
--   **Endpoint**: `GET /api/dashboard/summary`
--   **설명**: 대시보드에 표시될 요약 정보(예: 시작 체중, 현재 체중, 목표 체중)를 조회합니다.
--   **Success Response** (200 OK):
-    -   `data`: `DashboardSummaryResponse`
-
-### 5.2. 트렌드 데이터 조회
-
--   **Endpoint**: `GET /api/dashboard/trends`
--   **설명**: 기간별 체중 또는 칼로리 섭취량 추이 데이터를 조회합니다.
--   **Query Parameters**:
-    -   `type` (String, `weight` 또는 `calorie`, 필수)
-    -   `startDate` (String, `YYYY-MM-DD`, 필수)
-    -   `endDate` (String, `YYYY-MM-DD`, 필수)
--   **Success Response** (200 OK):
-    -   `data`: `DashboardTrendResponse` (라벨 목록과 데이터 목록 포함)
-
----
-
-## 6. 쇼핑 (Shopping)
-
-**Controller**: `ShoppingController`
-
-### 6.1. 상품 검색
-
--   **Endpoint**: `GET /api/shopping/products`
--   **설명**: 키워드를 이용해 상품을 검색합니다.
--   **Query Parameters**:
-    -   `keyword` (String, 필수)
--   **Success Response** (200 OK):
-    -   `data`: `List<ShoppingProductResponse>`
+장보기 기간은 `TODAY`, `WEEK`, `MONTH`를 사용합니다. 추천 상품의 용량과 권장 개수는 추정치이며 전체 예산 초과 시 항목이 제외될 수 있습니다. 기존 문서의 `/api/shopping/products`는 현재 검색 경로가 아닙니다.
