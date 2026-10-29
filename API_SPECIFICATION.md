@@ -6,11 +6,11 @@
 {"success": true, "message": "success", "data": {}}
 ```
 
-`data` 타입과 필수 입력 검증은 각 DTO·Service를 함께 확인해야 합니다. 아래 표는 소유권 검증을 보장한다는 의미가 아닙니다. 보완 사항은 [아키텍처](ARCHITECTURE.md)를 참고하세요.
+`data` 타입과 필수 입력 검증은 각 DTO·Service를 함께 확인해야 합니다. 사용자·체중·식단 리소스는 서비스 계층에서 인증 사용자의 소유 여부를 검사하고 타 사용자 접근은 403을 반환합니다. 남은 보완 사항은 [아키텍처](ARCHITECTURE.md)를 참고하세요.
 
 ## 인증
 
-보호 API는 `Authorization: Bearer <accessToken>`을 사용합니다. 보안 설정상 `/api/health/**`, `/api/auth/**`는 공개되어 있습니다. `GET /api/auth/me`는 구현에서 인증 사용자 ID를 사용하므로 Access Token을 보내야 합니다.
+보호 API는 `Authorization: Bearer <accessToken>`을 사용합니다. 공개 경로는 `/api/health/**`, `/api/auth/signup`, `/api/auth/login`, `/api/auth/refresh`입니다. `GET /api/auth/me`를 포함한 보호 API에는 Access Token이 필요합니다. Refresh Token을 일반 API의 Bearer 토큰으로 사용할 수 없습니다. 파싱·기존 DTO 검증 오류는 400을 반환합니다.
 
 | Method | Path | 입력 | data |
 | --- | --- | --- | --- |
@@ -68,7 +68,7 @@
 }
 ```
 
-첫 7일을 요청 중 생성하고 나머지 8~30일은 전용 Executor에서 순차 생성합니다. jobId·상태 API는 없습니다. 전체 조회에는 미생성 날짜가 포함될 수 있으며, 식단 조회를 다시 호출해 결과를 확인합니다.
+첫 7일을 요청 중 생성하고 나머지 8~30일은 첫 저장 트랜잭션의 커밋 후 전용 Executor에서 순차 생성합니다. 백그라운드에서는 일자별 항목과 칼로리 합계를 하나의 트랜잭션으로 저장합니다. jobId·상태 API는 없습니다. 전체 조회에는 미생성 날짜가 포함될 수 있으며, 식단 조회를 다시 호출해 결과를 확인합니다.
 
 ## 장보기
 

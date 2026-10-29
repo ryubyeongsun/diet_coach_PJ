@@ -6,7 +6,7 @@
 - **팀 구성**: 풀스택 2명
 - **본인**: [류병선 · ryubyeongsun](https://github.com/ryubyeongsun)
 - **성과**: SSAFY 14기 최종 페어(관통) 프로젝트 우수상 (포트폴리오 기재)
-- **후속 개선**: 2026.08.15 식단 생성 전용 Executor 도입 및 구간별 순차 처리
+- **후속 개선**: 2026.08.15 전용 Executor·순차 처리, 2026.10 코드 검토 후 접근 권한·저장 정합성·토큰 처리 보강
 - [시연 영상·발표 자료](https://drive.google.com/drive/folders/1dfmQnl0CSuvlWtrIJdcFdw_Y8KkmliGW)
 - [포트폴리오 소스](https://github.com/ryubyeongsun/bs_00.github.io)
 
@@ -48,7 +48,7 @@ flowchart LR
 
 ### 식단 비동기 처리
 
-첫 7일은 요청 스레드에서 생성합니다. 나머지 8~30일은 `CompletableFuture.runAsync(..., mealTaskExecutor)`로 실행하며, 한 작업 안에서 구간별로 순차 처리합니다. 전용 풀은 **Core 5 / Max 10 / Queue 50**입니다. 작업별 상태 API·영속 큐·자동 재시도는 없고 기존 식단 조회 API로 결과를 확인합니다. 처리 시간 개선율이나 동시 처리량을 측정한 수치는 없습니다.
+첫 7일은 요청 스레드에서 생성합니다. 플랜·첫 7일의 트랜잭션이 커밋된 후 나머지 8~30일은 `CompletableFuture.runAsync(..., mealTaskExecutor)`로 실행하며, 한 작업 안에서 구간별로 순차 처리합니다. 전용 풀은 **Core 5 / Max 10 / Queue 50**입니다. 작업별 상태 API·영속 큐·자동 재시도는 없고 기존 식단 조회 API로 결과를 확인합니다. 처리 시간 개선율이나 동시 처리량을 측정한 수치는 없습니다.
 
 ## 기술 스택
 
@@ -59,7 +59,7 @@ flowchart LR
 | Frontend | Vue 3, Vite 7, Three.js, Chart.js, Axios |
 | Build | Maven Wrapper, npm lockfile |
 
-인증은 Access/Refresh Token을 분리하고 Refresh Token 해시를 DB에 저장하며 재발급 시 Rotation을 수행합니다. 인증 구현과 리소스별 소유권 검증은 별도 문제이며, 보완 과제는 [아키텍처 문서](ARCHITECTURE.md)에 정리했습니다.
+인증은 Access/Refresh Token을 분리하고 Refresh Token 해시를 DB에 저장하며 재발급 시 Rotation을 수행합니다. 일반 API에는 Access Token만 허용하고, 사용자·식단·체중 데이터는 서비스 계층에서 인증 사용자와 소유자를 비교합니다. 재발급은 기존 토큰의 조건부 폐기 결과를 확인해 중복 성공을 막습니다. 상세 내용은 [아키텍처 문서](ARCHITECTURE.md)를 참고하세요.
 
 ## 로컬 실행
 
@@ -104,7 +104,14 @@ npm run dev
 
 ## 검증
 
-DB·실제 외부 API 없이 실행하는 단위 테스트:
+전체 테스트는 격리된 H2 DB와 외부 클라이언트 대체 객체를 사용합니다. 실제 개발 DB·API 키 없이 실행할 수 있습니다.
+
+```bash
+cd backend
+./mvnw test
+```
+
+DB를 사용하지 않는 단위 테스트만 실행하려면:
 
 ```bash
 cd backend
@@ -119,7 +126,7 @@ npm ci
 npm run build
 ```
 
-전체 `./mvnw test`에는 DB 연결을 사용하는 `DietCoachApplicationTests`가 포함됩니다. 별도 테스트 DB를 준비하고 접속 환경 변수를 지정한 뒤 실행해야 합니다. 단위 테스트 통과가 실제 외부 API·DB 통합 검증을 대신하지는 않습니다.
+현재 단위·통합 테스트 43개가 통과했습니다. H2 테스트는 실제 MySQL·외부 AI/11번가 API 및 운영 부하 검증을 대신하지 않습니다. 실행 환경과 검증 범위는 [보강·검증 기록](docs/HARDENING.md)을 참고하세요.
 
 ## 문서
 
@@ -130,8 +137,8 @@ npm run build
 
 ## 다음 개선 과제
 
-- 비동기 시작 시점과 트랜잭션 커밋 경계, 구간 저장의 원자성 보강
-- 사용자·식단·체중 리소스별 소유권 검증과 접근 권한 회귀 테스트
+- 실제 MySQL에서 동시 재발급·부분 실패 시나리오 재검증
+- 큐 포화·프로세스 종료 후 미생성 식단의 상태 표시와 복구
 - 상품명 숫자·단위·묶음 표현 및 추천 탈락 후 대체 경로의 경계 사례 보강
 - Frontend/Backend의 BMI Level 정책 통일
 - 작업 상태·실패·재시도 정책과 다중 인스턴스 캐시 설계
