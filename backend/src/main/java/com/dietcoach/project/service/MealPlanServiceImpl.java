@@ -10,14 +10,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import com.dietcoach.project.security.ResourceAccess;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dietcoach.project.client.ai.DietAiClient;
@@ -75,7 +73,9 @@ public class MealPlanServiceImpl implements MealPlanService {
     // 11번가 대표상품 1개 조회 서비스
     private final ShoppingService shoppingService;
     private final ShoppingCategoryService categoryService;
-    private final Executor mealTaskExecutor;
+    private final MealPlanBackgroundTasks backgroundTasks;
+    private final MealDayWriter mealDayWriter;
+    private final ResourceAccess resourceAccess;
 
     public MealPlanServiceImpl(
             UserMapper userMapper,
@@ -85,7 +85,9 @@ public class MealPlanServiceImpl implements MealPlanService {
             DietAiClient dietAiClient,
             ShoppingService shoppingService,
             ShoppingCategoryService categoryService,
-            @Qualifier("mealTaskExecutor") Executor mealTaskExecutor
+            MealPlanBackgroundTasks backgroundTasks,
+            MealDayWriter mealDayWriter,
+            ResourceAccess resourceAccess
     ) {
         this.userMapper = userMapper;
         this.mealPlanMapper = mealPlanMapper;
@@ -94,7 +96,9 @@ public class MealPlanServiceImpl implements MealPlanService {
         this.dietAiClient = dietAiClient;
         this.shoppingService = shoppingService;
         this.categoryService = categoryService;
-        this.mealTaskExecutor = mealTaskExecutor;
+        this.backgroundTasks = backgroundTasks;
+        this.mealDayWriter = mealDayWriter;
+        this.resourceAccess = resourceAccess;
     }
 
     // =========================
@@ -155,6 +159,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     @Override
     @Transactional
     public MealPlanOverviewResponse createMonthlyPlan(Long userId, MealPlanCreateRequest request) {
+        resourceAccess.requireOwner(userId);
         LocalDate startDate = (request != null && request.getStartDate() != null)
                 ? request.getStartDate()
                 : LocalDate.now();
@@ -217,15 +222,9 @@ public class MealPlanServiceImpl implements MealPlanService {
         log.info("[MealPlan] Generating Week 1 Sync...");
         generateAndSaveChunk(mealPlan, allDays, basePayload, 0, 7, targetKcalPerDay, mealsPerDay);
 
-        // 3. Generate Remaining Weeks (Async) - Days 7-29
-        // We use CompletableFuture to run this in background without blocking response
-        CompletableFuture.runAsync(() -> {
-            try {
-                generateRemainingWeeksSequentially(mealPlan, allDays, basePayload, targetKcalPerDay, mealsPerDay);
-            } catch (Exception e) {
-                log.error("[MealPlan] Background generation failed for planId={}", mealPlan.getId(), e);
-            }
-        }, mealTaskExecutor);
+        // Submit only after the plan and first week have committed.
+        backgroundTasks.afterCommit(mealPlan.getId(), () ->
+                generateRemainingWeeksSequentially(mealPlan, allDays, basePayload, targetKcalPerDay, mealsPerDay));
 
         // 4. Return Response (Contains populated Week 1 and empty subsequent weeks)
         return getMealPlan(mealPlan.getId());
@@ -303,19 +302,15 @@ public class MealPlanServiceImpl implements MealPlanService {
                 itemsForDay = buildItemsFromTemplate(day.getId(), targetKcal, mealsPerDay);
             }
 
-            // Background execution does not inherit the request transaction.
-            // TODO: make item insertion and calorie update atomic in a separate service.
-            saveItemsForDay(day, itemsForDay);
+            mealDayWriter.save(day, itemsForDay);
         }
     }
 
-    private void saveItemsForDay(MealPlanDay day, List<MealItem> items) {
-        for (MealItem item : items) {
-            mealPlanMapper.insertMealItem(item);
-        }
-        int totalCaloriesForDay = items.stream().mapToInt(MealItem::getCalories).sum();
-        day.setTotalCalories(totalCaloriesForDay);
-        mealPlanMapper.updateMealPlanDayTotalCalories(day.getId(), totalCaloriesForDay);
+    private MealPlan requireDayOwner(MealPlanDay day) {
+        MealPlan plan = mealPlanMapper.findMealPlanById(day.getMealPlanId());
+        if (plan == null) throw new BusinessException("식단 플랜 정보를 찾을 수 없습니다.");
+        resourceAccess.requireOwner(plan.getUserId());
+        return plan;
     }
 
     private List<MealItem> buildItemsFromAiWithFixedRules(
@@ -621,6 +616,11 @@ public class MealPlanServiceImpl implements MealPlanService {
                     .foodName(portion.getFood().getName())
                     .grams(scaledGrams)
                     .calories(itemCalories)
+                    // Unknown nutrients use the existing schema defaults; keep template calories unchanged.
+                    .carbs(0)
+                    .protein(0)
+                    .fat(0)
+                    .isHighProtein(false)
                     .memo("TEMPLATE")
                     .build());
         }
@@ -668,6 +668,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     public ShoppingListResponse getShoppingList(Long planId, String range, LocalDate date) {
         MealPlan plan = mealPlanMapper.findMealPlanById(planId);
         if (plan == null) throw new BusinessException("존재하지 않는 식단 플랜입니다. id=" + planId);
+        resourceAccess.requireOwner(plan.getUserId());
 
         RangeWindow w = resolveRange(plan, range, date);
 
@@ -1005,6 +1006,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     public MealPlanOverviewResponse getMealPlan(Long planId) {
         MealPlan mealPlan = mealPlanMapper.findMealPlanById(planId);
         if (mealPlan == null) throw new BusinessException("존재하지 않는 식단 플랜입니다. id=" + planId);
+        resourceAccess.requireOwner(mealPlan.getUserId());
 
         List<MealPlanDay> days = mealPlanMapper.findMealPlanDaysByPlanId(planId);
 
@@ -1023,6 +1025,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     @Override
     @Transactional(readOnly = true)
     public MealPlanOverviewResponse getLatestMealPlanForUser(Long userId) {
+        resourceAccess.requireOwner(userId);
         MealPlan latestPlan = mealPlanMapper.findLatestMealPlanByUserId(userId);
         if (latestPlan == null) throw new BusinessException("해당 사용자의 최근 식단 플랜이 없습니다.");
         return getMealPlan(latestPlan.getId());
@@ -1033,6 +1036,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     public List<MealPlanIngredientResponse> getIngredientsForPlan(Long planId) {
         MealPlan plan = mealPlanMapper.findMealPlanById(planId);
         if (plan == null) throw new BusinessException("존재하지 않는 식단 플랜입니다. id=" + planId);
+        resourceAccess.requireOwner(plan.getUserId());
 
         List<MealPlanIngredientResponse> list = mealPlanMapper.findIngredientsForPlan(planId);
         if (list == null || list.isEmpty()) throw new BusinessException("해당 플랜의 재료 정보가 없습니다. id=" + planId);
@@ -1042,6 +1046,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     @Override
     @Transactional(readOnly = true)
     public DashboardSummaryResponse getDashboardSummary(Long userId) {
+        resourceAccess.requireOwner(userId);
         MealPlan latestPlan = mealPlanMapper.findLatestMealPlanByUserId(userId);
         // Plan can be null if user hasn't created one yet.
         // We still want to return weight info.
@@ -1153,10 +1158,10 @@ public class MealPlanServiceImpl implements MealPlanService {
         MealPlanDay day = mealPlanMapper.findMealPlanDayById(dayId);
         if (day == null) throw new BusinessException("존재하지 않는 Day 입니다. id=" + dayId);
 
+        MealPlan plan = requireDayOwner(day);
         List<MealItem> items = mealPlanMapper.findMealItemsByDayId(dayId);
-        
+
         // Find intakes
-        MealPlan plan = mealPlanMapper.findMealPlanById(day.getMealPlanId());
         List<MealIntake> intakes = mealIntakeMapper.findByDayId(plan.getUserId(), dayId);
         log.info("[DayDetail] dayId={} intakes={}", dayId, intakes.stream().map(i -> i.getMealTime() + "=" + i.isConsumed()).collect(Collectors.joining(",")));
 
@@ -1234,6 +1239,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         MealPlanDay day = mealPlanMapper.findMealPlanDayById(dayId);
         if (day == null) throw new BusinessException("존재하지 않는 날짜입니다. id=" + dayId);
 
+        requireDayOwner(day);
         boolean newState = !(day.getIsStamped() != null && day.getIsStamped());
         day.setIsStamped(newState);
         mealPlanMapper.updateMealPlanDayStamp(dayId, newState);
@@ -1262,6 +1268,7 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         MealPlan plan = mealPlanMapper.findMealPlanById(day.getMealPlanId());
         if (plan == null) throw new BusinessException("식단 플랜 정보를 찾을 수 없습니다.");
+        resourceAccess.requireOwner(plan.getUserId());
 
         // Clear intakes
         mealIntakeMapper.deleteByDayId(plan.getUserId(), dayId);
@@ -1298,6 +1305,7 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         MealPlan plan = mealPlanMapper.findMealPlanById(day.getMealPlanId());
         if (plan == null) throw new BusinessException("식단 플랜 정보를 찾을 수 없습니다.");
+        resourceAccess.requireOwner(plan.getUserId());
 
         // Clear intakes
         mealIntakeMapper.deleteByDayIdAndMealTime(plan.getUserId(), dayId, normalizedMealTime);

@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import com.dietcoach.project.security.ResourceAccess;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dietcoach.project.common.error.BusinessException;
@@ -24,11 +25,13 @@ public class DashboardServiceImpl implements DashboardService {
 
     private final DashboardMapper dashboardMapper;
     private final UserMapper userMapper;
+    private final ResourceAccess resourceAccess;
     private final MealPlanMapper mealPlanMapper;
 
     @Override
     @Transactional(readOnly = true)
     public DashboardTrendResponse getTrend(Long userId, LocalDate from, LocalDate to) {
+        resourceAccess.requireOwner(userId);
         if (userId == null) {
             throw new BusinessException("userId is required");
         }

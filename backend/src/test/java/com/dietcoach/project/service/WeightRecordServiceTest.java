@@ -24,6 +24,9 @@ import static org.mockito.Mockito.*;
 class WeightRecordServiceTest {
 
     @Mock
+    private com.dietcoach.project.security.ResourceAccess resourceAccess;
+
+    @Mock
     private UserMapper userMapper;
 
     @Mock

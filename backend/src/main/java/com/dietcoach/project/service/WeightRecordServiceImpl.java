@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import com.dietcoach.project.security.ResourceAccess;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dietcoach.project.common.error.BusinessException;
@@ -24,11 +25,13 @@ import lombok.RequiredArgsConstructor;
 public class WeightRecordServiceImpl implements WeightRecordService {
 
     private final UserMapper userMapper;
+    private final ResourceAccess resourceAccess;
     private final WeightRecordMapper weightRecordMapper;
 
     @Override
     @Transactional
     public WeightRecordResponse upsertWeightRecord(Long userId, WeightRecordUpsertRequest request) {
+        resourceAccess.requireOwner(userId);
         if (userId == null) throw new BusinessException("userId는 필수입니다.");
         if (request == null) throw new BusinessException("요청 바디가 비었습니다.");
         if (request.getRecordDate() == null) throw new BusinessException("recordDate는 필수입니다.");
@@ -81,6 +84,7 @@ public class WeightRecordServiceImpl implements WeightRecordService {
     @Override
     @Transactional(readOnly = true)
     public List<WeightRecordResponse> getWeightRecords(Long userId, LocalDate from, LocalDate to) {
+        resourceAccess.requireOwner(userId);
         if (userId == null) throw new BusinessException("userId는 필수입니다.");
 
         // 기본값: 최근 30일
@@ -108,6 +112,7 @@ public class WeightRecordServiceImpl implements WeightRecordService {
     @Override
     @Transactional
     public void deleteWeightRecord(Long userId, Long recordId) {
+        resourceAccess.requireOwner(userId);
         WeightRecord record = weightRecordMapper.findById(recordId);
 
         if (record == null) {
@@ -123,6 +128,7 @@ public class WeightRecordServiceImpl implements WeightRecordService {
     @Override
     @Transactional
     public void deleteWeightRecord(Long userId, LocalDate recordDate) {
+        resourceAccess.requireOwner(userId);
         if (userId == null || recordDate == null) {
             throw new BusinessException("userId와 recordDate는 필수입니다.");
         }
@@ -139,6 +145,7 @@ public class WeightRecordServiceImpl implements WeightRecordService {
     @Override
     @Transactional(readOnly = true)
     public BodyStatusResponse getBodyStatus(Long userId) {
+        resourceAccess.requireOwner(userId);
         User user = userMapper.findById(userId);
         if (user == null) {
             throw new BusinessException("존재하지 않는 사용자입니다.");

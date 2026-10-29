@@ -1,5 +1,6 @@
 package com.dietcoach.project.security;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,14 +26,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (auth != null && auth.startsWith("Bearer ")) {
             String token = auth.substring(7);
-            if (jwtTokenProvider.validateToken(token)) {
-                Long userId = jwtTokenProvider.getUserId(token);
-
-                // principal = Long userId (주인님 컨벤션: @AuthenticationPrincipal Long)
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userId, null, List.of());
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+            try {
+                if (jwtTokenProvider.validateToken(token) && jwtTokenProvider.isAccessToken(token)) {
+                    Long userId = jwtTokenProvider.getUserId(token);
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userId, null, List.of());
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            } catch (JwtException | IllegalArgumentException error) {
+                // Includes malformed subjects and tokens that expire between validation and parsing.
+                SecurityContextHolder.clearContext();
             }
         }
 

@@ -30,7 +30,7 @@
   <update id="revokeById">
     UPDATE refresh_tokens
     SET revoked = 1, updated_at = NOW()
-    WHERE id = #{id}
+    WHERE id = #{id} AND revoked = 0
   </update>
 
 </mapper>
