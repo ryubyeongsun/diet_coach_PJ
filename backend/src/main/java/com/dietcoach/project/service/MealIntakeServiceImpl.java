@@ -10,6 +10,8 @@ import com.dietcoach.project.mapper.meal.MealPlanMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import com.dietcoach.project.security.ResourceAccess;
+import com.dietcoach.project.domain.meal.MealPlan;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -21,21 +23,26 @@ public class MealIntakeServiceImpl implements MealIntakeService {
 
     private final MealIntakeMapper mealIntakeMapper;
     private final MealPlanMapper mealPlanMapper;
+    private final ResourceAccess resourceAccess;
 
     @Override
     @Transactional
     public MealIntakeResponse upsertIntake(Long userId, MealIntakeRequest request) {
+        resourceAccess.requireOwner(userId);
+        if (request == null) throw new BusinessException("요청 바디가 비었습니다.");
         if (request.getMealPlanDayId() == null || request.getMealTime() == null) {
             throw new BusinessException("mealPlanDayId and mealTime are required");
         }
 
-        // Validate that the mealPlanDay exists and belongs to a plan owned by the user (or at least exists)
-        // Strictly speaking, we should check if the plan belongs to the user.
-        // For MVP, checking if day exists is a good start.
+        // Validate ownership before reading or mutating consumption records.
         MealPlanDay day = mealPlanMapper.findMealPlanDayById(request.getMealPlanDayId());
         if (day == null) {
             throw new BusinessException("MealPlanDay not found: " + request.getMealPlanDayId());
         }
+
+        MealPlan plan = mealPlanMapper.findMealPlanById(day.getMealPlanId());
+        if (plan == null) throw new BusinessException("식단 플랜 정보를 찾을 수 없습니다.");
+        resourceAccess.requireOwner(plan.getUserId());
 
         boolean isConsumed = Boolean.TRUE.equals(request.getIsConsumed());
         LocalDateTime consumedAt = isConsumed ? LocalDateTime.now() : null;

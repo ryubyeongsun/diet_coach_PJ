@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -49,6 +50,7 @@ public class JwtTokenProvider {
         Date exp = new Date(now.getTime() + expMs);
 
         return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
                 .setSubject(String.valueOf(userId))
                 .claim("token_type", tokenType) // ✅ 핵심
                 .setIssuedAt(now)
@@ -69,6 +71,10 @@ public class JwtTokenProvider {
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
+    }
+
+    public boolean isAccessToken(String token) {
+        return "access".equals(parseClaims(token).get("token_type"));
     }
 
     public boolean isRefreshToken(String token) {

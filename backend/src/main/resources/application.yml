@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   profiles:
     active: dev
   datasource:
@@ -8,7 +8,8 @@
     password: ssafy
   sql:
     init:
-      mode: always
+      # Apply schema.sql once to an empty database; never reset data on startup.
+      mode: never
       schema-locations: classpath:schema/schema.sql
 
 server:

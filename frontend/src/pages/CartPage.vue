@@ -288,7 +288,6 @@ function saveBudget() {
 .budget-row.expense {
   color: #ef4444;
 }
-...
 .item-row.is-purchased {
   background-color: #f9fafb;
   padding: 12px 10px;

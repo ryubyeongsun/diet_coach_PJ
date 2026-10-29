@@ -136,7 +136,9 @@ public class AuthServiceImpl implements AuthService {
         Long userId = saved.getUserId();
 
         // ✅ 로테이션: 기존 토큰 폐기
-        refreshTokenMapper.revokeById(saved.getId());
+        if (refreshTokenMapper.revokeById(saved.getId()) != 1) {
+            throw new BusinessException("Refresh token revoked");
+        }
 
         // ✅ 새 토큰 발급
         String newAccess = jwtTokenProvider.createAccessToken(userId);

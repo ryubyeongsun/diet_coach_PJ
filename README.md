@@ -1,211 +1,144 @@
-# 🥗 Diet Coach (다이어트 코치)
+# AvoFit — AI 식단·장보기 관리 서비스
 
-[![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://www.oracle.com/java/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.8-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![Vue.js](https://img.shields.io/badge/Vue.js-3.5.24-4FC08D.svg)](https://vuejs.org/)
-[![MySQL](https://img.shields.io/badge/MySQL-8.0-blue.svg)](https://www.mysql.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+사용자의 신체정보와 목표를 바탕으로 식단을 생성하고, 필요한 식재료를 11번가 상품에 연결하는 2인 팀 프로젝트입니다. BMI 단계에 맞는 3D 아바타로 체형을 시각화합니다.
 
-> **AI & 3D Avatar Based Diet Management Solution**  
-> 사용자의 신체 데이터를 분석하여 **TDEE(일일 총 에너지 소비량)**를 계산하고, 맞춤형 식단 및 쇼핑 가이드를 제공하는 헬스케어 플랫폼입니다. **체중 변화에 따라 실시간으로 진화하는 3D 캐릭터**를 통해 건강 관리의 동기를 부여합니다.
+- **개발 기간**: 2025.11 ~ 2025.12, 4주 (포트폴리오 기준)
+- **팀 구성**: 풀스택 2명
+- **본인**: [류병선 · ryubyeongsun](https://github.com/ryubyeongsun)
+- **성과**: SSAFY 14기 최종 페어(관통) 프로젝트 우수상 (포트폴리오 기재)
+- **후속 개선**: 2026.08.15 전용 Executor·순차 처리, 2026.10 코드 검토 후 접근 권한·저장 정합성·토큰 처리 보강
+- [시연 영상·발표 자료](https://drive.google.com/drive/folders/1dfmQnl0CSuvlWtrIJdcFdw_Y8KkmliGW)
+- [포트폴리오 소스](https://github.com/ryubyeongsun/bs_00.github.io)
 
----
+## 담당한 부분
 
-## 📅 프로젝트 개요
+| 구분 | 구현·기여 내용 | 코드 |
+| --- | --- | --- |
+| 장보기 상품 추천 | 검색어 정규화, 부적합 상품 필터링, 예산·용량·재료명 기반 후보 평가, AI 의미 판단 보완 | [ShoppingServiceImpl](backend/src/main/java/com/dietcoach/project/service/ShoppingServiceImpl.java), [ProductScorer](backend/src/main/java/com/dietcoach/project/service/shopping/ProductScorer.java) |
+| 구매 수량 계산 | 상품명에서 포장 용량을 추출하고 필요량 대비 권장 구매 개수와 비용 계산 | [ProductWeightParser](backend/src/main/java/com/dietcoach/project/util/shopping/ProductWeightParser.java), [MealPlanServiceImpl](backend/src/main/java/com/dietcoach/project/service/MealPlanServiceImpl.java) |
+| 3D 초기 웹 연동 | 전달받은 GLB 자산을 Three.js GLTFLoader로 렌더링하고 BMI Level별 모델 선택 연결 | [Character3D.vue](frontend/src/components/dashboard/Character3D.vue) |
+| 프로젝트 종료 후 개선 | 첫 7일 우선 생성 흐름을 유지하면서 나머지 8~30일을 전용 Executor의 한 작업에서 순차 생성 | [AsyncConfig](backend/src/main/java/com/dietcoach/project/config/AsyncConfig.java) |
 
-- **프로젝트명**: Diet Coach (다이어트 코치)
-- **개발 기간**: 2025.12 ~ (진행 중)
-- **주요 목표**:
-  - 과학적인(TDEE 기반) 다이어트 목표 설정
-  - 사용자 맞춤형 식단 자동 생성 알고리즘 구현
-  - 게이미피케이션(3D 캐릭터) 요소를 통한 지속적인 사용자 참여 유도
-  - 외부 커머스 API 연동을 통한 식재료 구매 편의성 제공
+3D 모델링 자산은 외부 도움으로 전달받았습니다. 모델링 자체와 팀원의 후속 수정은 본인의 단독 구현 범위에 포함하지 않습니다. 식단·대시보드 등 전체 서비스 기능에는 팀원의 구현이 함께 포함되어 있습니다.
 
----
-
-## 📺 시연 영상 및 발표 자료 (Demo & Presentation)
-
-[📂 Diet Coach 프로젝트 시연 영상 및 발표 자료(PPT, PDF) 보기](https://drive.google.com/drive/folders/1dfmQnl0CSuvlWtrIJdcFdw_Y8KkmliGW?usp=drive_link)
-
----
-
-## 🏛 시스템 아키텍처 (System Architecture)
+## 주요 흐름과 설계
 
 ```mermaid
-graph TD
-    Client[Vue.js Frontend] -->|REST API| Server[Spring Boot Backend]
-    Server -->|MyBatis| DB[(MySQL Database)]
-    Server -->|Shopping Search| ExternalAPI[11st Commerce API]
-    
-    subgraph "Frontend Layer"
-        Client -->|Visual Feedback| ThreeJS[Three.js 3D Engine]
-        Client -->|Data Viz| ChartJS[Chart.js Dashboard]
-    end
-    
-    subgraph "Backend Layer"
-        Server -->|Auth| Security[Spring Security + JWT]
-        Server -->|Logic| Service[TDEE Calculation & Meal Planning]
-    end
+flowchart LR
+    UI[Vue.js / Three.js] --> API[Spring Boot API]
+    API --> Service[서비스 로직]
+    Service --> DB[(MyBatis / MySQL)]
+    Service --> AI[외부 AI API]
+    Service --> Shop[11번가 API]
+    Service --> Executor[식단 생성 전용 Executor]
+    Executor --> AI
+    Executor --> DB
 ```
 
----
+### 식재료를 실제 구매 상품으로 연결
 
-## 🚀 주요 기능 (Key Features)
+1. `닭가슴살 100g`처럼 수량이 포함된 재료명을 정규화합니다.
+2. 카테고리 검색과 상품명 필터링으로 후보를 가져옵니다.
+3. 재료명·예산·용량을 기준으로 점수를 매기고 상위 후보를 추립니다.
+4. 후보가 3개 이상이면 AI로 의미적 적합성을 보완합니다. AI 실패 시 규칙 기반 후보로 대체합니다.
+5. 유효한 포장 용량이 있으면 `ceil(필요량 / 포장 용량)`으로 구매 개수를 계산합니다.
+6. 구매 개수를 반영한 비용을 검증하고, 전체 예상 비용이 예산의 115%를 초과하면 고비용 항목부터 제외합니다.
 
-### 1. 🥑 인터랙티브 3D 캐릭터 (Interactive Avatar)
-- **Three.js** 기반의 3D 아바타(아보카도) 렌더링
-- **동적 체형 변화**: 사용자의 BMI 변화에 따라 캐릭터가 **Level 1(매우 마름) ~ Level 5(비만)** 단계로 실시간 변화
-- 시각적 피드백을 통한 강력한 동기 부여 제공
+예를 들어 필요량 1,200g, 포장 500g, 상품 가격 4,000원이면 권장 구매 개수는 3개, 예상 비용은 12,000원입니다. 포장 용량을 알 수 없으면 기본 1개로 처리하므로 실제 구매 전 확인이 필요합니다. 개별 후보 예산 가드의 허용치는 125%이며 전체 예산 검증의 115%와 구분됩니다. 배송비·실시간 재고·결제는 연동하지 않습니다.
 
-### 2. 📊 개인화된 건강 분석 & TDEE
-- 신체 정보(성별, 나이, 키, 체중) 및 활동량(Activity Level) 기반 정밀 분석
-- **BMR(기초대사량)** 및 **TDEE** 자동 계산
-- 목표(감량/유지/증량)에 따른 **일일 권장 칼로리** 가이드
+### 식단 비동기 처리
 
-### 3. 🍽 스마트 식단 매니지먼트
-- 알고리즘 기반 **1개월 식단 자동 생성**
-- 끼니별(아침/점심/저녁) 메뉴 및 영양 정보(탄단지) 제공
-- 섭취 기록(Stamp) 및 목표 달성률 트래킹
+첫 7일은 요청 스레드에서 생성합니다. 플랜·첫 7일의 트랜잭션이 커밋된 후 나머지 8~30일은 `CompletableFuture.runAsync(..., mealTaskExecutor)`로 실행하며, 한 작업 안에서 구간별로 순차 처리합니다. 전용 풀은 **Core 5 / Max 10 / Queue 50**입니다. 작업별 상태 API·영속 큐·자동 재시도는 없고 기존 식단 조회 API로 결과를 확인합니다. 처리 시간 개선율이나 동시 처리량을 측정한 수치는 없습니다.
 
-#### 비동기 식단 생성
-외부 AI API 호출 시간이 길어지는 문제를 줄이기 위해, 1주차 식단은 우선 생성하고 남은 기간의 식단 생성은 `CompletableFuture.runAsync(..., mealTaskExecutor)`로 백그라운드 처리했습니다. 기본 `ForkJoinPool` 대신 Core=5, Max=10, Queue=50으로 구성한 전용 `ThreadPoolTaskExecutor`를 주입해 백그라운드 작업 수를 제어합니다. 현재 별도 jobId 또는 상태 API는 없으며, 식단 조회 API를 다시 호출해 생성 결과를 확인합니다. `@EnableAsync`는 설정되어 있지만, 핵심 백그라운드 실행은 `@Async` 메서드가 아닌 `CompletableFuture` 방식입니다.
+## 기술 스택
 
-### 4. 🛒 식재료 쇼핑 연동
-- 식단 기반 필요 식재료 자동 리스트업
-- **Open API(11번가)** 연동을 통한 최저가 상품 검색 및 추천
-- 장바구니 기능 제공
+| 영역 | 기술 |
+| --- | --- |
+| Backend | Java 17, Spring Boot 3.5.8, Spring Security, JJWT 0.11.5 |
+| Data | MyBatis Spring Boot Starter 3.0.5, MySQL 8.0 |
+| Frontend | Vue 3, Vite 7, Three.js, Chart.js, Axios |
+| Build | Maven Wrapper, npm lockfile |
 
-### 5. 📈 통합 대시보드
-- 체중 변화 추이 그래프 (Chart.js)
-- 일별/주별 칼로리 섭취량 분석
-- 체중 기록 메모 및 히스토리 관리
+인증은 Access/Refresh Token을 분리하고 Refresh Token 해시를 DB에 저장하며 재발급 시 Rotation을 수행합니다. 일반 API에는 Access Token만 허용하고, 사용자·식단·체중 데이터는 서비스 계층에서 인증 사용자와 소유자를 비교합니다. 재발급은 기존 토큰의 조건부 폐기 결과를 확인해 중복 성공을 막습니다. 상세 내용은 [아키텍처 문서](ARCHITECTURE.md)를 참고하세요.
 
----
+## 로컬 실행
 
-## 📖 상세 문서 (Documentation)
+필요 환경: **JDK 17**, **Node.js 22.12 이상**, **MySQL 8.0**, 외부 연동용 API 키. 프론트엔드 의존성의 정확한 버전은 `frontend/package-lock.json`을 따릅니다.
 
-프로젝트의 상세 설계 및 기술 가이드는 아래 링크에서 확인할 수 있습니다.
+### 1. DB 준비
 
-- [🏗️ 상세 아키텍처 가이드 (Architecture)](./ARCHITECTURE.md)
-- [📡 API 상세 명세서 (API Specification)](./API_SPECIFICATION.md)
-- [🏷️ 네이밍 컨벤션 (Naming Conventions)](./NAMING_CONVENTIONS.md)
-
----
-
-## 🛠 기술 스택 (Tech Stack)
-
-| Category | Technology | Description |
-| --- | --- | --- |
-| **Backend** | **Java 17** | Core Language |
-| | **Spring Boot 3.5.8** | Web Framework |
-| | **Spring Security** | Authentication & Authorization |
-| | **JJWT (JWT)** | Token-based Security (Access/Refresh with Rotation) |
-| | **MyBatis 3.0.5** | SQL Mapper Framework |
-| | **MySQL 8.0** | RDBMS |
-| **Frontend** | **Vue.js 3.5.24** | Progressive JavaScript Framework |
-| | **Vite** | Frontend Build Tool |
-| | **Three.js** | 3D Graphics Library |
-| | **Chart.js** | Data Visualization |
-| | **Axios** | HTTP Client |
-| **DevOps** | **Maven** | Dependency Management |
-| | **Git** | Version Control |
-
----
-
-## 📂 프로젝트 구조 (Directory Structure)
+빈 개발용 DB를 만든 뒤 스키마를 한 번 적용합니다. 기존 DB에는 재적용하지 않습니다. 자동 스키마 초기화는 꺼져 있으며 서버 재시작 시 데이터를 삭제하지 않습니다.
 
 ```bash
-diet_coach_PJ
-├── backend                     # Spring Boot Application
-│   ├── src/main/java           # Java Source Code
-│   ├── src/main/resources      # Resources & SQL
-│   └── pom.xml                 # Maven Dependencies
-├── frontend                    # Vue.js Client
-│   ├── src                     # Vue Source Code
-│   └── package.json            # Node.js Dependencies
-└── README.md
+mysql -u root -p -e "CREATE DATABASE yumyum CHARACTER SET utf8mb4;"
+mysql -u root -p yumyum < backend/src/main/resources/schema/schema.sql
 ```
 
----
+### 2. 환경 변수
 
-## ⚙️ 설치 및 실행 가이드 (Installation)
+[.env.example](.env.example)을 참고해 IDE 또는 셸의 환경 변수에 등록합니다. **Spring Boot는 루트 `.env`를 자동으로 읽지 않습니다.** DB 접속은 `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`로 덮어쓸 수 있습니다.
 
-### 1. Prerequisites
-- **Java JDK 17+**
-- **Node.js 18+**
-- **MySQL 8.0+**
+- `JWT_SECRET`: 실제 실행용 임의 비밀값
+- `GMS_API_KEY`: 식단 생성·상품 후보 의미 판단
+- `ELEVENST_API_KEY`: 실제 상품 검색
+- 운영 설정은 `SPRING_PROFILES_ACTIVE=prod`와 `.env.example`의 `PROD_*` 변수를 사용합니다.
 
-### 2. Database Setup
-MySQL 데이터베이스를 생성하고 초기 스키마를 적용합니다.
+실제 키가 없거나 API 호출에 실패하면 일부 경로는 템플릿 식단 또는 대체 결과를 사용합니다. 응답의 `source`와 로그를 함께 확인해야 실제 연동 여부를 판단할 수 있습니다.
 
-```sql
-CREATE DATABASE yumyum;
-USE yumyum;
--- backend/src/main/resources/schema/schema.sql 파일의 내용을 실행하여 테이블 생성
-```
+### 3. Backend
 
-### 3. Environment Variables
-본 프로젝트는 보안을 위해 API 키 및 비밀 정보를 환경 변수로 관리합니다.
-
-1. 프로젝트 루트의 `.env.example` 파일을 참고하여 필요한 환경 변수 목록을 확인합니다.
-2. 개발 환경(Local)에 맞게 시스템 환경 변수를 설정하거나, IDE(IntelliJ 등)의 실행 환경 설정에 변수를 등록합니다.
-3. 주요 필요 변수: `GMS_API_KEY`, `JWT_SECRET`, `ELEVENST_API_KEY`, `NAVER_CLIENT_ID` 등
-
-### 4. Backend Configuration
-`backend/src/main/resources/application.yml` 파일에서 기본 설정을 확인합니다. (비밀 키는 환경 변수를 통해 주입됩니다.)
-
-### 5. Run Backend
 ```bash
 cd backend
-./mvnw clean install
 ./mvnw spring-boot:run
 ```
 
-### 6. Run Frontend
+### 4. Frontend — 별도 터미널
+
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
----
+화면은 `http://localhost:5173`, API는 `http://localhost:8080`입니다. Vite가 `/api` 요청을 백엔드로 전달합니다. 백엔드에 남아 있는 정적 빌드 사본은 최신 프론트 소스와 다를 수 있어 개발 확인에는 Vite를 사용합니다.
 
-## 🏗️ 배포 팁 (Deployment)
+## 검증
 
-프론트엔드 빌드 결과물을 백엔드 정적 리소스로 통합하여 배포하려면 다음 과정을 수행하세요.
+전체 테스트는 격리된 H2 DB와 외부 클라이언트 대체 객체를 사용합니다. 실제 개발 DB·API 키 없이 실행할 수 있습니다.
 
-1. 프론트엔드 빌드: `cd frontend && npm run build`
-2. 생성된 `dist` 폴더 내의 파일들을 `backend/src/main/resources/static` 폴더로 복사합니다.
-3. 백엔드를 실행하면 `http://localhost:8080`에서 통합된 애플리케이션을 확인할 수 있습니다.
+```bash
+cd backend
+./mvnw test
+```
 
----
+DB를 사용하지 않는 단위 테스트만 실행하려면:
 
-## 🔒 보안 (Security Implementation)
+```bash
+cd backend
+./mvnw -Dtest=ProductWeightParserTest,IngredientQueryNormalizerTest,WeightRecordServiceTest test
+```
 
-본 프로젝트는 **JWT (JSON Web Token)** 기반의 인증 시스템을 구축하였습니다.
+프론트엔드 빌드:
 
-- **Access Token**: API 접근 권한 인증 (유효기간 짧음)
-- **Refresh Token**: Access Token 재발급 용도 (DB 저장, 보안 강화)
-- **RTR (Refresh Token Rotation)**: Refresh Token 사용 시 기존 토큰을 폐기하고 새로운 토큰을 발급하여 탈취 위험을 최소화하는 **Rotation** 정책을 적용했습니다.
+```bash
+cd frontend
+npm ci
+npm run build
+```
 
----
+현재 단위·통합 테스트 43개가 통과했습니다. H2 테스트는 실제 MySQL·외부 AI/11번가 API 및 운영 부하 검증을 대신하지 않습니다. 실행 환경과 검증 범위는 [보강·검증 기록](docs/HARDENING.md)을 참고하세요.
 
-## 🤝 Contributing
+## 문서
 
-1. 이 저장소를 **Fork** 합니다.
-2. 새로운 브랜치를 생성합니다. (`git checkout -b feature/NewFeature`)
-3. 변경사항을 **Commit** 합니다. (`git commit -m 'Add NewFeature'`)
-4. 브랜치에 **Push** 합니다. (`git push origin feature/NewFeature`)
-5. **Pull Request**를 요청합니다.
+- [아키텍처와 남아 있는 설계 과제](ARCHITECTURE.md)
+- [실제 Controller 기준 API 목록](API_SPECIFICATION.md)
+- [개발·커밋 규칙](CONTRIBUTING.md)
+- [면접 준비: 코드 근거와 예상 질문](docs/INTERVIEW_GUIDE.md)
 
----
+## 다음 개선 과제
 
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-### 📞 Contact
-- **Team**: ImChanHyuck 
-- **Email**: dlacksgur311@gmail.com
+- 실제 MySQL에서 동시 재발급·부분 실패 시나리오 재검증
+- 큐 포화·프로세스 종료 후 미생성 식단의 상태 표시와 복구
+- 상품명 숫자·단위·묶음 표현 및 추천 탈락 후 대체 경로의 경계 사례 보강
+- Frontend/Backend의 BMI Level 정책 통일
+- 작업 상태·실패·재시도 정책과 다중 인스턴스 캐시 설계

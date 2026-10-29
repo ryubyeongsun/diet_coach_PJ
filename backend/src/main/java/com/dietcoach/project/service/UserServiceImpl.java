@@ -2,6 +2,8 @@ package com.dietcoach.project.service;
 
 import com.dietcoach.project.dto.UserProfileUpdateRequest;
 import org.springframework.stereotype.Service;
+import com.dietcoach.project.security.ResourceAccess;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dietcoach.project.common.TdeeCalculator;
@@ -20,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
+    private final ResourceAccess resourceAccess;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public Long createUser(UserCreateRequest request) {
@@ -32,7 +36,7 @@ public class UserServiceImpl implements UserService {
         // 2. DTO -> 엔티티 매핑 + 빌더 사용
         User user = User.builder()
                 .email(request.getEmail())
-                .password(request.getPassword()) // 실제 서비스면 암호화 필요
+                .password(passwordEncoder.encode(request.getPassword()))
                 .name(request.getName())
                 .gender(request.getGender())
                 .birthDate(request.getBirthDate())
@@ -66,6 +70,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserProfileResponse getUserProfile(Long userId) {
+        resourceAccess.requireOwner(userId);
         User user = userMapper.findById(userId);
         if (user == null) {
             throw new BusinessException("존재하지 않는 사용자입니다.");
@@ -90,6 +95,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserProfileResponse updateUserProfile(Long userId, UserProfileUpdateRequest request) {
+        resourceAccess.requireOwner(userId);
         // 1. 유저 조회
         User user = userMapper.findById(userId);
         if (user == null) {
@@ -129,6 +135,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public TdeeResponse getUserTdee(Long userId) {
+        resourceAccess.requireOwner(userId);
         User user = userMapper.findById(userId);
         if (user == null) {
             throw new BusinessException("존재하지 않는 사용자입니다.");
